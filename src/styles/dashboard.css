@@ -1,0 +1,24 @@
+.dashboard-root {
+  --background: #0a0a0a;
+  --foreground: #fff;
+  --card: #1a1a1a;
+  --card-foreground: #fff;
+  --popover: #1a1a1a;
+  --popover-foreground: #fff;
+  --primary: #e41e6a;
+  --primary-foreground: #fff;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #fff;
+  --muted: #2a2a2a;
+  --muted-foreground: silver;
+  --accent: #e41e6a;
+  --accent-foreground: #fff;
+  --destructive: #d4183d;
+  --destructive-foreground: #fff;
+  --border: #ffffff1a;
+  --input: #ffffff1a;
+  --ring: #e41e6a;
+  --radius: .625rem;
+  background-color: #0a0a0a;
+  color: #fff;
+}
