@@ -96,7 +96,7 @@ export function Appointments() {
   const [newAppointmentOpen, setNewAppointmentOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   
-  const [newAppt, setNewAppt] = useState({
+  const [newAppointment, setNewAppointment] = useState({
     date: "",
     time: "",
     customerName: "",
@@ -137,29 +137,29 @@ export function Appointments() {
   };
 
   const handleAddAppointment = () => {
-    if (!newAppt.date || !newAppt.time || !newAppt.customerName || !newAppt.totalAmount) {
+    if (!newAppointment.date || !newAppointment.time || !newAppointment.customerName || !newAppointment.totalAmount) {
       alert("Please fill in all required fields");
       return;
     }
 
     const appointment: Appointment = {
       id: appointments.length + 1,
-      date: newAppt.date,
-      time: newAppt.time,
-      customerName: newAppt.customerName,
-      vehicle: newAppt.vehicle || "N/A",
-      service: newAppt.service || "N/A",
-      procedures: newAppt.procedures || "N/A",
-      paymentInfo: newAppt.paymentInfo || "Not Yet Paid",
+      date: newAppointment.date,
+      time: newAppointment.time,
+      customerName: newAppointment.customerName,
+      vehicle: newAppointment.vehicle || "N/A",
+      service: newAppointment.service || "N/A",
+      procedures: newAppointment.procedures || "N/A",
+      paymentInfo: newAppointment.paymentInfo || "Not Yet Paid",
       status: "Scheduled",
-      totalAmount: parseFloat(newAppt.totalAmount),
+      totalAmount: parseFloat(newAppointment.totalAmount),
     };
 
     setAppointments([...appointments, appointment]);
     setNewAppointmentOpen(false);
     
     // Reset form
-    setNewAppt({
+    setNewAppointment({
       date: "",
       time: "",
       customerName: "",
