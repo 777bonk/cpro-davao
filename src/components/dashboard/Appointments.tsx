@@ -1,101 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CalendarIcon, Plus, X, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Badge } from "../dashboard-ui/badge";
 import { Button } from "../dashboard-ui/button";
 import { Calendar } from "../dashboard-ui/calendar";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "../dashboard-ui/dialog";
 import { Label } from "../dashboard-ui/label";
 import { Input } from "../dashboard-ui/input";
 import { Textarea } from "../dashboard-ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../dashboard-ui/table";
-import { Checkbox } from "../dashboard-ui/checkbox";
-
-interface Appointment {
-  id: number;
-  date: string;
-  time: string;
-  customerName: string;
-  vehicle: string;
-  service: string;
-  procedures: string;
-  paymentInfo: string;
-  status: "Completed" | "In Progress" | "Scheduled";
-  totalAmount: number;
-}
-
-const initialAppointments: Appointment[] = [
-  { 
-    id: 1, 
-    date: "2026-02-14",
-    time: "08:00 AM", 
-    customerName: "John Doe", 
-    vehicle: "BMW M3", 
-    service: "Ceramic Coating 9H", 
-    procedures: "Paint Correction, Ceramic Application, Curing",
-    paymentInfo: "Paid - Cash",
-    status: "Completed", 
-    totalAmount: 35000 
-  },
-  { 
-    id: 2, 
-    date: "2026-02-14",
-    time: "10:00 AM", 
-    customerName: "Sarah Wilson", 
-    vehicle: "Mercedes C-Class", 
-    service: "PPF Installation", 
-    procedures: "Surface Prep, PPF Application, Trimming",
-    paymentInfo: "Pending",
-    status: "In Progress", 
-    totalAmount: 45000 
-  },
-  { 
-    id: 3, 
-    date: "2026-02-14",
-    time: "02:00 PM", 
-    customerName: "Mike Johnson", 
-    vehicle: "Audi RS5", 
-    service: "Full Detailing", 
-    procedures: "Wash, Clay Bar, Polish, Wax",
-    paymentInfo: "Not Yet Paid",
-    status: "Scheduled", 
-    totalAmount: 15000 
-  },
-  { 
-    id: 4, 
-    date: "2026-02-14",
-    time: "04:30 PM", 
-    customerName: "Jane Smith", 
-    vehicle: "Porsche 911", 
-    service: "Window Tinting", 
-    procedures: "Window Prep, Tint Application",
-    paymentInfo: "Not Yet Paid",
-    status: "Scheduled", 
-    totalAmount: 12000 
-  },
-];
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../dashboard-ui/table";
+import { getAppointments, createAppointment, updateAppointmentStatus, Appointment } from "../../services/appointments";
 
 export function Appointments() {
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date(2026, 1, 14));
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  
+  // Modal States
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [newAppointmentOpen, setNewAppointmentOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   
+  // Form State
   const [newAppointment, setNewAppointment] = useState({
     date: "",
     time: "",
@@ -106,6 +32,22 @@ export function Appointments() {
     paymentInfo: "",
     totalAmount: "",
   });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getAppointments();
+      setAppointments(data);
+    } catch (error) {
+      console.error("Failed to fetch appointments", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const formatDate = (date: Date) => {
     const year = date.getFullYear();
@@ -127,48 +69,53 @@ export function Appointments() {
     setViewDetailsOpen(true);
   };
 
-  const handleMarkComplete = (id: number) => {
-    setAppointments(appointments.map(apt => 
-      apt.id === id ? { ...apt, status: "Completed" as const } : apt
-    ));
-    if (selectedAppointment && selectedAppointment.id === id) {
-      setSelectedAppointment({ ...selectedAppointment, status: "Completed" });
+  const handleMarkComplete = async (id: string) => {
+    try {
+      await updateAppointmentStatus(id, "Completed");
+      
+      setAppointments(appointments.map(apt => 
+        apt.id === id ? { ...apt, status: "Completed" as const } : apt
+      ));
+      
+      if (selectedAppointment && selectedAppointment.id === id) {
+        setSelectedAppointment({ ...selectedAppointment, status: "Completed" });
+      }
+    } catch (error) {
+      console.error("Failed to update status", error);
+      alert("Failed to update status in database.");
     }
   };
 
-  const handleAddAppointment = () => {
+  const handleAddAppointment = async () => {
     if (!newAppointment.date || !newAppointment.time || !newAppointment.customerName || !newAppointment.totalAmount) {
-      alert("Please fill in all required fields");
+      alert("Please fill in all required fields (Date, Time, Name, Total Amount)");
       return;
     }
 
-    const appointment: Appointment = {
-      id: appointments.length + 1,
-      date: newAppointment.date,
-      time: newAppointment.time,
-      customerName: newAppointment.customerName,
-      vehicle: newAppointment.vehicle || "N/A",
-      service: newAppointment.service || "N/A",
-      procedures: newAppointment.procedures || "N/A",
-      paymentInfo: newAppointment.paymentInfo || "Not Yet Paid",
-      status: "Scheduled",
-      totalAmount: parseFloat(newAppointment.totalAmount),
-    };
+    try {
+      await createAppointment({
+        date: newAppointment.date,
+        time: newAppointment.time,
+        customerName: newAppointment.customerName,
+        vehicle: newAppointment.vehicle || "N/A",
+        service: newAppointment.service || "N/A",
+        procedures: newAppointment.procedures || "N/A",
+        paymentInfo: newAppointment.paymentInfo || "Not Yet Paid",
+        status: "Scheduled",
+        totalAmount: parseFloat(newAppointment.totalAmount),
+      });
 
-    setAppointments([...appointments, appointment]);
-    setNewAppointmentOpen(false);
-    
-    // Reset form
-    setNewAppointment({
-      date: "",
-      time: "",
-      customerName: "",
-      vehicle: "",
-      service: "",
-      procedures: "",
-      paymentInfo: "",
-      totalAmount: "",
-    });
+      // Refresh data to get the true DB ID
+      fetchData();
+      
+      setNewAppointmentOpen(false);
+      setNewAppointment({
+        date: "", time: "", customerName: "", vehicle: "", service: "", procedures: "", paymentInfo: "", totalAmount: "",
+      });
+    } catch (error: any) {
+      console.error("Failed to add appointment", error);
+      alert(`Database Error: ${error.message}`);
+    }
   };
 
   const completedCount = appointments.filter(a => a.status === "Completed").length;
@@ -196,11 +143,11 @@ export function Appointments() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-white/70">Today's Appointments</CardTitle>
+            <CardTitle className="text-sm text-white/70">Selected Day</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-white text-2xl">{todayCount}</div>
-            <p className="text-xs text-white/50 mt-1">{completedCount} completed, {pendingCount} pending</p>
+            <p className="text-xs text-white/50 mt-1">Appointments listed</p>
           </CardContent>
         </Card>
 
@@ -209,7 +156,7 @@ export function Appointments() {
             <CardTitle className="text-sm text-white/70">Total Appointments</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-2xl">{appointments.length}</div>
+            <div className="text-white text-2xl">{isLoading ? '...' : appointments.length}</div>
             <p className="text-xs text-white/50 mt-1">All scheduled</p>
           </CardContent>
         </Card>
@@ -219,7 +166,7 @@ export function Appointments() {
             <CardTitle className="text-sm text-white/70">Completed</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-2xl">{completedCount}</div>
+            <div className="text-white text-2xl">{isLoading ? '...' : completedCount}</div>
             <p className="text-xs text-green-400 mt-1">Finished services</p>
           </CardContent>
         </Card>
@@ -229,7 +176,7 @@ export function Appointments() {
             <CardTitle className="text-sm text-white/70">Pending</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-2xl">{pendingCount}</div>
+            <div className="text-white text-2xl">{isLoading ? '...' : pendingCount}</div>
             <p className="text-xs text-white/50 mt-1">Scheduled & In Progress</p>
           </CardContent>
         </Card>
@@ -266,7 +213,7 @@ export function Appointments() {
           </CardContent>
         </Card>
 
-        {/* Today's Schedule - ONLY Time, Customer Name, Total Amount, View Details */}
+        {/* Today's Schedule */}
         <Card className="lg:col-span-2 bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
           <CardHeader>
             <CardTitle className="text-white">
@@ -274,68 +221,67 @@ export function Appointments() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-white/10 hover:bg-transparent">
-                  <TableHead className="text-white/70">Time</TableHead>
-                  <TableHead className="text-white/70">Customer Name</TableHead>
-                  <TableHead className="text-white/70">Total Amount</TableHead>
-                  <TableHead className="text-white/70 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {todaysAppointments.length === 0 ? (
-                  <TableRow className="border-white/10">
-                    <TableCell colSpan={4} className="text-center text-white/50 py-8">
-                      No appointments for this date
-                    </TableCell>
+            {isLoading ? (
+              <div className="text-center text-white/50 py-8">Loading schedule...</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-white/10 hover:bg-transparent">
+                    <TableHead className="text-white/70">Time</TableHead>
+                    <TableHead className="text-white/70">Customer Name</TableHead>
+                    <TableHead className="text-white/70">Total Amount</TableHead>
+                    <TableHead className="text-white/70 text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  todaysAppointments.map((apt) => (
-                    <TableRow key={apt.id} className="border-white/10 hover:bg-white/5">
-                      <TableCell className="text-white">{apt.time}</TableCell>
-                      <TableCell className="text-white">{apt.customerName}</TableCell>
-                      <TableCell className="text-white">₱{apt.totalAmount.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
-                          onClick={() => handleViewDetails(apt)}
-                        >
-                          View Details
-                        </Button>
+                </TableHeader>
+                <TableBody>
+                  {todaysAppointments.length === 0 ? (
+                    <TableRow className="border-white/10">
+                      <TableCell colSpan={4} className="text-center text-white/50 py-8">
+                        No appointments for this date
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    todaysAppointments
+                      // Sort by time roughly
+                      .sort((a, b) => a.time.localeCompare(b.time))
+                      .map((apt) => (
+                      <TableRow key={apt.id} className="border-white/10 hover:bg-white/5">
+                        <TableCell className="text-white">{apt.time}</TableCell>
+                        <TableCell className="text-white">{apt.customerName}</TableCell>
+                        <TableCell className="text-white">₱{apt.totalAmount.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
+                            onClick={() => handleViewDetails(apt)}
+                          >
+                            View Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* View Details Modal */}
-      <Dialog open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
-        <DialogContent className="bg-gradient-to-br from-black/95 to-gray-900/95 border-white/10 text-white backdrop-blur-xl max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl flex items-center justify-between">
-              Appointment Details
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setViewDetailsOpen(false)}
-                className="text-white/70 hover:text-white hover:bg-white/10"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              View complete appointment information including services, procedures, tools used, and payment details
-            </DialogDescription>
-          </DialogHeader>
-          {selectedAppointment && (
-            <div className="space-y-4 py-4">
+      {/* =========================================
+          1. VIEW DETAILS MODAL
+          ========================================= */}
+      {viewDetailsOpen && selectedAppointment && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Appointment Details</h2>
+              <button onClick={() => setViewDetailsOpen(false)} className="text-white/50 hover:text-white transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
               {/* Appointment Details */}
               <div className="p-4 bg-white/5 rounded-lg border border-white/10">
                 <h3 className="text-white/60 text-sm mb-3">Appointment Details</h3>
@@ -407,128 +353,126 @@ export function Appointments() {
                 </div>
               </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* New Appointment Modal */}
-      <Dialog open={newAppointmentOpen} onOpenChange={setNewAppointmentOpen}>
-        <DialogContent className="bg-gradient-to-br from-black/95 to-gray-900/95 border-white/10 text-white backdrop-blur-xl max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl">New Appointment</DialogTitle>
-            <DialogDescription className="sr-only">
-              Create a new appointment by filling out the form with date, time, customer information, and service details
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="date" className="text-white/70">Date *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  className="bg-white/5 border-white/10 text-white"
-                  value={newAppt.date}
-                  onChange={(e) => setNewAppt({ ...newAppt, date: e.target.value })}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="time" className="text-white/70">Time *</Label>
-                <Input
-                  id="time"
-                  type="time"
-                  className="bg-white/5 border-white/10 text-white"
-                  value={newAppt.time}
-                  onChange={(e) => setNewAppt({ ...newAppt, time: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customerName" className="text-white/70">Customer Name *</Label>
-              <Input
-                id="customerName"
-                placeholder="Customer name"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/50"
-                value={newAppt.customerName}
-                onChange={(e) => setNewAppt({ ...newAppt, customerName: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="vehicle" className="text-white/70">Vehicle</Label>
-              <Input
-                id="vehicle"
-                placeholder="Vehicle model"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/50"
-                value={newAppt.vehicle}
-                onChange={(e) => setNewAppt({ ...newAppt, vehicle: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="service" className="text-white/70">Service</Label>
-              <Input
-                id="service"
-                placeholder="Service type"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/50"
-                value={newAppt.service}
-                onChange={(e) => setNewAppt({ ...newAppt, service: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="procedures" className="text-white/70">Procedures</Label>
-              <Textarea
-                id="procedures"
-                placeholder="List of procedures"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/50"
-                value={newAppt.procedures}
-                onChange={(e) => setNewAppt({ ...newAppt, procedures: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="paymentInfo" className="text-white/70">Payment Info</Label>
-              <Input
-                id="paymentInfo"
-                placeholder="Payment status"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/50"
-                value={newAppt.paymentInfo}
-                onChange={(e) => setNewAppt({ ...newAppt, paymentInfo: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="totalAmount" className="text-white/70">Total Amount *</Label>
-              <Input
-                id="totalAmount"
-                type="number"
-                placeholder="0"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/50"
-                value={newAppt.totalAmount}
-                onChange={(e) => setNewAppt({ ...newAppt, totalAmount: e.target.value })}
-              />
+            <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end">
+               <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={() => setViewDetailsOpen(false)}>
+                Close
+              </Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="border-white/10 text-white hover:bg-white/5"
-              onClick={() => setNewAppointmentOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#E41E6A]/90 hover:to-pink-600/90 text-white"
-              onClick={handleAddAppointment}
-            >
-              Add Appointment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+
+      {/* =========================================
+          2. NEW APPOINTMENT MODAL
+          ========================================= */}
+      {newAppointmentOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">New Appointment</h2>
+              <button onClick={() => setNewAppointmentOpen(false)} className="text-white/50 hover:text-white transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-white/70">Date *</Label>
+                  <input
+                    type="date"
+                    className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white [color-scheme:dark]"
+                    value={newAppointment.date}
+                    onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-white/70">Time *</Label>
+                  <input
+                    type="time"
+                    className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white [color-scheme:dark]"
+                    value={newAppointment.time}
+                    onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white/70">Customer Name *</Label>
+                <input
+                  type="text"
+                  placeholder="Customer name"
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white"
+                  value={newAppointment.customerName}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, customerName: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white/70">Vehicle</Label>
+                <input
+                  type="text"
+                  placeholder="Vehicle model"
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white"
+                  value={newAppointment.vehicle}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, vehicle: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white/70">Service</Label>
+                <input
+                  type="text"
+                  placeholder="Service type"
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white"
+                  value={newAppointment.service}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, service: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white/70">Procedures</Label>
+                <Textarea
+                  placeholder="List of procedures"
+                  className="bg-white/5 border-white/10 text-white placeholder:text-white/50 focus:border-[#E41E6A] focus:ring-[#E41E6A]"
+                  value={newAppointment.procedures}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, procedures: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white/70">Payment Info</Label>
+                <input
+                  type="text"
+                  placeholder="Payment status"
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white"
+                  value={newAppointment.paymentInfo}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, paymentInfo: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white/70">Total Amount (₱) *</Label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white"
+                  value={newAppointment.totalAmount}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, totalAmount: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+              <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={() => setNewAppointmentOpen(false)}>
+                Cancel
+              </Button>
+              <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleAddAppointment}>
+                Add Appointment
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

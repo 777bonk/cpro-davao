@@ -1,27 +1,16 @@
-import { Settings as SettingsIcon, Package, Shield, Database, Users, Bell } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings as SettingsIcon, Package, Shield, Database, Users, Bell, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Button } from "../dashboard-ui/button";
 import { Input } from "../dashboard-ui/input";
 import { Label } from "../dashboard-ui/label";
 import { Switch } from "../dashboard-ui/switch";
 import { Separator } from "../dashboard-ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../dashboard-ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../dashboard-ui/table";
+import { getServices, createService, getShopSettings, updateShopSettings, ServicePackage, ShopSettings } from "../../services/settings";
+import { Badge } from "../dashboard-ui/badge";
 
-const servicePackages = [
-  { id: 1, name: "Ceramic Coating 9H", duration: "3-4 hours", price: 35000, category: "Coating" },
-  { id: 2, name: "PPF Full Body", duration: "2 days", price: 85000, category: "PPF" },
-  { id: 3, name: "Full Detailing Package", duration: "5-6 hours", price: 15000, category: "Detailing" },
-  { id: 4, name: "Window Tinting", duration: "2-3 hours", price: 12000, category: "Tinting" },
-];
-
-const userRoles = [
+const initialUserRoles = [
   { id: 1, name: "Admin", permissions: "Full Access", users: 2 },
   { id: 2, name: "Manager", permissions: "Edit, View Reports", users: 3 },
   { id: 3, name: "Technician", permissions: "View, Update Status", users: 8 },
@@ -29,6 +18,125 @@ const userRoles = [
 ];
 
 export function Settings() {
+  const [services, setServices] = useState<ServicePackage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // --- MODAL STATES ---
+  const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
+  const [isAddRoleOpen, setIsAddRoleOpen] = useState(false);
+  const [isManageRoleOpen, setIsManageRoleOpen] = useState(false); // NEW: Manage Role modal
+
+  // --- FORM STATES ---
+  const [newService, setNewService] = useState({
+    name: "",
+    category: "",
+    duration: "",
+    price: "",
+  });
+
+  const [roles, setRoles] = useState(initialUserRoles);
+  const [newRole, setNewRole] = useState({
+    name: "",
+    permissions: "",
+  });
+  
+  // State to hold the role currently being edited
+  const [editingRole, setEditingRole] = useState<{id: number, name: string, permissions: string, users: number} | null>(null);
+
+  const [businessInfo, setBusinessInfo] = useState<ShopSettings>({
+    business_name: "",
+    contact_number: "",
+    email: "",
+    website: "",
+    address: "",
+  });
+  const [isSavingInfo, setIsSavingInfo] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [servicesData, settingsData] = await Promise.all([
+        getServices(),
+        getShopSettings()
+      ]);
+      setServices(servicesData);
+      if (settingsData) {
+        setBusinessInfo(settingsData);
+      }
+    } catch (error) {
+      console.error("Failed to load settings data", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- HANDLERS ---
+  const handleAddService = async () => {
+    if (!newService.name || !newService.category || !newService.price) {
+      alert("Please fill in Name, Category, and Price");
+      return;
+    }
+
+    try {
+      const addedService = await createService({
+        name: newService.name,
+        category: newService.category,
+        duration: newService.duration || "N/A",
+        price: parseFloat(newService.price),
+      });
+
+      setServices([...services, addedService].sort((a, b) => a.name.localeCompare(b.name)));
+      setIsAddServiceOpen(false);
+      setNewService({ name: "", category: "", duration: "", price: "" });
+    } catch (error: any) {
+      alert(`Database Error: ${error.message}`);
+    }
+  };
+
+  const handleAddRole = () => {
+    if (!newRole.name || !newRole.permissions) {
+      alert("Please fill in Role Name and Permissions");
+      return;
+    }
+
+    const roleToAdd = {
+      id: roles.length + 1,
+      name: newRole.name,
+      permissions: newRole.permissions,
+      users: 0,
+    };
+
+    setRoles([...roles, roleToAdd]);
+    setIsAddRoleOpen(false);
+    setNewRole({ name: "", permissions: "" });
+  };
+
+  // NEW: Save Edited Role
+  const handleSaveManagedRole = () => {
+    if (!editingRole) return;
+    
+    // Update the roles array with the modified role
+    setRoles(roles.map(r => r.id === editingRole.id ? editingRole : r));
+    setIsManageRoleOpen(false);
+    setEditingRole(null);
+  };
+
+  const handleSaveBusinessInfo = async () => {
+    setIsSavingInfo(true);
+    try {
+      await updateShopSettings(businessInfo);
+      alert("Business Information saved successfully!");
+    } catch (error: any) {
+      alert(`Failed to save: ${error.message}`);
+    } finally {
+      setIsSavingInfo(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -46,42 +154,47 @@ export function Settings() {
           </div>
           <Button
             size="sm"
+            onClick={() => setIsAddServiceOpen(true)}
             className="bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#E41E6A]/90 hover:to-pink-600/90 text-white"
           >
             Add Package
           </Button>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead className="text-white/70">Service Name</TableHead>
-                <TableHead className="text-white/70">Category</TableHead>
-                <TableHead className="text-white/70">Duration</TableHead>
-                <TableHead className="text-white/70">Price</TableHead>
-                <TableHead className="text-white/70">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {servicePackages.map((service) => (
-                <TableRow key={service.id} className="border-white/10 hover:bg-white/5">
-                  <TableCell className="text-white">{service.name}</TableCell>
-                  <TableCell className="text-white/70">{service.category}</TableCell>
-                  <TableCell className="text-white/70">{service.duration}</TableCell>
-                  <TableCell className="text-white">₱{service.price.toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
-                    >
-                      Edit
-                    </Button>
-                  </TableCell>
+          {isLoading ? (
+            <div className="text-white/50 py-4 text-center">Loading services...</div>
+          ) : services.length === 0 ? (
+            <div className="text-white/50 py-4 text-center">No service packages found. Add one above!</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/10 hover:bg-transparent">
+                  <TableHead className="text-white/70">Service Name</TableHead>
+                  <TableHead className="text-white/70">Category</TableHead>
+                  <TableHead className="text-white/70">Duration</TableHead>
+                  <TableHead className="text-white/70">Price</TableHead>
+                  <TableHead className="text-white/70">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {services.map((service) => (
+                  <TableRow key={service.id} className="border-white/10 hover:bg-white/5">
+                    <TableCell className="text-white font-medium">{service.name}</TableCell>
+                    <TableCell className="text-white/70">
+                      <Badge variant="outline" className="border-white/20 text-white/70">{service.category}</Badge>
+                    </TableCell>
+                    <TableCell className="text-white/70">{service.duration}</TableCell>
+                    <TableCell className="text-white">₱{Number(service.price).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="outline" className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10" onClick={() => alert("Edit service functionality coming soon!")}>
+                        Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -92,8 +205,9 @@ export function Settings() {
             <Shield className="w-5 h-5 text-[#E41E6A]" />
             <CardTitle className="text-white">User Roles & Permissions</CardTitle>
           </div>
-          <Button
-            size="sm"
+          <Button 
+            size="sm" 
+            onClick={() => setIsAddRoleOpen(true)}
             className="bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#E41E6A]/90 hover:to-pink-600/90 text-white"
           >
             Add Role
@@ -110,21 +224,26 @@ export function Settings() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {userRoles.map((role) => (
+              {roles.map((role) => (
                 <TableRow key={role.id} className="border-white/10 hover:bg-white/5">
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Users className="w-4 h-4 text-[#E41E6A]" />
-                      <span className="text-white">{role.name}</span>
+                      <span className="text-white font-medium">{role.name}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-white/70">{role.permissions}</TableCell>
                   <TableCell className="text-white">{role.users} users</TableCell>
                   <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    {/* TRIGGER MANAGE MODAL HERE */}
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
                       className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
+                      onClick={() => {
+                        setEditingRole(role);
+                        setIsManageRoleOpen(true);
+                      }}
                     >
                       Manage
                     </Button>
@@ -191,41 +310,19 @@ export function Settings() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="backup-frequency" className="text-white">
-                Backup Frequency
-              </Label>
-              <Input
-                id="backup-frequency"
-                value="Daily at 2:00 AM"
-                className="mt-2 bg-white/5 border-white/10 text-white"
-                disabled
-              />
+              <Label className="text-white">Backup Frequency</Label>
+              <Input value="Daily at 2:00 AM" className="mt-2 bg-white/5 border-white/10 text-white" disabled />
             </div>
             <div>
-              <Label htmlFor="last-backup" className="text-white">
-                Last Backup
-              </Label>
-              <Input
-                id="last-backup"
-                value="October 23, 2024 - 2:00 AM"
-                className="mt-2 bg-white/5 border-white/10 text-white"
-                disabled
-              />
+              <Label className="text-white">Last Backup</Label>
+              <Input value="October 23, 2024 - 2:00 AM" className="mt-2 bg-white/5 border-white/10 text-white" disabled />
             </div>
             <div>
-              <Label htmlFor="backup-size" className="text-white">
-                Backup Size
-              </Label>
-              <Input
-                id="backup-size"
-                value="2.4 GB"
-                className="mt-2 bg-white/5 border-white/10 text-white"
-                disabled
-              />
+              <Label className="text-white">Backup Size</Label>
+              <Input value="2.4 GB" className="mt-2 bg-white/5 border-white/10 text-white" disabled />
             </div>
-            <Button className="w-full bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#E41E6A]/90 hover:to-pink-600/90 text-white">
-              <Database className="w-4 h-4 mr-2" />
-              Backup Now
+            <Button className="w-full bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#E41E6A]/90 hover:to-pink-600/90 text-white" onClick={() => alert("Initiating manual backup to cloud...")}>
+              <Database className="w-4 h-4 mr-2" /> Backup Now
             </Button>
           </CardContent>
         </Card>
@@ -242,61 +339,220 @@ export function Settings() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="business-name" className="text-white">
-                Business Name
-              </Label>
-              <Input
-                id="business-name"
-                defaultValue="Ceramic Pro Davao"
-                className="mt-2 bg-white/5 border-white/10 text-white"
+              <Label className="text-white">Business Name</Label>
+              <Input 
+                className="mt-2 bg-white/5 border-white/10 text-white" 
+                value={businessInfo.business_name}
+                onChange={(e) => setBusinessInfo({...businessInfo, business_name: e.target.value})}
               />
             </div>
             <div>
-              <Label htmlFor="contact-number" className="text-white">
-                Contact Number
-              </Label>
-              <Input
-                id="contact-number"
-                defaultValue="+63 912 345 6789"
-                className="mt-2 bg-white/5 border-white/10 text-white"
+              <Label className="text-white">Contact Number</Label>
+              <Input 
+                className="mt-2 bg-white/5 border-white/10 text-white" 
+                value={businessInfo.contact_number}
+                onChange={(e) => setBusinessInfo({...businessInfo, contact_number: e.target.value})}
               />
             </div>
             <div>
-              <Label htmlFor="email" className="text-white">
-                Email Address
-              </Label>
-              <Input
-                id="email"
-                defaultValue="info@ceramicprodavao.com"
-                className="mt-2 bg-white/5 border-white/10 text-white"
+              <Label className="text-white">Email Address</Label>
+              <Input 
+                className="mt-2 bg-white/5 border-white/10 text-white" 
+                value={businessInfo.email}
+                onChange={(e) => setBusinessInfo({...businessInfo, email: e.target.value})}
               />
             </div>
             <div>
-              <Label htmlFor="website" className="text-white">
-                Website
-              </Label>
-              <Input
-                id="website"
-                defaultValue="www.ceramicprodavao.com"
-                className="mt-2 bg-white/5 border-white/10 text-white"
+              <Label className="text-white">Website</Label>
+              <Input 
+                className="mt-2 bg-white/5 border-white/10 text-white" 
+                value={businessInfo.website}
+                onChange={(e) => setBusinessInfo({...businessInfo, website: e.target.value})}
               />
             </div>
             <div className="md:col-span-2">
-              <Label htmlFor="address" className="text-white">
-                Business Address
-              </Label>
-              <Input
-                id="address"
-                defaultValue="123 Automotive St, Davao City, Philippines"
-                className="mt-2 bg-white/5 border-white/10 text-white"
+              <Label className="text-white">Business Address</Label>
+              <Input 
+                className="mt-2 bg-white/5 border-white/10 text-white" 
+                value={businessInfo.address}
+                onChange={(e) => setBusinessInfo({...businessInfo, address: e.target.value})}
               />
             </div>
           </div>
-          <Button className="mt-6 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#E41E6A]/90 hover:to-pink-600/90 text-white">
-            Save Changes
+          <Button 
+            className="mt-6 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#E41E6A]/90 hover:to-pink-600/90 text-white"
+            onClick={handleSaveBusinessInfo}
+            disabled={isSavingInfo}
+          >
+            {isSavingInfo ? "Saving..." : "Save Changes"}
           </Button>
         </CardContent>
       </Card>
+
+      {/* =========================================
+          1. ADD SERVICE PACKAGE MODAL
+          ========================================= */}
+      {isAddServiceOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Add Service Package</h2>
+              <button onClick={() => setIsAddServiceOpen(false)} className="text-white/50 hover:text-white transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Service Name *</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., 9H Ceramic Coating" 
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white" 
+                  value={newService.name} 
+                  onChange={(e) => setNewService({ ...newService, name: e.target.value })} 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm text-white/70">Category *</label>
+                  <select 
+                    className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white appearance-none" 
+                    value={newService.category} 
+                    onChange={(e) => setNewService({ ...newService, category: e.target.value })}
+                  >
+                    <option value="" disabled className="bg-[#0a0a0a]">Select category...</option>
+                    <option value="Coating" className="bg-[#0a0a0a]">Coating</option>
+                    <option value="PPF" className="bg-[#0a0a0a]">PPF</option>
+                    <option value="Detailing" className="bg-[#0a0a0a]">Detailing</option>
+                    <option value="Tinting" className="bg-[#0a0a0a]">Tinting</option>
+                    <option value="Wash" className="bg-[#0a0a0a]">Wash</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-white/70">Base Price (₱) *</label>
+                  <input 
+                    type="number" 
+                    placeholder="0" 
+                    className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white" 
+                    value={newService.price} 
+                    onChange={(e) => setNewService({ ...newService, price: e.target.value })} 
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Estimated Duration</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., 3-4 hours" 
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white" 
+                  value={newService.duration} 
+                  onChange={(e) => setNewService({ ...newService, duration: e.target.value })} 
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+              <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={() => setIsAddServiceOpen(false)}>Cancel</Button>
+              <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleAddService}>Save Package</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          2. ADD USER ROLE MODAL 
+          ========================================= */}
+      {isAddRoleOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Add User Role</h2>
+              <button onClick={() => setIsAddRoleOpen(false)} className="text-white/50 hover:text-white transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Role Name *</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Lead Detailer, Cashier" 
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white" 
+                  value={newRole.name} 
+                  onChange={(e) => setNewRole({ ...newRole, name: e.target.value })} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Permissions *</label>
+                <select 
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white appearance-none" 
+                  value={newRole.permissions} 
+                  onChange={(e) => setNewRole({ ...newRole, permissions: e.target.value })}
+                >
+                  <option value="" disabled className="bg-[#0a0a0a]">Select permissions level...</option>
+                  <option value="Full Access" className="bg-[#0a0a0a]">Full Access</option>
+                  <option value="Edit, View Reports" className="bg-[#0a0a0a]">Edit, View Reports</option>
+                  <option value="View, Update Status" className="bg-[#0a0a0a]">View, Update Status</option>
+                  <option value="View Only" className="bg-[#0a0a0a]">View Only</option>
+                </select>
+              </div>
+            </div>
+            <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+              <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={() => setIsAddRoleOpen(false)}>Cancel</Button>
+              <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleAddRole}>Save Role</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          3. MANAGE (EDIT) USER ROLE MODAL 
+          ========================================= */}
+      {isManageRoleOpen && editingRole && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Manage Role: {editingRole.name}</h2>
+              <button onClick={() => { setIsManageRoleOpen(false); setEditingRole(null); }} className="text-white/50 hover:text-white transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Edit Role Name</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white" 
+                  value={editingRole.name} 
+                  onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Update Permissions</label>
+                <select 
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white appearance-none" 
+                  value={editingRole.permissions} 
+                  onChange={(e) => setEditingRole({ ...editingRole, permissions: e.target.value })}
+                >
+                  <option value="Full Access" className="bg-[#0a0a0a]">Full Access</option>
+                  <option value="Edit, View Reports" className="bg-[#0a0a0a]">Edit, View Reports</option>
+                  <option value="View, Update Status" className="bg-[#0a0a0a]">View, Update Status</option>
+                  <option value="View Only" className="bg-[#0a0a0a]">View Only</option>
+                </select>
+              </div>
+              <div className="pt-2">
+                <p className="text-sm text-white/50">
+                  Currently assigned to <span className="text-white font-bold">{editingRole.users}</span> users.
+                </p>
+              </div>
+            </div>
+            <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+              <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={() => { setIsManageRoleOpen(false); setEditingRole(null); }}>Cancel</Button>
+              <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleSaveManagedRole}>Update Role</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

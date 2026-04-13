@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { Button } from "../dashboard-ui/button";
 import { ScrollArea } from "../dashboard-ui/scroll-area";
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 
 interface SidebarProps {
   activeSection: string;
@@ -22,6 +24,17 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggleMenu }: SidebarProps) {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate('/'); 
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
   const menuItems = [
     { id: "home", label: "Home", icon: LayoutDashboard },
     {
@@ -150,6 +163,7 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
       <div className="p-3 border-t border-white/10">
         <Button
           variant="ghost"
+          onClick={handleLogout}
           className="w-full justify-start text-white/70 hover:text-white hover:bg-red-500/20"
         >
           <LogOut className="w-4 h-4 mr-3 flex-shrink-0" />
