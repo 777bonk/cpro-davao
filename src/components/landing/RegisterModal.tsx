@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "../ui/button";
+import { supabase } from "../../lib/supabase";
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -13,12 +14,14 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(""); // Added for email confirmation feedback
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -28,21 +31,31 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:3001/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
+      // Supabase Registration
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username: username, // Stores username in Supabase's user_metadata
+            role: 'staff',      // Default role, maps nicely to our database schema
+          },
+        },
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        onClose();
+      if (signUpError) {
+        setError(signUpError.message);
+      } else if (data.user && data.session === null) {
+        // Supabase requires email verification by default
+        setSuccessMessage("Registration successful! Please check your email to verify your account.");
+        // Optional: Auto-close after a few seconds
+        setTimeout(() => onClose(), 5000); 
       } else {
-        setError(data.message || "Registration failed");
+        // If email verification is turned OFF in Supabase settings
+        onClose();
       }
     } catch (err) {
-      setError("Cannot connect to server");
+      setError("An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
@@ -69,6 +82,10 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose }) => {
 
         {error && (
           <p className="text-red-400 text-sm text-center mb-4">{error}</p>
+        )}
+        
+        {successMessage && (
+          <p className="text-green-400 text-sm text-center mb-4">{successMessage}</p>
         )}
 
         <form className="space-y-4" onSubmit={handleSubmit}>

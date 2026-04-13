@@ -1,22 +1,11 @@
+import { useState, useEffect } from "react";
 import { DollarSign, TrendingUp, TrendingDown, Wallet, CreditCard, Receipt } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Badge } from "../dashboard-ui/badge";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { getTransactions, Transaction } from "../../services/finance";
 
+// Static fallback data for charts (until you have months of real data)
 const monthlyData = [
   { month: "Jan", income: 567000, expenses: 245000, profit: 322000 },
   { month: "Feb", income: 623000, expenses: 268000, profit: 355000 },
@@ -34,15 +23,48 @@ const expenseBreakdown = [
   { name: "Others", value: 48000, color: "#a4de6c" },
 ];
 
-const recentTransactions = [
-  { id: 1, type: "income", description: "Ceramic Coating - John Doe", amount: 35000, date: "2024-10-23", category: "Service" },
-  { id: 2, type: "expense", description: "Employee Salaries", amount: -685000, date: "2024-10-22", category: "Payroll" },
-  { id: 3, type: "income", description: "PPF Installation - Sarah Wilson", amount: 45000, date: "2024-10-22", category: "Service" },
-  { id: 4, type: "expense", description: "Inventory Purchase", amount: -125000, date: "2024-10-21", category: "Supplies" },
-  { id: 5, type: "income", description: "Full Detailing - Mike Johnson", amount: 15000, date: "2024-10-21", category: "Service" },
-];
-
 export function Finance() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Dynamic calculated stats
+  const [stats, setStats] = useState({
+    totalIncome: 0,
+    totalExpense: 0,
+    netProfit: 0,
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getTransactions();
+      setTransactions(data);
+
+      // Calculate dynamic totals from real data
+      let income = 0;
+      let expense = 0;
+      data.forEach(t => {
+        if (t.type === 'income') income += Number(t.amount);
+        if (t.type === 'expense') expense += Number(t.amount);
+      });
+
+      setStats({
+        totalIncome: income,
+        totalExpense: expense,
+        netProfit: income - expense,
+      });
+
+    } catch (error) {
+      console.error("Failed to fetch transactions", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -53,7 +75,7 @@ export function Finance() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Static top row for UI purposes */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
           <CardHeader className="pb-2">
@@ -150,7 +172,7 @@ export function Finance() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name} ${percent ? (percent * 100).toFixed(0) : 0}%`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -172,7 +194,7 @@ export function Finance() {
         </Card>
       </div>
 
-      {/* Recent Transactions */}
+      {/* DYNAMIC Recent Transactions */}
       <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
@@ -182,63 +204,68 @@ export function Finance() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {recentTransactions.map((transaction) => (
-              <div
-                key={transaction.id}
-                className="p-4 bg-white/5 rounded-lg border border-white/10 hover:border-[#E41E6A]/50 transition-colors"
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                        transaction.type === "income"
-                          ? "bg-green-500/20 border border-green-500/30"
-                          : "bg-red-500/20 border border-red-500/30"
-                      }`}
-                    >
-                      {transaction.type === "income" ? (
-                        <TrendingUp className="w-6 h-6 text-green-400" />
-                      ) : (
-                        <TrendingDown className="w-6 h-6 text-red-400" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-white">{transaction.description}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="border-white/20 text-white/60 text-xs">
-                          {transaction.category}
-                        </Badge>
-                        <span className="text-white/50 text-xs">{transaction.date}</span>
+            {isLoading ? (
+              <div className="text-white/50 text-center py-4">Loading transactions...</div>
+            ) : transactions.length === 0 ? (
+              <div className="text-white/50 text-center py-4">No transactions recorded yet.</div>
+            ) : (
+              transactions.map((transaction) => (
+                <div
+                  key={transaction.id}
+                  className="p-4 bg-white/5 rounded-lg border border-white/10 hover:border-[#E41E6A]/50 transition-colors"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                          transaction.type === "income"
+                            ? "bg-green-500/20 border border-green-500/30"
+                            : "bg-red-500/20 border border-red-500/30"
+                        }`}
+                      >
+                        {transaction.type === "income" ? (
+                          <TrendingUp className="w-6 h-6 text-green-400" />
+                        ) : (
+                          <TrendingDown className="w-6 h-6 text-red-400" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-white">{transaction.description}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="border-white/20 text-white/60 text-xs">
+                            {transaction.category}
+                          </Badge>
+                          <span className="text-white/50 text-xs">{new Date(transaction.date).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div
-                    className={`text-xl ${
-                      transaction.type === "income" ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    {transaction.type === "income" ? "+" : ""}₱
-                    {Math.abs(transaction.amount).toLocaleString()}
+                    <div
+                      className={`text-xl ${
+                        transaction.type === "income" ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {transaction.type === "income" ? "+" : "-"}₱
+                      {Math.abs(transaction.amount).toLocaleString()}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
+      {/* DYNAMIC Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/30 backdrop-blur">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Wallet className="w-5 h-5 text-green-400" />
-              Total Revenue (YTD)
+              Total Revenue (Actual)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-3xl">₱3.94M</div>
-            <p className="text-green-400 text-sm mt-2">+18.5% from last year</p>
+            <div className="text-white text-3xl">₱{stats.totalIncome.toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -246,12 +273,11 @@ export function Finance() {
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-red-400" />
-              Total Expenses (YTD)
+              Total Expenses (Actual)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-3xl">₱1.64M</div>
-            <p className="text-red-400 text-sm mt-2">+12.3% from last year</p>
+            <div className="text-white text-3xl">₱{stats.totalExpense.toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -259,12 +285,11 @@ export function Finance() {
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-[#E41E6A]" />
-              Net Profit (YTD)
+              Net Profit (Actual)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-3xl">₱2.30M</div>
-            <p className="text-green-400 text-sm mt-2">+24.7% from last year</p>
+            <div className="text-white text-3xl">₱{stats.netProfit.toLocaleString()}</div>
           </CardContent>
         </Card>
       </div>

@@ -1,44 +1,24 @@
+import { useState, useEffect } from "react";
 import { FileText, Download, Calendar, TrendingUp, PieChart as PieChartIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Button } from "../dashboard-ui/button";
 import { Badge } from "../dashboard-ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../dashboard-ui/select";
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../dashboard-ui/select";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { getTransactions, Transaction } from "../../services/finance";
 
-const incomeReport = [
-  { month: "Jan", service: 345000, sales: 42000, total: 387000 },
-  { month: "Feb", service: 412000, sales: 51000, total: 463000 },
-  { month: "Mar", service: 389000, sales: 48000, total: 437000 },
-  { month: "Apr", service: 487000, sales: 62000, total: 549000 },
-  { month: "May", service: 434000, sales: 54000, total: 488000 },
-  { month: "Jun", service: 521000, sales: 68000, total: 589000 },
-];
-
-const expenseReport = [
-  { month: "Jan", salaries: 685000, supplies: 145000, utilities: 42000, other: 58000 },
-  { month: "Feb", salaries: 685000, supplies: 168000, utilities: 45000, other: 62000 },
-  { month: "Mar", salaries: 685000, supplies: 152000, utilities: 43000, other: 55000 },
-  { month: "Apr", salaries: 685000, supplies: 189000, utilities: 48000, other: 67000 },
-  { month: "May", salaries: 685000, supplies: 176000, utilities: 46000, other: 61000 },
-  { month: "Jun", salaries: 685000, supplies: 201000, utilities: 51000, other: 73000 },
-];
+type MonthlyReportBucket = {
+  month: string;
+  monthKey: string;
+  service: number;
+  sales: number;
+  incomeTotal: number;
+  salaries: number;
+  supplies: number;
+  utilities: number;
+  other: number;
+  expenseTotal: number;
+};
 
 const reportTypes = [
   { id: 1, name: "Monthly Income Report", description: "Detailed breakdown of all income sources", icon: TrendingUp, color: "green" },
@@ -48,6 +28,92 @@ const reportTypes = [
 ];
 
 export function Reports() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [chartData, setChartData] = useState<MonthlyReportBucket[]>([]);
+  
+  // Summary totals for the bottom cards
+  const [totals, setTotals] = useState({
+    income: 0,
+    expense: 0,
+    profit: 0
+  });
+
+  useEffect(() => {
+    fetchReportData();
+  }, []);
+
+  const fetchReportData = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getTransactions();
+
+      // 1. Generate the last 6 months as empty buckets
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const last6Months: MonthlyReportBucket[] = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        last6Months.push({
+          month: monthNames[d.getMonth()],
+          monthKey: `${d.getFullYear()}-${d.getMonth()}`,
+          // Income buckets
+          service: 0,
+          sales: 0,
+          incomeTotal: 0,
+          // Expense buckets
+          salaries: 0,
+          supplies: 0,
+          utilities: 0,
+          other: 0,
+          expenseTotal: 0,
+        });
+      }
+
+      let totalInc = 0;
+      let totalExp = 0;
+
+      // 2. Sort transactions into their month buckets
+      data.forEach(t => {
+        const tDate = new Date(t.date);
+        const monthKey = `${tDate.getFullYear()}-${tDate.getMonth()}`;
+        const monthBucket = last6Months.find(m => m.monthKey === monthKey);
+
+        if (monthBucket) {
+          const amt = Number(t.amount);
+          const cat = t.category.toLowerCase();
+
+          if (t.type === 'income') {
+            totalInc += amt;
+            monthBucket.incomeTotal += amt;
+            if (cat.includes('service')) monthBucket.service += amt;
+            else monthBucket.sales += amt; // Default to sales if not explicitly a service
+          } 
+          else if (t.type === 'expense') {
+            totalExp += amt;
+            monthBucket.expenseTotal += amt;
+            if (cat.includes('salar') || cat.includes('payroll')) monthBucket.salaries += amt;
+            else if (cat.includes('suppl') || cat.includes('inventory')) monthBucket.supplies += amt;
+            else if (cat.includes('util')) monthBucket.utilities += amt;
+            else monthBucket.other += amt;
+          }
+        }
+      });
+
+      setChartData(last6Months);
+      setTotals({
+        income: totalInc,
+        expense: totalExp,
+        profit: totalInc - totalExp
+      });
+
+    } catch (error) {
+      console.error("Failed to fetch report data", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -86,38 +152,26 @@ export function Reports() {
         {reportTypes.map((report) => (
           <Card
             key={report.id}
-            className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur hover:border-[#E41E6A]/50 transition-all cursor-pointer"
+            className="bg-linear-to-br from-white/5 to-white/10 border-white/10 backdrop-blur hover:border-[#E41E6A]/50 transition-all cursor-pointer"
           >
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div
                   className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                    report.color === "green"
-                      ? "bg-green-500/20"
-                      : report.color === "red"
-                      ? "bg-red-500/20"
-                      : report.color === "blue"
-                      ? "bg-blue-500/20"
-                      : "bg-purple-500/20"
+                    report.color === "green" ? "bg-green-500/20" : 
+                    report.color === "red" ? "bg-red-500/20" : 
+                    report.color === "blue" ? "bg-blue-500/20" : "bg-purple-500/20"
                   }`}
                 >
                   <report.icon
                     className={`w-6 h-6 ${
-                      report.color === "green"
-                        ? "text-green-400"
-                        : report.color === "red"
-                        ? "text-red-400"
-                        : report.color === "blue"
-                        ? "text-blue-400"
-                        : "text-purple-400"
+                      report.color === "green" ? "text-green-400" : 
+                      report.color === "red" ? "text-red-400" : 
+                      report.color === "blue" ? "text-blue-400" : "text-purple-400"
                     }`}
                   />
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
-                >
+                <Button size="sm" variant="outline" className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10">
                   <Download className="w-4 h-4" />
                 </Button>
               </div>
@@ -131,98 +185,84 @@ export function Reports() {
       </div>
 
       {/* Income Report Chart */}
-      <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+      <Card className="bg-linear-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-white">Income Report - 6 Month Trend</CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-white/10 text-white hover:bg-white/5"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export
+          <Button size="sm" variant="outline" className="border-white/10 text-white hover:bg-white/5">
+            <Download className="w-4 h-4 mr-2" /> Export
           </Button>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={incomeReport}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-              <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" />
-              <YAxis stroke="rgba(255,255,255,0.5)" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "rgba(0,0,0,0.9)",
-                  border: "1px solid rgba(228,30,106,0.3)",
-                  borderRadius: "8px",
-                }}
-              />
-              <Legend />
-              <Bar dataKey="service" fill="#E41E6A" radius={[8, 8, 0, 0]} name="Service Income" />
-              <Bar dataKey="sales" fill="#8884d8" radius={[8, 8, 0, 0]} name="Product Sales" />
-            </BarChart>
-          </ResponsiveContainer>
+          {isLoading ? (
+            <div className="h-[300px] flex items-center justify-center text-white/50">Loading chart data...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" />
+                <YAxis stroke="rgba(255,255,255,0.5)" />
+                <Tooltip contentStyle={{ backgroundColor: "rgba(0,0,0,0.9)", border: "1px solid rgba(228,30,106,0.3)", borderRadius: "8px" }} />
+                <Legend />
+                <Bar dataKey="service" fill="#E41E6A" radius={[8, 8, 0, 0]} name="Service Income" />
+                <Bar dataKey="sales" fill="#8884d8" radius={[8, 8, 0, 0]} name="Product Sales" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
           <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
             <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Total Income</p>
-              <p className="text-white text-2xl">₱2.91M</p>
+              <p className="text-white/60 text-sm mb-1">Total Income (6M)</p>
+              <p className="text-white text-2xl">₱{totals.income.toLocaleString()}</p>
             </div>
             <div className="text-center">
               <p className="text-white/60 text-sm mb-1">Avg Monthly</p>
-              <p className="text-white text-2xl">₱485K</p>
+              <p className="text-white text-2xl">₱{Math.round(totals.income / 6).toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Growth Rate</p>
-              <p className="text-green-400 text-2xl">+18.5%</p>
+              <p className="text-white/60 text-sm mb-1">Status</p>
+              <p className="text-green-400 text-xl font-medium">Active</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Expense Report Chart */}
-      <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+      <Card className="bg-linear-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-white">Expense Report - 6 Month Trend</CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-white/10 text-white hover:bg-white/5"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export
+          <Button size="sm" variant="outline" className="border-white/10 text-white hover:bg-white/5">
+            <Download className="w-4 h-4 mr-2" /> Export
           </Button>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={expenseReport}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-              <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" />
-              <YAxis stroke="rgba(255,255,255,0.5)" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "rgba(0,0,0,0.9)",
-                  border: "1px solid rgba(228,30,106,0.3)",
-                  borderRadius: "8px",
-                }}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="salaries" stroke="#E41E6A" strokeWidth={2} name="Salaries" />
-              <Line type="monotone" dataKey="supplies" stroke="#8884d8" strokeWidth={2} name="Supplies" />
-              <Line type="monotone" dataKey="utilities" stroke="#82ca9d" strokeWidth={2} name="Utilities" />
-              <Line type="monotone" dataKey="other" stroke="#ffc658" strokeWidth={2} name="Other" />
-            </LineChart>
-          </ResponsiveContainer>
+          {isLoading ? (
+            <div className="h-[300px] flex items-center justify-center text-white/50">Loading chart data...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" />
+                <YAxis stroke="rgba(255,255,255,0.5)" />
+                <Tooltip contentStyle={{ backgroundColor: "rgba(0,0,0,0.9)", border: "1px solid rgba(228,30,106,0.3)", borderRadius: "8px" }} />
+                <Legend />
+                <Line type="monotone" dataKey="salaries" stroke="#E41E6A" strokeWidth={2} name="Salaries" />
+                <Line type="monotone" dataKey="supplies" stroke="#8884d8" strokeWidth={2} name="Supplies" />
+                <Line type="monotone" dataKey="utilities" stroke="#82ca9d" strokeWidth={2} name="Utilities" />
+                <Line type="monotone" dataKey="other" stroke="#ffc658" strokeWidth={2} name="Other" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
           <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
             <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Total Expenses</p>
-              <p className="text-white text-2xl">₱5.87M</p>
+              <p className="text-white/60 text-sm mb-1">Total Expenses (6M)</p>
+              <p className="text-white text-2xl">₱{totals.expense.toLocaleString()}</p>
             </div>
             <div className="text-center">
               <p className="text-white/60 text-sm mb-1">Avg Monthly</p>
-              <p className="text-white text-2xl">₱978K</p>
+              <p className="text-white text-2xl">₱{Math.round(totals.expense / 6).toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">vs Last Year</p>
-              <p className="text-red-400 text-2xl">+12.3%</p>
+              <p className="text-white/60 text-sm mb-1">Status</p>
+              <p className="text-red-400 text-xl font-medium">Tracked</p>
             </div>
           </div>
         </CardContent>
@@ -230,41 +270,40 @@ export function Reports() {
 
       {/* Profit & Loss Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/30 backdrop-blur">
+        <Card className="bg-linear-to-br from-green-500/10 to-green-500/5 border-green-500/30 backdrop-blur">
           <CardHeader>
             <CardTitle className="text-white text-sm">Total Revenue (6 Months)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-3xl mb-2">₱2,913,000</div>
+            <div className="text-white text-3xl mb-2">₱{totals.income.toLocaleString()}</div>
             <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-              <TrendingUp className="w-3 h-3 mr-1" />
-              +18.5% YoY
+              Generated Income
             </Badge>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/30 backdrop-blur">
+        <Card className="bg-linear-to-br from-red-500/10 to-red-500/5 border-red-500/30 backdrop-blur">
           <CardHeader>
             <CardTitle className="text-white text-sm">Total Expenses (6 Months)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-3xl mb-2">₱5,868,000</div>
+            <div className="text-white text-3xl mb-2">₱{totals.expense.toLocaleString()}</div>
             <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
-              <TrendingUp className="w-3 h-3 mr-1" />
-              +12.3% YoY
+              Recorded Costs
             </Badge>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-[#E41E6A]/10 to-pink-500/5 border-[#E41E6A]/30 backdrop-blur">
+        <Card className="bg-linear-to-br from-[#E41E6A]/10 to-pink-500/5 border-[#E41E6A]/30 backdrop-blur">
           <CardHeader>
             <CardTitle className="text-white text-sm">Net Profit (6 Months)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white text-3xl mb-2">₱-2,955,000</div>
-            <Badge className="bg-[#E41E6A]/20 text-[#E41E6A] border-[#E41E6A]/30">
-              <TrendingUp className="w-3 h-3 mr-1" />
-              Profit Margin: -50.4%
+            <div className={`text-3xl mb-2 ${totals.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              ₱{totals.profit.toLocaleString()}
+            </div>
+            <Badge className={totals.profit >= 0 ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
+              {totals.income > 0 ? `Profit Margin: ${Math.round((totals.profit / totals.income) * 100)}%` : 'No margin data'}
             </Badge>
           </CardContent>
         </Card>

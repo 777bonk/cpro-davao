@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Sidebar } from "../components/dashboard/Sidebar";
 import { Dashboard } from "../components/dashboard/Dashboard";
-import { CustomerManagement } from "../components/dashboard/CustomerManagement";
+import CustomerManagement from "../components/dashboard/CustomerManagement";
 import { Appointments } from "../components/dashboard/Appointments";
 import { Inventory } from "../components/dashboard/Inventory";
 import { Employees } from "../components/dashboard/Employees";
