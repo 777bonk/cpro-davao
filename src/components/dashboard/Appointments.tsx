@@ -39,6 +39,7 @@ export function Appointments() {
     }
   };
 
+
   const handleAddAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomerId) {
@@ -69,6 +70,41 @@ export function Appointments() {
     } finally {
       setIsSubmitting(false);
     }
+
+  const handleAddAppointment = () => {
+    if (!newAppointment.date || !newAppointment.time || !newAppointment.customerName || !newAppointment.totalAmount) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    const appointment: Appointment = {
+      id: appointments.length + 1,
+      date: newAppointment.date,
+      time: newAppointment.time,
+      customerName: newAppointment.customerName,
+      vehicle: newAppointment.vehicle || "N/A",
+      service: newAppointment.service || "N/A",
+      procedures: newAppointment.procedures || "N/A",
+      paymentInfo: newAppointment.paymentInfo || "Not Yet Paid",
+      status: "Scheduled",
+      totalAmount: parseFloat(newAppointment.totalAmount),
+    };
+
+    setAppointments([...appointments, appointment]);
+    setNewAppointmentOpen(false);
+    
+    // Reset form
+    setNewAppointment({
+      date: "",
+      time: "",
+      customerName: "",
+      vehicle: "",
+      service: "",
+      procedures: "",
+      paymentInfo: "",
+      totalAmount: "",
+    });
+
   };
 
   const handleStatusChange = async (id: string, newStatus: any) => {
