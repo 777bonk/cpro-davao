@@ -4,44 +4,62 @@ export interface InventoryItem {
   id: string;
   name: string;
   category: string;
-  quantity: number;
-  unit_price: number;
-  low_stock_threshold: number;
-  created_at: string;
+  stock: number;
+  stockIn: number;
+  stockOut: number;
+  unit: string;
+  reorderLevel: number;
+  price: number;
+  status?: "Good" | "Low" | "Critical";
 }
 
-// READ
 export const getInventory = async () => {
-  const { data, error } = await supabase
-    .from('inventory_items')
-    .select('*')
-    .order('name', { ascending: true });
-
+  const { data, error } = await supabase.from('inventory_items').select('*').order('name');
   if (error) throw error;
-  return data as InventoryItem[];
+  
+  return data.map((d: any) => ({
+    id: d.id,
+    name: d.name,
+    category: d.category || "General",
+    stock: Number(d.quantity || 0),
+    stockIn: Number(d.stock_in || 0),
+    stockOut: Number(d.stock_out || 0),
+    unit: d.unit || "pcs",
+    reorderLevel: Number(d.low_stock_threshold || 10),
+    price: Number(d.price || 0),
+  })) as InventoryItem[];
 };
 
-// CREATE
-export const createInventoryItem = async (itemData: Omit<InventoryItem, 'id' | 'created_at'>) => {
+export const createInventoryItem = async (item: Omit<InventoryItem, 'id' | 'status'>) => {
   const { data, error } = await supabase
     .from('inventory_items')
-    .insert([itemData])
+    .insert([{
+      name: item.name,
+      category: item.category,
+      quantity: item.stock,
+      stock_in: item.stockIn,
+      stock_out: item.stockOut,
+      unit: item.unit,
+      low_stock_threshold: item.reorderLevel,
+      price: item.price
+    }])
     .select()
     .single();
 
   if (error) throw error;
-  return data as InventoryItem;
+  return data;
 };
 
-// UPDATE QUANTITY (Useful for when supplies arrive or are used)
-export const updateStockLevel = async (id: string, newQuantity: number) => {
-  const { data, error } = await supabase
+export const updateInventoryStock = async (id: string, stock: number, stockIn: number, stockOut: number) => {
+  const { error } = await supabase
     .from('inventory_items')
-    .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
+    .update({ 
+      quantity: stock,
+      stock_in: stockIn,
+      stock_out: stockOut
+    })
+    .eq('id', id);
 
   if (error) throw error;
-  return data as InventoryItem;
+  return true;
 };

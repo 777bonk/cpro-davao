@@ -1,57 +1,64 @@
 import { supabase } from '../lib/supabase';
 
-export type AppointmentStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
-
 export interface Appointment {
   id: string;
-  customer_id: string;
-  service_type: string;
-  status: AppointmentStatus;
-  scheduled_date: string;
-  total_cost: number | null;
-  created_at: string;
-  // This nested object comes from our Supabase relation!
-  customers?: { 
-    name: string;
-    vehicle_details?: any;
-  }; 
+  date: string;
+  time: string;
+  customerName: string;
+  vehicle: string;
+  service: string;
+  procedures: string;
+  paymentInfo: string;
+  status: "Completed" | "In Progress" | "Scheduled";
+  totalAmount: number;
 }
 
-// READ
 export const getAppointments = async () => {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select(`
-      *,
-      customers ( name, vehicle_details ) 
-    `)
-    .order('scheduled_date', { ascending: true });
-
+  const { data, error } = await supabase.from('appointments').select('*');
   if (error) throw error;
-  return data as Appointment[];
+  
+  // Map the database snake_case columns to your UI's camelCase format
+  return data.map((d: any) => ({
+    id: d.id,
+    date: d.scheduled_date,
+    time: d.scheduled_time || "N/A",
+    customerName: d.customer_name || d.customers?.name || "Unknown",
+    vehicle: d.vehicle || "N/A",
+    service: d.service_type || "N/A",
+    procedures: d.procedures || "None",
+    paymentInfo: d.payment_info || "Pending",
+    status: d.status || "Scheduled",
+    totalAmount: Number(d.total_cost || 0),
+  })) as Appointment[];
 };
 
-// CREATE
-export const createAppointment = async (appointmentData: Omit<Appointment, 'id' | 'created_at' | 'customers' | 'status'>) => {
+export const createAppointment = async (appt: Omit<Appointment, 'id'>) => {
   const { data, error } = await supabase
     .from('appointments')
-    .insert([{ ...appointmentData, status: 'pending' }])
-    .select(`*, customers ( name )`)
-    .single();
-
-  if (error) throw error;
-  return data as Appointment;
-};
-
-// UPDATE STATUS
-export const updateAppointmentStatus = async (id: string, status: AppointmentStatus) => {
-  const { data, error } = await supabase
-    .from('appointments')
-    .update({ status })
-    .eq('id', id)
+    .insert([{
+      scheduled_date: appt.date,
+      scheduled_time: appt.time,
+      customer_name: appt.customerName,
+      vehicle: appt.vehicle,
+      service_type: appt.service,
+      procedures: appt.procedures,
+      payment_info: appt.paymentInfo,
+      status: appt.status,
+      total_cost: appt.totalAmount
+    }])
     .select()
     .single();
 
   if (error) throw error;
-  return data as Appointment;
+  return data;
+};
+
+export const updateAppointmentStatus = async (id: string, status: string) => {
+  const { error } = await supabase
+    .from('appointments')
+    .update({ status })
+    .eq('id', id);
+
+  if (error) throw error;
+  return true;
 };
