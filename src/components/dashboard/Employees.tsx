@@ -124,7 +124,7 @@ export function Employees() {
   const totalPayroll = employees.reduce((sum, emp) => sum + Number(emp.salary), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="employees-page space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -141,8 +141,8 @@ export function Employees() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Total Employees</CardTitle>
           </CardHeader>
@@ -152,7 +152,7 @@ export function Employees() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Currently Busy</CardTitle>
           </CardHeader>
@@ -162,7 +162,7 @@ export function Employees() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Monthly Payroll</CardTitle>
           </CardHeader>
@@ -172,7 +172,7 @@ export function Employees() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Available Now</CardTitle>
           </CardHeader>
@@ -193,7 +193,7 @@ export function Employees() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="employee-split-view">
               {employees
                 .filter(emp => emp.availability === "Busy")
                 .map((emp) => (
@@ -205,7 +205,7 @@ export function Employees() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="text-white">{emp.name}</p>
+                        <p className="text-white truncate">{emp.name}</p>
                         <p className="text-white/50 text-xs">{emp.position}</p>
                       </div>
                       <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
@@ -214,7 +214,7 @@ export function Employees() {
                     </div>
                     <div className="p-3 bg-white/5 rounded border border-white/10 mb-2">
                       <p className="text-white/60 text-xs mb-1">Current Assignment:</p>
-                      <p className="text-white text-sm">{emp.current_assignment}</p>
+                      <p className="text-white text-sm truncate">{emp.current_assignment}</p>
                     </div>
                     <Button
                       size="sm"
@@ -241,7 +241,8 @@ export function Employees() {
           ) : employees.length === 0 ? (
             <div className="text-center py-8 text-white/50">No employees found. Add your first staff member!</div>
           ) : (
-            <Table>
+            <div className="employee-table-container">
+              <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow className="border-white/10 hover:bg-transparent">
                   <TableHead className="text-white/70">Employee</TableHead>
@@ -264,7 +265,7 @@ export function Employees() {
                             {emp.name.split(" ").map((n) => n[0]).join("")}
                           </AvatarFallback>
                         </Avatar>
-                        <p className="text-white">{emp.name}</p>
+                        <p className="employee-name-cell text-white truncate">{emp.name}</p>
                       </div>
                     </TableCell>
                     <TableCell><p className="text-white/70">{emp.position}</p></TableCell>
@@ -295,6 +296,7 @@ export function Employees() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

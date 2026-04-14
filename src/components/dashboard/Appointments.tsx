@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { CalendarIcon, Plus, X, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Badge } from "../dashboard-ui/badge";
@@ -130,7 +131,7 @@ export function Appointments() {
   const todayCount = todaysAppointments.length;
 
   return (
-    <div className="space-y-6">
+    <div className="appointments-page space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -147,8 +148,8 @@ export function Appointments() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Selected Day</CardTitle>
           </CardHeader>
@@ -158,7 +159,7 @@ export function Appointments() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Total Appointments</CardTitle>
           </CardHeader>
@@ -168,7 +169,7 @@ export function Appointments() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Completed</CardTitle>
           </CardHeader>
@@ -178,7 +179,7 @@ export function Appointments() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Pending</CardTitle>
           </CardHeader>
@@ -190,48 +191,66 @@ export function Appointments() {
       </div>
 
       {/* Calendar and Appointments */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Calendar */}
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
-          <CardHeader>
-            <CardTitle className="text-white">Calendar View</CardTitle>
+      <div className="grid grid-cols-2 gap-6 w-full">
+        {/* LEFT SIDE: CALENDAR */}
+        <Card className="bg-[#111111] border-white/5 rounded-2xl p-4">
+          <CardHeader className="p-0 mb-4">
+            <CardTitle className="text-white text-lg font-medium">Calendar View</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
-              className="rounded-md border-0 text-white [&_.rdp-day_selected]:bg-[#E41E6A] [&_.rdp-day_selected]:text-white"
+              classNames={{
+                months: "w-full",
+                month: "space-y-4",
+                caption: "flex justify-center pt-1 relative items-center mb-4",
+                caption_label: "text-sm font-medium text-white",
+                nav: "space-x-1 flex items-center",
+                nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+                table: "w-full border-collapse space-y-1",
+                head_row: "flex w-full mt-2",
+                head_cell: "text-gray-500 rounded-md w-9 font-normal text-[0.8rem] flex-1 text-center",
+                row: "flex w-full mt-2",
+                cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 flex-1",
+                day: "h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-white/10 rounded-lg transition-all",
+                day_selected: "bg-white text-black font-bold hover:bg-white hover:text-black focus:bg-white focus:text-black",
+                day_today: "border border-white/20",
+                day_outside: "text-white/20 opacity-50",
+              }}
             />
-            <div className="mt-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span className="text-white/60 text-xs">Completed</span>
+            
+            {/* Figma Style Legend */}
+            <div className="mt-8 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-[#10B981]"></div>
+                <span className="text-white/70 text-sm">Completed</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full bg-[#E41E6A]"></div>
-                <span className="text-white/60 text-xs">In Progress</span>
+                <span className="text-white/70 text-sm">In Progress</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                <span className="text-white/60 text-xs">Scheduled</span>
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-[#3B82F6]"></div>
+                <span className="text-white/70 text-sm">Scheduled</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Today's Schedule */}
-        <Card className="lg:col-span-2 bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        {/* RIGHT SIDE: SCHEDULE LIST */}
+        <Card className="bg-[#121212] border-white/5">
           <CardHeader>
-            <CardTitle className="text-white">
-              {selectedDate ? `Schedule for ${selectedDate.toLocaleDateString()}` : "Today's Schedule"}
+            <CardTitle className="text-white text-lg">
+              Schedule for {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : '—'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="text-center text-white/50 py-8">Loading schedule...</div>
             ) : (
-              <Table>
+              <Table className="table-fixed w-full">
                 <TableHeader>
                   <TableRow className="border-white/10 hover:bg-transparent">
                     <TableHead className="text-white/70">Time</TableHead>
@@ -254,7 +273,7 @@ export function Appointments() {
                       .map((apt) => (
                       <TableRow key={apt.id} className="border-white/10 hover:bg-white/5">
                         <TableCell className="text-white">{apt.time}</TableCell>
-                        <TableCell className="text-white">{apt.customerName}</TableCell>
+                        <TableCell className="text-white truncate">{apt.customerName}</TableCell>
                         <TableCell className="text-white">₱{apt.totalAmount.toLocaleString()}</TableCell>
                         <TableCell className="text-right">
                           <Button
