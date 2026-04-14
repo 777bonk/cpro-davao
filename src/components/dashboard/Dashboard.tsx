@@ -82,6 +82,7 @@ export function Dashboard() {
       let completedApptsCount = 0;
 
       appts.forEach(a => {
+        if (!a.scheduled_date || !a.status) return;
         const aDate = new Date(a.scheduled_date);
         if (aDate.toDateString() === todayStr) {
           todaysApptsCount++;
@@ -141,14 +142,14 @@ export function Dashboard() {
 
       // 5. Upcoming Appointments
       const upcoming = appts
-        .filter(a => new Date(a.scheduled_date) >= now && a.status !== 'completed' && a.status !== 'cancelled')
+        .filter(a => a.scheduled_date && a.status && new Date(a.scheduled_date) >= now && a.status !== 'completed' && a.status !== 'cancelled')
         .sort((a, b) => new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime())
         .slice(0, 4);
       setUpcomingAppts(upcoming);
 
       // 6. Pending / In-Progress Jobs
       const pending = appts
-        .filter(a => a.status === 'pending' || a.status === 'in_progress')
+        .filter(a => a.status && (a.status === 'pending' || a.status === 'in_progress'))
         .slice(0, 4);
       setPendingPayments(pending);
 
@@ -169,6 +170,7 @@ export function Dashboard() {
       const categoryRevenue: Record<string, number> = {};
 
       transactions.forEach(t => {
+        if (!t.date || !t.amount) return;
         const tDate = new Date(t.date);
         const monthKey = `${tDate.getFullYear()}-${tDate.getMonth()}`;
         const bucket = last6Months.find(m => m.monthKey === monthKey);
@@ -180,7 +182,7 @@ export function Dashboard() {
         }
 
         if (t.type === 'income') {
-          const serviceName = t.description.split(' - ')[0] || 'Other';
+          const serviceName = (t.description || 'Other').split(' - ')[0] || 'Other';
           let simplifiedCat = "Other";
           
           if (serviceName.toLowerCase().includes('coat')) simplifiedCat = "Coating";

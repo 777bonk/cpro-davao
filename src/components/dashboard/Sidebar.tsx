@@ -74,9 +74,6 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
       label: "Finance",
       icon: DollarSign,
       submenu: [
-        { id: "income", label: "Income" },
-        { id: "expenses", label: "Expenses" },
-        { id: "net-income", label: "Monthly Net Income" },
         { id: "financial-reports", label: "Financial Reports" },
       ],
     },
@@ -85,8 +82,6 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
       label: "Reports",
       icon: FileText,
       submenu: [
-        { id: "income-report", label: "Income Report" },
-        { id: "expense-report", label: "Expense Report" },
         { id: "profit-loss", label: "Profit & Loss Summary" },
       ],
     },
@@ -139,19 +134,25 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
 
               {/* Submenu */}
               {item.submenu && expandedMenus.includes(item.id) && (
-                <div className="mt-1 space-y-1 border-l border-white/10 ml-7 pl-3 overflow-hidden">
-                  {item.submenu.map((subItem) => (
-                    <Button
-                      key={subItem.id}
-                      variant="ghost"
-                      className={`w-full justify-start text-white/60 hover:text-white hover:bg-white/5 text-xs ${
-                        activeSection === subItem.id ? "bg-[#E41E6A]/20 text-[#E41E6A]" : ""
-                      }`}
-                      onClick={() => onSectionChange(subItem.id)}
-                    >
-                      <span className="truncate">{subItem.label}</span>
-                    </Button>
-                  ))}
+                <div className="mt-1 border-l border-white/10 ml-7 pl-3 overflow-hidden">
+                  <div className="flex flex-wrap items-center gap-1">
+                    {item.submenu.map((subItem, index) => (
+                      <div key={subItem.id} className="flex items-center">
+                        <Button
+                          variant="ghost"
+                          className={`justify-start text-white/60 hover:text-white hover:bg-white/5 text-xs px-2 py-1 ${
+                            activeSection === subItem.id ? "bg-[#E41E6A]/20 text-[#E41E6A]" : ""
+                          }`}
+                          onClick={() => onSectionChange(subItem.id)}
+                        >
+                          <span className="truncate">{subItem.label}</span>
+                        </Button>
+                        {index < item.submenu.length - 1 && (
+                          <span className="text-white/40 text-xs mx-1">|</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -505,8 +505,78 @@
   color: #fbbf24 !important; /* Amber for Tracked */
 }
 
+/* --- UNIVERSAL POP-UP VISIBILITY & PINK THEME --- */
+
+/* 1. Backdrop: Darker with blur to make the pop-up pop */
+[data-radix-portal] .fixed.inset-0 {
+  background-color: rgba(0, 0, 0, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 50 !important;
+}
+
+/* 2. The Pop-up Box: Deep background with a LIGHT PINK border */
+[role="dialog"] {
+  background-color: #d60385 !important;
+  border: 1px solid rgba(228, 30, 106, 0.4) !important; /* Light Pink Border */
+  box-shadow: 0 0 40px rgba(228, 30, 106, 0.15) !important;
+  border-radius: 12px !important;
+  z-index: 51 !important;
+  color: white !important;
+}
+
+/* 3. Action Buttons: Force Pink branding for 'Save', 'Add', and 'Assign' */
+[role="dialog"] button.bg-primary, 
+[role="dialog"] button[type="submit"],
+[role="dialog"] .bg-pink-600 {
+  background-color: #e41e6a !important;
+  color: white !important;
+  border: none !important;
+  transition: all 0.2s ease !important;
+}
+
+[role="dialog"] button:hover {
+  filter: brightness(1.1) !important;
+  transform: translateY(-1px);
+}
+
+/* 4. Form Fields: Ensure inputs are visible inside the pop-up */
+[role="dialog"] input, 
+[role="dialog"] select, 
+[role="dialog"] textarea {
+  background-color: rgba(247, 0, 173, 0.05) !important;
+  border: 1px solid rgba(250, 0, 154, 0.1) !important;
+  color: white !important;
+}
+
+[role="dialog"] input:focus {
+  border-color: #e41e6a !important;
+}
 
 
+/* --- GLOBAL PINK POP-UP THEME --- */
+
+[role="dialog"] {
+  background-color: #FFB6E1 !important; /* Solid Light Pink */
+  border: 2px solid #E41E6A !important;  /* Darker Pink Border */
+  color: #111827 !important;            /* Dark Grey/Black Text */
+  box-shadow: 0 0 30px rgba(228, 30, 106, 0.3) !important;
+}
+
+/* Ensure labels inside the pink box are dark */
+[role="dialog"] label, 
+[role="dialog"] .text-white,
+[role="dialog"] .text-muted-foreground {
+  color: #f300df !important; /* Dark Slate 800 */
+}
+
+/* Make inputs inside the pink box stand out */
+[role="dialog"] input, 
+[role="dialog"] select, 
+[role="dialog"] textarea {
+  background-color: rgba(236, 2, 119, 0.5) !important;
+  border: 1px solid rgba(66, 2, 56, 0.1) !important;
+  color: #ecdede !important;
+}
 
 
 

@@ -57,15 +57,15 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          // FIXED: Added border-white/20 and bg-[#0c0c0c] to ensure visibility against dark themes
-          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-6 border border-white/20 bg-[#0c0c0c] p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] duration-200 sm:rounded-2xl",
+          // FIXED: Changed to light pink background (#FFB6E1) for visibility
+          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-6 border border-white/20 bg-[#FFB6E1] p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] duration-200 sm:rounded-2xl",
           className,
         )}
         {...props}
       >
         {children}
         <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#E41E6A] focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-          <XIcon className="h-4 w-4 text-white" />
+          <XIcon className="h-4 w-4 text-gray-700" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
@@ -103,7 +103,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-xl leading-none font-semibold text-white", className)}
+      className={cn("text-xl leading-none font-semibold text-gray-800", className)}
       {...props}
     />
   );
@@ -116,7 +116,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-white/50 text-sm", className)}
+      className={cn("text-gray-600 text-sm", className)}
       {...props}
     />
   );
