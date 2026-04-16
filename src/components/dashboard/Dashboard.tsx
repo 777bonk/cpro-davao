@@ -82,11 +82,11 @@ export function Dashboard() {
       let completedApptsCount = 0;
 
       appts.forEach(a => {
-        if (!a.scheduled_date || !a.status) return;
-        const aDate = new Date(a.scheduled_date);
+        if (!a.date || !a.status) return;
+        const aDate = new Date(a.date);
         if (aDate.toDateString() === todayStr) {
           todaysApptsCount++;
-          if (a.status === 'completed') completedApptsCount++;
+          if (a.status === 'Completed') completedApptsCount++;
         }
       });
 
@@ -136,20 +136,20 @@ export function Dashboard() {
 
       // 4. Identify Low Stock Inventory
       const lowStock = inventory
-        .filter(i => i.quantity <= i.low_stock_threshold)
+        .filter(i => i.stock <= i.reorderLevel)
         .slice(0, 4);
       setLowStockItems(lowStock);
 
       // 5. Upcoming Appointments
       const upcoming = appts
-        .filter(a => a.scheduled_date && a.status && new Date(a.scheduled_date) >= now && a.status !== 'completed' && a.status !== 'cancelled')
-        .sort((a, b) => new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime())
+        .filter(a => a.date && a.status && new Date(a.date) >= now && a.status !== 'Completed')
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         .slice(0, 4);
       setUpcomingAppts(upcoming);
 
       // 6. Pending / In-Progress Jobs
       const pending = appts
-        .filter(a => a.status && (a.status === 'pending' || a.status === 'in_progress'))
+        .filter(a => a.status && (a.status === 'Scheduled' || a.status === 'In Progress'))
         .slice(0, 4);
       setPendingPayments(pending);
 
@@ -431,3 +431,4 @@ export function Dashboard() {
     </div>
   );
 }
+

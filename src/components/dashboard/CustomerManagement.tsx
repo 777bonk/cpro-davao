@@ -192,7 +192,7 @@ export default function CustomerManagement() {
       {/* MODALS (Details & Add) */}
       {viewDetailsOpen && selectedCustomer && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
+          <div className="bg-gradient-to-br from-white/5 to-[#E41E6A]/10 border border-[#E41E6A]/50 rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Customer Details</h2>
               <button onClick={() => setViewDetailsOpen(false)} className="text-white/50 hover:text-white transition">
@@ -238,7 +238,7 @@ export default function CustomerManagement() {
 
       {addCustomerOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="bg-gradient-to-br from-white/5 to-[#E41E6A]/10 border border-[#E41E6A]/50 rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Add New Customer</h2>
               <button onClick={() => setAddCustomerOpen(false)} className="text-white/50 hover:text-white">

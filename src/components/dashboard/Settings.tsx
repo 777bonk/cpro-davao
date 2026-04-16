@@ -445,7 +445,7 @@ export function Settings() {
           ========================================= */}
       {isAddServiceOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+          <div className="bg-gradient-to-br from-white/15 to-[#E41E6A]/5 border border-[#E41E6A]/50 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Add Service Package</h2>
               <button onClick={() => setIsAddServiceOpen(false)} className="text-white/50 hover:text-white transition">
@@ -580,7 +580,7 @@ export function Settings() {
           ========================================= */}
       {isAddRoleOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+          <div className="bg-gradient-to-br from-white/15 to-[#E41E6A]/5 border border-[#E41E6A]/50 rounded-xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Add User Role</h2>
               <button onClick={() => setIsAddRoleOpen(false)} className="text-white/50 hover:text-white transition">
@@ -626,7 +626,7 @@ export function Settings() {
           ========================================= */}
       {isManageRoleOpen && editingRole && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+          <div className="bg-gradient-to-br from-white/15 to-[#E41E6A]/5 border border-[#E41E6A]/50 rounded-xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Manage Role: {editingRole.name}</h2>
               <button onClick={() => { setIsManageRoleOpen(false); setEditingRole(null); }} className="text-white/50 hover:text-white transition">

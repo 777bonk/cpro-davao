@@ -382,7 +382,7 @@ export function Inventory() {
       {/* 1. Add Item Modal */}
       {addItemOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="bg-gradient-to-br from-white/15 to-[#E41E6A]/5 border border-[#E41E6A]/50 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Add New Item</h2>
               <button onClick={() => setAddItemOpen(false)} className="text-white/50 hover:text-white transition">
@@ -492,7 +492,7 @@ export function Inventory() {
       {/* 2. Reorder Modal */}
       {reorderOpen && selectedItem && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+          <div className="bg-gradient-to-br from-white/15 to-[#E41E6A]/5 border border-[#E41E6A]/50 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Reorder Item</h2>
               <button onClick={() => setReorderOpen(false)} className="text-white/50 hover:text-white transition">
@@ -538,7 +538,7 @@ export function Inventory() {
       {/* 3. Edit Item Modal */}
       {editItemOpen && selectedItem && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+          <div className="bg-gradient-to-br from-white/15 to-[#E41E6A]/5 border border-[#E41E6A]/50 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Edit Stock</h2>
               <button onClick={() => setEditItemOpen(false)} className="text-white/50 hover:text-white transition">
@@ -596,7 +596,7 @@ export function Inventory() {
       {/* 4. Inventory Report Modal */}
       {reportOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+          <div className="bg-gradient-to-br from-white/15 to-[#E41E6A]/5 border border-[#E41E6A]/50 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Inventory Report</h2>
               <button onClick={() => setReportOpen(false)} className="text-white/50 hover:text-white transition">
