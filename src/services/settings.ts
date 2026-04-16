@@ -30,6 +30,12 @@ export const createService = async (serviceData: Omit<ServicePackage, 'id'>) => 
   return data as ServicePackage;
 };
 
+export const updateService = async (id: string, serviceData: Partial<ServicePackage>) => {
+  const { data, error } = await supabase.from('services').update(serviceData).eq('id', id).select().single();
+  if (error) throw error;
+  return data as ServicePackage;
+};
+
 // --- SHOP SETTINGS ---
 export const getShopSettings = async () => {
   const { data, error } = await supabase.from('shop_settings').select('*').limit(1).single();

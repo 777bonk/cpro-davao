@@ -21,6 +21,9 @@ export function Appointments() {
   const [newAppointmentOpen, setNewAppointmentOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   
+  // Prevention State for Double Clicks
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   // Form State
   const [newAppointment, setNewAppointment] = useState({
     date: "",
@@ -60,9 +63,10 @@ export function Appointments() {
     setSelectedDate(date);
   };
 
+  // ROBUST DATE FILTER: Strips out any timezone data (the 'T' and everything after it) from Supabase
   const todaysAppointments = selectedDate 
-    ? appointments.filter(apt => apt.date === formatDate(selectedDate))
-    : appointments.filter(apt => apt.date === formatDate(new Date()));
+    ? appointments.filter(apt => apt.date && apt.date.split('T')[0] === formatDate(selectedDate))
+    : appointments.filter(apt => apt.date && apt.date.split('T')[0] === formatDate(new Date()));
 
   const handleViewDetails = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
@@ -92,6 +96,8 @@ export function Appointments() {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
       await createAppointment({
         date: newAppointment.date,
@@ -105,8 +111,7 @@ export function Appointments() {
         totalAmount: parseFloat(newAppointment.totalAmount),
       });
 
-      // Refresh data to get the true DB ID
-      fetchData();
+      await fetchData(); 
       
       setNewAppointmentOpen(false);
       setNewAppointment({
@@ -115,6 +120,8 @@ export function Appointments() {
     } catch (error: any) {
       console.error("Failed to add appointment", error);
       alert(`Database Error: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -463,11 +470,11 @@ export function Appointments() {
               </div>
             </div>
             <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-              <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={() => setNewAppointmentOpen(false)}>
+              <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={() => setNewAppointmentOpen(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleAddAppointment}>
-                Add Appointment
+              <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleAddAppointment} disabled={isSubmitting}>
+                {isSubmitting ? "Adding..." : "Add Appointment"}
               </Button>
             </div>
           </div>

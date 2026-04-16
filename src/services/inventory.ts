@@ -26,7 +26,8 @@ export const getInventory = async () => {
     stockOut: Number(d.stock_out || 0),
     unit: d.unit || "pcs",
     reorderLevel: Number(d.low_stock_threshold || 10),
-    price: Number(d.price || 0),
+    // Map unit_price from the database back to price for the UI
+    price: Number(d.unit_price || d.price || 0), 
   })) as InventoryItem[];
 };
 
@@ -41,7 +42,8 @@ export const createInventoryItem = async (item: Omit<InventoryItem, 'id' | 'stat
       stock_out: item.stockOut,
       unit: item.unit,
       low_stock_threshold: item.reorderLevel,
-      price: item.price
+      // Map the UI's price to the database's unit_price column
+      unit_price: item.price 
     }])
     .select()
     .single();

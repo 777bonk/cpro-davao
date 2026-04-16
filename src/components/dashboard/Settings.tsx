@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Package, Shield, Database, Users, Bell, X } from "lucide-react";
+import { Settings as SettingsIcon, Package, Shield, Database, Users, Bell, X, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Button } from "../dashboard-ui/button";
 import { Input } from "../dashboard-ui/input";
@@ -7,7 +7,7 @@ import { Label } from "../dashboard-ui/label";
 import { Switch } from "../dashboard-ui/switch";
 import { Separator } from "../dashboard-ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../dashboard-ui/table";
-import { getServices, createService, getShopSettings, updateShopSettings, ServicePackage, ShopSettings } from "../../services/settings";
+import { getServices, createService, updateService, getShopSettings, updateShopSettings, ServicePackage, ShopSettings } from "../../services/settings";
 import { Badge } from "../dashboard-ui/badge";
 
 const initialUserRoles = [
@@ -23,8 +23,9 @@ export function Settings() {
 
   // --- MODAL STATES ---
   const [isAddServiceOpen, setIsAddServiceOpen] = useState(false);
+  const [isEditServiceOpen, setIsEditServiceOpen] = useState(false);
   const [isAddRoleOpen, setIsAddRoleOpen] = useState(false);
-  const [isManageRoleOpen, setIsManageRoleOpen] = useState(false); // NEW: Manage Role modal
+  const [isManageRoleOpen, setIsManageRoleOpen] = useState(false); 
 
   // --- FORM STATES ---
   const [newService, setNewService] = useState({
@@ -33,6 +34,8 @@ export function Settings() {
     duration: "",
     price: "",
   });
+  
+  const [editingService, setEditingService] = useState<ServicePackage | null>(null);
 
   const [roles, setRoles] = useState(initialUserRoles);
   const [newRole, setNewRole] = useState({
@@ -40,7 +43,6 @@ export function Settings() {
     permissions: "",
   });
   
-  // State to hold the role currently being edited
   const [editingRole, setEditingRole] = useState<{id: number, name: string, permissions: string, users: number} | null>(null);
 
   const [businessInfo, setBusinessInfo] = useState<ShopSettings>({
@@ -74,7 +76,7 @@ export function Settings() {
     }
   };
 
-  // --- HANDLERS ---
+  // --- HANDLERS FOR SERVICES ---
   const handleAddService = async () => {
     if (!newService.name || !newService.category || !newService.price) {
       alert("Please fill in Name, Category, and Price");
@@ -97,6 +99,34 @@ export function Settings() {
     }
   };
 
+  const handleOpenEditService = (service: ServicePackage) => {
+    setEditingService(service);
+    setIsEditServiceOpen(true);
+  };
+
+  const handleSaveEditedService = async () => {
+    if (!editingService || !editingService.name || !editingService.category || !editingService.price) {
+      alert("Please fill in Name, Category, and Price");
+      return;
+    }
+
+    try {
+      const updated = await updateService(editingService.id, {
+        name: editingService.name,
+        category: editingService.category,
+        duration: editingService.duration,
+        price: parseFloat(editingService.price.toString()),
+      });
+
+      setServices(services.map(s => s.id === updated.id ? updated : s).sort((a, b) => a.name.localeCompare(b.name)));
+      setIsEditServiceOpen(false);
+      setEditingService(null);
+    } catch (error: any) {
+      alert(`Database Error: ${error.message}`);
+    }
+  };
+
+  // --- HANDLERS FOR ROLES ---
   const handleAddRole = () => {
     if (!newRole.name || !newRole.permissions) {
       alert("Please fill in Role Name and Permissions");
@@ -104,7 +134,7 @@ export function Settings() {
     }
 
     const roleToAdd = {
-      id: roles.length + 1,
+      id: roles.length > 0 ? Math.max(...roles.map(r => r.id)) + 1 : 1,
       name: newRole.name,
       permissions: newRole.permissions,
       users: 0,
@@ -115,14 +145,17 @@ export function Settings() {
     setNewRole({ name: "", permissions: "" });
   };
 
-  // NEW: Save Edited Role
   const handleSaveManagedRole = () => {
     if (!editingRole) return;
-    
-    // Update the roles array with the modified role
     setRoles(roles.map(r => r.id === editingRole.id ? editingRole : r));
     setIsManageRoleOpen(false);
     setEditingRole(null);
+  };
+
+  const handleDeleteRole = (id: number) => {
+    if (window.confirm("Are you sure you want to delete this role?")) {
+      setRoles(roles.filter(r => r.id !== id));
+    }
   };
 
   const handleSaveBusinessInfo = async () => {
@@ -186,7 +219,12 @@ export function Settings() {
                     <TableCell className="text-white/70">{service.duration}</TableCell>
                     <TableCell className="text-white">₱{Number(service.price).toLocaleString()}</TableCell>
                     <TableCell>
-                      <Button size="sm" variant="outline" className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10" onClick={() => alert("Edit service functionality coming soon!")}>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10" 
+                        onClick={() => handleOpenEditService(service)}
+                      >
                         Edit
                       </Button>
                     </TableCell>
@@ -214,44 +252,57 @@ export function Settings() {
           </Button>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead className="text-white/70">Role Name</TableHead>
-                <TableHead className="text-white/70">Permissions</TableHead>
-                <TableHead className="text-white/70">Users</TableHead>
-                <TableHead className="text-white/70">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {roles.map((role) => (
-                <TableRow key={role.id} className="border-white/10 hover:bg-white/5">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-[#E41E6A]" />
-                      <span className="text-white font-medium">{role.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-white/70">{role.permissions}</TableCell>
-                  <TableCell className="text-white">{role.users} users</TableCell>
-                  <TableCell>
-                    {/* TRIGGER MANAGE MODAL HERE */}
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
-                      onClick={() => {
-                        setEditingRole(role);
-                        setIsManageRoleOpen(true);
-                      }}
-                    >
-                      Manage
-                    </Button>
-                  </TableCell>
+          {roles.length === 0 ? (
+            <div className="text-white/50 py-4 text-center">No user roles found.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/10 hover:bg-transparent">
+                  <TableHead className="text-white/70">Role Name</TableHead>
+                  <TableHead className="text-white/70">Permissions</TableHead>
+                  <TableHead className="text-white/70">Users</TableHead>
+                  <TableHead className="text-white/70">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {roles.map((role) => (
+                  <TableRow key={role.id} className="border-white/10 hover:bg-white/5">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-[#E41E6A]" />
+                        <span className="text-white font-medium">{role.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-white/70">{role.permissions}</TableCell>
+                    <TableCell className="text-white">{role.users} users</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
+                          onClick={() => {
+                            setEditingRole(role);
+                            setIsManageRoleOpen(true);
+                          }}
+                        >
+                          Manage
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                          onClick={() => handleDeleteRole(role.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -459,7 +510,73 @@ export function Settings() {
       )}
 
       {/* =========================================
-          2. ADD USER ROLE MODAL 
+          2. EDIT SERVICE PACKAGE MODAL
+          ========================================= */}
+      {isEditServiceOpen && editingService && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Edit Service Package</h2>
+              <button onClick={() => { setIsEditServiceOpen(false); setEditingService(null); }} className="text-white/50 hover:text-white transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Service Name *</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white" 
+                  value={editingService.name} 
+                  onChange={(e) => setEditingService({ ...editingService, name: e.target.value })} 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm text-white/70">Category *</label>
+                  <select 
+                    className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white appearance-none" 
+                    value={editingService.category} 
+                    onChange={(e) => setEditingService({ ...editingService, category: e.target.value })}
+                  >
+                    <option value="" disabled className="bg-[#0a0a0a]">Select category...</option>
+                    <option value="Coating" className="bg-[#0a0a0a]">Coating</option>
+                    <option value="PPF" className="bg-[#0a0a0a]">PPF</option>
+                    <option value="Detailing" className="bg-[#0a0a0a]">Detailing</option>
+                    <option value="Tinting" className="bg-[#0a0a0a]">Tinting</option>
+                    <option value="Wash" className="bg-[#0a0a0a]">Wash</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-white/70">Base Price (₱) *</label>
+                  <input 
+                    type="number" 
+                    className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white" 
+                    value={editingService.price} 
+                    onChange={(e) => setEditingService({ ...editingService, price: Number(e.target.value) })} 
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Estimated Duration</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md focus:outline-none focus:border-[#E41E6A] text-white" 
+                  value={editingService.duration} 
+                  onChange={(e) => setEditingService({ ...editingService, duration: e.target.value })} 
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+              <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={() => { setIsEditServiceOpen(false); setEditingService(null); }}>Cancel</Button>
+              <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleSaveEditedService}>Update Package</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          3. ADD USER ROLE MODAL 
           ========================================= */}
       {isAddRoleOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -505,7 +622,7 @@ export function Settings() {
       )}
 
       {/* =========================================
-          3. MANAGE (EDIT) USER ROLE MODAL 
+          4. MANAGE (EDIT) USER ROLE MODAL 
           ========================================= */}
       {isManageRoleOpen && editingRole && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
