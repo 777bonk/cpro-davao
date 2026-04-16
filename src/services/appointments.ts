@@ -13,11 +13,24 @@ export interface Appointment {
   totalAmount: number;
 }
 
+// TRANSLATOR 1: Database to UI
+const formatStatusToUI = (dbStatus: string): "Completed" | "In Progress" | "Scheduled" => {
+  if (dbStatus === 'completed') return "Completed";
+  if (dbStatus === 'in_progress') return "In Progress";
+  return "Scheduled"; // Treats 'pending' or anything else as Scheduled
+};
+
+// TRANSLATOR 2: UI to Database
+const formatStatusToDB = (uiStatus: string): string => {
+  if (uiStatus === 'Completed') return 'completed';
+  if (uiStatus === 'In Progress') return 'in_progress';
+  return 'pending'; // 'Scheduled' maps to 'pending' in the database
+};
+
 export const getAppointments = async () => {
   const { data, error } = await supabase.from('appointments').select('*');
   if (error) throw error;
   
-  // Map the database snake_case columns to your UI's camelCase format
   return data.map((d: any) => ({
     id: d.id,
     date: d.scheduled_date,
@@ -27,7 +40,7 @@ export const getAppointments = async () => {
     service: d.service_type || "N/A",
     procedures: d.procedures || "None",
     paymentInfo: d.payment_info || "Pending",
-    status: d.status || "Scheduled",
+    status: formatStatusToUI(d.status), // Translate here
     totalAmount: Number(d.total_cost || 0),
   })) as Appointment[];
 };
@@ -43,7 +56,7 @@ export const createAppointment = async (appt: Omit<Appointment, 'id'>) => {
       service_type: appt.service,
       procedures: appt.procedures,
       payment_info: appt.paymentInfo,
-      status: appt.status,
+      status: formatStatusToDB(appt.status), // Translate here
       total_cost: appt.totalAmount
     }])
     .select()
@@ -56,7 +69,7 @@ export const createAppointment = async (appt: Omit<Appointment, 'id'>) => {
 export const updateAppointmentStatus = async (id: string, status: string) => {
   const { error } = await supabase
     .from('appointments')
-    .update({ status })
+    .update({ status: formatStatusToDB(status) }) // Translate here
     .eq('id', id);
 
   if (error) throw error;
