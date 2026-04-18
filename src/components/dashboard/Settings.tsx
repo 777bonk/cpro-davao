@@ -444,8 +444,8 @@ export function Settings() {
           1. ADD SERVICE PACKAGE MODAL
           ========================================= */}
       {isAddServiceOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Add Service Package</h2>
               <button onClick={() => setIsAddServiceOpen(false)} className="text-white/50 hover:text-white transition">
@@ -513,8 +513,8 @@ export function Settings() {
           2. EDIT SERVICE PACKAGE MODAL
           ========================================= */}
       {isEditServiceOpen && editingService && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Edit Service Package</h2>
               <button onClick={() => { setIsEditServiceOpen(false); setEditingService(null); }} className="text-white/50 hover:text-white transition">
@@ -579,8 +579,8 @@ export function Settings() {
           3. ADD USER ROLE MODAL 
           ========================================= */}
       {isAddRoleOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Add User Role</h2>
               <button onClick={() => setIsAddRoleOpen(false)} className="text-white/50 hover:text-white transition">
@@ -625,8 +625,8 @@ export function Settings() {
           4. MANAGE (EDIT) USER ROLE MODAL 
           ========================================= */}
       {isManageRoleOpen && editingRole && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Manage Role: {editingRole.name}</h2>
               <button onClick={() => { setIsManageRoleOpen(false); setEditingRole(null); }} className="text-white/50 hover:text-white transition">

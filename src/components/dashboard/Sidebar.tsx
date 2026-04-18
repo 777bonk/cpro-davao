@@ -74,9 +74,6 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
       label: "Finance",
       icon: DollarSign,
       submenu: [
-        { id: "income", label: "Income" },
-        { id: "expenses", label: "Expenses" },
-        { id: "net-income", label: "Monthly Net Income" },
         { id: "financial-reports", label: "Financial Reports" },
       ],
     },
@@ -85,8 +82,6 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
       label: "Reports",
       icon: FileText,
       submenu: [
-        { id: "income-report", label: "Income Report" },
-        { id: "expense-report", label: "Expense Report" },
         { id: "profit-loss", label: "Profit & Loss Summary" },
       ],
     },
@@ -113,46 +108,50 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
         <div className="space-y-1 px-3" style={{ width: "256px", boxSizing: "border-box" }}>
           {menuItems.map((item) => (
             <div key={item.id} style={{ width: "100%", overflow: "hidden" }}>
-              <Button
-                variant="ghost"
-                className={`w-full justify-start text-white/70 hover:text-white hover:bg-white/5 ${
-                  activeSection === item.id ? "bg-[#E41E6A]/20 text-[#E41E6A]" : ""
-                }`}
-                onClick={() => {
-                  if (item.submenu) {
-                    onToggleMenu(item.id);
-                  } else {
-                    onSectionChange(item.id);
-                  }
-                }}
-              >
-                <item.icon className="w-4 h-4 mr-3 flex-shrink-0" />
-                <span className="flex-1 text-left text-sm truncate">{item.label}</span>
-                {item.submenu && (
-                  <ChevronDown
-                    className={`w-4 h-4 flex-shrink-0 transition-transform ${
-                      expandedMenus.includes(item.id) ? "rotate-180" : ""
-                    }`}
-                  />
-                )}
-              </Button>
+<Button
+  variant="ghost"
+  className={`w-full justify-start text-white/70 hover:text-white hover:bg-white/5 ${
+    activeSection === item.id || activeSection === item.submenu?.[0]?.id
+      ? "bg-[#E41E6A]/20 text-[#E41E6A]"
+      : ""
+  }`}
+  onClick={() => {
+    if (item.submenu && item.submenu.length === 1) {
+      onSectionChange(item.submenu[0].id);
+    } else if (item.submenu) {
+      onToggleMenu(item.id);
+    } else {
+      onSectionChange(item.id);
+    }
+  }}
+>
+  <item.icon className="w-4 h-4 mr-3 flex-shrink-0" />
+  <span className="flex-1 text-left text-sm truncate">{item.label}</span>
+  {item.submenu && item.submenu.length > 1 && (
+    <ChevronDown
+      className={`w-4 h-4 flex-shrink-0 transition-transform ${
+        expandedMenus.includes(item.id) ? "rotate-180" : ""
+      }`}
+    />
+  )}
+</Button>
 
-              {/* Submenu */}
-              {item.submenu && expandedMenus.includes(item.id) && (
-                <div className="mt-1 space-y-1 border-l border-white/10 ml-7 pl-3 overflow-hidden">
-                  {item.submenu.map((subItem) => (
-                    <Button
-                      key={subItem.id}
-                      variant="ghost"
-                      className={`w-full justify-start text-white/60 hover:text-white hover:bg-white/5 text-xs ${
-                        activeSection === subItem.id ? "bg-[#E41E6A]/20 text-[#E41E6A]" : ""
-                      }`}
-                      onClick={() => onSectionChange(subItem.id)}
-                    >
-                      <span className="truncate">{subItem.label}</span>
-                    </Button>
-                  ))}
-                </div>
+{/* Submenu — only for items with 2+ children */}
+{item.submenu && item.submenu.length > 1 && expandedMenus.includes(item.id) && (
+  <div className="mt-1 space-y-1 border-l border-white/10 ml-7 pl-3 overflow-hidden">
+    {item.submenu.map((subItem) => (
+      <Button
+        key={subItem.id}
+        variant="ghost"
+        className={`w-full justify-start text-white/60 hover:text-white hover:bg-white/5 text-xs ${
+          activeSection === subItem.id ? "bg-[#E41E6A]/20 text-[#E41E6A]" : ""
+        }`}
+        onClick={() => onSectionChange(subItem.id)}
+      >
+        <span className="truncate">{subItem.label}</span>
+      </Button>
+    ))}
+  </div>
               )}
             </div>
           ))}

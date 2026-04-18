@@ -66,7 +66,7 @@ export function Finance() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="finance-page space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -76,8 +76,8 @@ export function Finance() {
       </div>
 
       {/* Stats - Static top row for UI purposes */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+      <div className="finance-stats-grid">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Monthly Income</CardTitle>
           </CardHeader>
@@ -90,7 +90,7 @@ export function Finance() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Monthly Expenses</CardTitle>
           </CardHeader>
@@ -103,7 +103,7 @@ export function Finance() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Net Profit</CardTitle>
           </CardHeader>
@@ -116,7 +116,7 @@ export function Finance() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Profit Margin</CardTitle>
           </CardHeader>
@@ -131,9 +131,9 @@ export function Finance() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="finance-charts-grid">
         {/* Income vs Expenses Trend */}
-        <Card className="lg:col-span-2 bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
           <CardHeader>
             <CardTitle className="text-white">Income vs Expenses Trend</CardTitle>
           </CardHeader>
@@ -203,7 +203,7 @@ export function Finance() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="finance-table space-y-3">
             {isLoading ? (
               <div className="text-white/50 text-center py-4">Loading transactions...</div>
             ) : transactions.length === 0 ? (
@@ -230,7 +230,7 @@ export function Finance() {
                         )}
                       </div>
                       <div>
-                        <p className="text-white">{transaction.description}</p>
+                        <p className="text-white truncate">{transaction.description}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="border-white/20 text-white/60 text-xs">
                             {transaction.category}
@@ -240,7 +240,7 @@ export function Finance() {
                       </div>
                     </div>
                     <div
-                      className={`text-xl ${
+                      className={`amount-column text-xl ${
                         transaction.type === "income" ? "text-green-400" : "text-red-400"
                       }`}
                     >
@@ -256,8 +256,8 @@ export function Finance() {
       </Card>
 
       {/* DYNAMIC Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/30 backdrop-blur">
+      <div className="finance-actuals-grid">
+        <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/30 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Wallet className="w-5 h-5 text-green-400" />
@@ -269,7 +269,7 @@ export function Finance() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/30 backdrop-blur">
+        <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/30 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-red-400" />
@@ -281,7 +281,7 @@ export function Finance() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-[#E41E6A]/10 to-pink-500/5 border-[#E41E6A]/30 backdrop-blur">
+        <Card className="bg-gradient-to-br from-[#E41E6A]/10 to-pink-500/5 border-[#E41E6A]/30 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-[#E41E6A]" />

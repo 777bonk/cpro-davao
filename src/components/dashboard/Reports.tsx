@@ -115,14 +115,14 @@ export function Reports() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="reports-container">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="reports-header">
         <div>
           <h1 className="text-white text-3xl mb-2">Reports & Analytics</h1>
           <p className="text-white/60">Generate and view detailed financial reports</p>
         </div>
-        <div className="flex gap-2">
+        <div className="reports-header-actions">
           <Select defaultValue="2024">
             <SelectTrigger className="w-32 bg-white/5 border-white/10 text-white">
               <SelectValue />
@@ -148,11 +148,11 @@ export function Reports() {
       </div>
 
       {/* Report Types */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="reports-top-grid">
         {reportTypes.map((report) => (
           <Card
             key={report.id}
-            className="bg-linear-to-br from-white/5 to-white/10 border-white/10 backdrop-blur hover:border-[#E41E6A]/50 transition-all cursor-pointer"
+            className="bg-linear-to-br from-white/5 to-white/10 border-white/10 backdrop-blur hover:border-[#E41E6A]/50 transition-all cursor-pointer min-w-0 overflow-hidden"
           >
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -177,25 +177,25 @@ export function Reports() {
               </div>
             </CardHeader>
             <CardContent>
-              <h3 className="text-white mb-1">{report.name}</h3>
-              <p className="text-white/60 text-xs">{report.description}</p>
+              <h3 className="text-white mb-1 truncate">{report.name}</h3>
+              <p className="text-white/60 text-xs truncate">{report.description}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
       {/* Income Report Chart */}
-      <Card className="bg-linear-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-white">Income Report - 6 Month Trend</CardTitle>
+      <div className="report-chart-card">
+        <div className="flex flex-row items-center justify-between mb-4">
+          <h3 className="text-white text-lg font-semibold">Income Report - 6 Month Trend</h3>
           <Button size="sm" variant="outline" className="border-white/10 text-white hover:bg-white/5">
             <Download className="w-4 h-4 mr-2" /> Export
           </Button>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="h-[300px] flex items-center justify-center text-white/50">Loading chart data...</div>
-          ) : (
+        </div>
+        {isLoading ? (
+          <div className="h-[300px] flex items-center justify-center text-white/50">Loading chart data...</div>
+        ) : (
+          <div className="recharts-responsive-container">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -207,36 +207,36 @@ export function Reports() {
                 <Bar dataKey="sales" fill="#8884d8" radius={[8, 8, 0, 0]} name="Product Sales" />
               </BarChart>
             </ResponsiveContainer>
-          )}
-          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
-            <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Total Income (6M)</p>
-              <p className="text-white text-2xl">₱{totals.income.toLocaleString()}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Avg Monthly</p>
-              <p className="text-white text-2xl">₱{Math.round(totals.income / 6).toLocaleString()}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Status</p>
-              <p className="text-green-400 text-xl font-medium">Active</p>
-            </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
+          <div className="text-center">
+            <p className="text-white/60 text-sm mb-1">Total Income (6M)</p>
+            <p className="text-white text-2xl">₱{totals.income.toLocaleString()}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-white/60 text-sm mb-1">Avg Monthly</p>
+            <p className="text-white text-2xl">₱{Math.round(totals.income / 6).toLocaleString()}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-white/60 text-sm mb-1">Status</p>
+            <p className="text-green-400 text-xl font-medium">Active</p>
+          </div>
+        </div>
+      </div>
 
       {/* Expense Report Chart */}
-      <Card className="bg-linear-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-white">Expense Report - 6 Month Trend</CardTitle>
+      <div className="report-chart-card">
+        <div className="flex flex-row items-center justify-between mb-4">
+          <h3 className="text-white text-lg font-semibold">Expense Report - 6 Month Trend</h3>
           <Button size="sm" variant="outline" className="border-white/10 text-white hover:bg-white/5">
             <Download className="w-4 h-4 mr-2" /> Export
           </Button>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="h-[300px] flex items-center justify-center text-white/50">Loading chart data...</div>
-          ) : (
+        </div>
+        {isLoading ? (
+          <div className="h-[300px] flex items-center justify-center text-white/50">Loading chart data...</div>
+        ) : (
+          <div className="recharts-responsive-container">
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -250,27 +250,27 @@ export function Reports() {
                 <Line type="monotone" dataKey="other" stroke="#ffc658" strokeWidth={2} name="Other" />
               </LineChart>
             </ResponsiveContainer>
-          )}
-          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
-            <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Total Expenses (6M)</p>
-              <p className="text-white text-2xl">₱{totals.expense.toLocaleString()}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Avg Monthly</p>
-              <p className="text-white text-2xl">₱{Math.round(totals.expense / 6).toLocaleString()}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-white/60 text-sm mb-1">Status</p>
-              <p className="text-red-400 text-xl font-medium">Tracked</p>
-            </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
+          <div className="text-center">
+            <p className="text-white/60 text-sm mb-1">Total Expenses (6M)</p>
+            <p className="text-white text-2xl">₱{totals.expense.toLocaleString()}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-white/60 text-sm mb-1">Avg Monthly</p>
+            <p className="text-white text-2xl">₱{Math.round(totals.expense / 6).toLocaleString()}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-white/60 text-sm mb-1">Status</p>
+            <p className="text-red-400 text-xl font-medium">Tracked</p>
+          </div>
+        </div>
+      </div>
 
       {/* Profit & Loss Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-linear-to-br from-green-500/10 to-green-500/5 border-green-500/30 backdrop-blur">
+      <div className="reports-bottom-grid">
+        <Card className="bg-linear-to-br from-green-500/10 to-green-500/5 border-green-500/30 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-white text-sm">Total Revenue (6 Months)</CardTitle>
           </CardHeader>
@@ -282,7 +282,7 @@ export function Reports() {
           </CardContent>
         </Card>
 
-        <Card className="bg-linear-to-br from-red-500/10 to-red-500/5 border-red-500/30 backdrop-blur">
+        <Card className="bg-linear-to-br from-red-500/10 to-red-500/5 border-red-500/30 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-white text-sm">Total Expenses (6 Months)</CardTitle>
           </CardHeader>
@@ -294,7 +294,7 @@ export function Reports() {
           </CardContent>
         </Card>
 
-        <Card className="bg-linear-to-br from-[#E41E6A]/10 to-pink-500/5 border-[#E41E6A]/30 backdrop-blur">
+        <Card className="bg-linear-to-br from-[#E41E6A]/10 to-pink-500/5 border-[#E41E6A]/30 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-white text-sm">Net Profit (6 Months)</CardTitle>
           </CardHeader>

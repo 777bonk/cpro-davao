@@ -22,3 +22,561 @@
   background-color: #0a0a0a;
   color: #fff;
 }
+
+/* --- UNIVERSAL POP-UP STYLING --- */
+
+/* 1. Backdrop Blur - Ensures the background is dimmed and blurred */
+[data-radix-portal] .fixed.inset-0 {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(10px) !important;
+  z-index: 50 !important;
+}
+
+/* 2. Modal Container - Adds the essential border and dark background */
+[role="dialog"] {
+  background-color: #0a0a0a !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8) !important;
+  border-radius: 16px !important;
+  z-index: 51 !important;
+}
+
+/* 3. Global Pink Action Buttons - Applies to Add, Save, and Assign buttons */
+[role="dialog"] button.bg-primary,
+[role="dialog"] button:not([variant="outline"]):not([variant="ghost"]) {
+  background-color: #E41E6A !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border: none !important;
+}
+
+[role="dialog"] button:hover:not([variant="outline"]):not([variant="ghost"]) {
+  background-color: #f02d7a !important;
+  box-shadow: 0 0 15px rgba(228, 30, 106, 0.4);
+}
+
+/* 4. Global Input Visibility - Fixes text fields in all pop-ups */
+[role="dialog"] input,
+[role="dialog"] textarea,
+[role="dialog"] select {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+}
+
+.appointments-page {
+  width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.appointments-page .grid-cols-4 {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  gap: 1rem !important;
+}
+
+.appointments-page .grid-cols-2 {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  gap: 1.5rem !important;
+}
+
+.appointments-page .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appointments-page .table-fixed {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+.appointments-page .text-right {
+  text-align: right !important;
+}
+
+/* --- CALENDAR LAYOUT RESET --- */
+
+.appointments-page .rdp {
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.appointments-page .rdp-months,
+.appointments-page .rdp-month,
+.appointments-page .rdp-table {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.appointments-page .rdp-caption {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0 10px !important;
+  margin-bottom: 20px !important;
+}
+
+.appointments-page .rdp-head_row,
+.appointments-page .rdp-row {
+  display: flex !important;
+  width: 100% !important;
+  justify-content: space-between !important;
+}
+
+.appointments-page .rdp-cell,
+.appointments-page .rdp-head_cell {
+  width: 40px !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.appointments-page .rdp-head_cell {
+  color: rgba(255, 255, 255, 0.4) !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  text-align: center !important;
+  padding-bottom: 1rem !important;
+}
+
+.appointments-page .rdp-day {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: white !important;
+  transition: all 0.2s !important;
+}
+
+.appointments-page .rdp-day_selected {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+.appointments-page .rdp-day_today {
+  color: #E41E6A !important;
+  font-weight: bold !important;
+}
+
+.appointments-page .rdp-nav {
+  display: flex !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  position: absolute !important;
+}
+
+.appointments-page .rdp-day:hover:not(.rdp-day_selected) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.appointments-page .calendar-legend-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  display: inline-block !important;
+  margin-right: 8px !important;
+}
+
+.customer-management-page {
+  width: 100%;
+  max-width: 100% !important;
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-management-page .grid-cols-4 {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  width: 100% !important;
+}
+
+.customer-management-page table {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.customer-management-page .text-right {
+  text-align: right !important;
+  justify-content: flex-end !important;
+}
+
+.customer-management-page .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-page {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.inventory-page .grid-cols-4 {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  gap: 1rem !important;
+}
+
+.inventory-page .grid-cols-2 {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  gap: 1.5rem !important;
+}
+
+.inventory-page .grid-cols-3 {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  gap: 1rem !important;
+}
+
+.inventory-page .truncate,
+.inventory-page .card-title,
+.inventory-page table td,
+.inventory-page table th {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.inventory-page .table-fixed {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+.inventory-page .text-right {
+  text-align: right !important;
+}
+
+.employees-page .employee-split-view {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  width: 100% !important;
+  gap: 1.5rem !important;
+}
+
+.employees-page .employee-table-container {
+  width: 100% !important;
+  overflow-x: auto !important;
+}
+
+.employees-page .employee-name-cell {
+  max-width: 200px;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* --- UNIVERSAL DASHBOARD ALIGNMENT --- */
+
+/* 1. The 4-Column Stats Row (Total, Active, Leave, Busy) */
+.grid-cols-4 {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 1.25rem !important;
+  width: 100% !important;
+}
+
+/* 2. The 2-Column Split (Currently Busy Employees / Appointments) */
+.grid-cols-2 {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 1.5rem !important;
+  width: 100% !important;
+}
+
+/* 3. The Table Alignment (Matches the right edge of cards) */
+.table-fixed {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+/* 4. Text Truncation (Prevents long names from breaking the grid) */
+.truncate {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* 5. Right-aligned Actions/Salary (Pinning them to the edge) */
+.text-right {
+  text-align: right !important;
+}
+
+/* 6. Main Container Padding */
+.space-y-6 {
+  padding: 0.5rem;
+  width: 100% !important;
+}
+
+/* --- FINANCE PAGE ALIGNMENT MASTER --- */
+
+/* 1. Top Monthly Stats (4 Columns - Equal Width) */
+.finance-stats-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 1.25rem !important;
+  width: 100% !important;
+  margin-bottom: 1.5rem;
+}
+
+/* 2. Charts Row (2 Columns - 60/40 Split) */
+.finance-charts-grid {
+  display: grid !important;
+  grid-template-columns: 1.6fr 1fr !important;
+  gap: 1.5rem !important;
+  width: 100% !important;
+  align-items: start;
+}
+
+/* 3. Bottom 'Actual' Totals (3 Columns - Equal Width) */
+.finance-actuals-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 1.25rem !important;
+  width: 100% !important;
+  margin-top: 1.5rem;
+}
+
+/* 4. Finance Table Fix */
+.finance-table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse;
+}
+
+/* 5. Currency & Amount Alignment */
+.amount-column {
+  text-align: right !important;
+  font-family: monospace;
+}
+
+/* --- REPORTS & ANALYTICS ALIGNMENT --- */
+
+/* 1. Top Performance Metrics (4 Columns) */
+.reports-stats-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 1.25rem !important;
+  width: 100% !important;
+  margin-bottom: 1.5rem;
+}
+
+/* 2. Main Analytics Chart (Full Width) */
+.reports-main-chart {
+  width: 100% !important;
+  min-height: 400px;
+  background: transparent;
+  margin-bottom: 1.5rem;
+}
+
+/* 3. Bottom Analysis Section (3 Columns) */
+.reports-analysis-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 1.5rem !important;
+  width: 100% !important;
+}
+
+/* 4. Chart Legend & Tooltip Alignment */
+.chart-container svg {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* 5. Date Picker & Export Button Alignment */
+.reports-header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* --- REPORTS & ANALYTICS FIX --- */
+
+/* 1. The Container Wrapper */
+.reports-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* 2. Top Row (The 4 Mini Cards) */
+.reports-top-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 1rem !important;
+  width: 100% !important;
+}
+
+/* 3. The Large Charts (Income & Expense Trends) */
+.report-chart-card {
+  width: 100% !important;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+/* 4. The Bottom Row (3 Green/Red/Black Cards) */
+.reports-bottom-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 1.25rem !important;
+  width: 100% !important;
+}
+
+/* 5. Chart Responsive Fix */
+.recharts-responsive-container {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+/* 6. Header Alignment */
+.reports-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+/* --- REPORTS INTERNAL CHART STATS ALIGNMENT --- */
+
+/* This targets the container holding the 3 text blocks under the charts */
+.report-chart-card > div:last-child {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  width: 100% !important;
+  text-align: center !important;
+  gap: 1rem !important;
+  margin-top: 1.5rem !important;
+  padding-top: 1.5rem !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* This targets the individual stat groups (Label + Value) */
+.report-chart-card > div:last-child > div {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Force the labels (Total Income, etc) to look like the Figma */
+.report-chart-card > div:last-child p:first-child {
+  font-size: 0.75rem !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  text-transform: uppercase !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* Force the values (₱0, Active) to be bold and bright */
+.report-chart-card > div:last-child p:last-child {
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+}
+
+/* Specific color for the 'Status' values */
+.report-chart-card > div:last-child p.text-green-400 {
+  color: #4ade80 !important; /* Green for Active */
+}
+
+.report-chart-card > div:last-child p.text-red-400 {
+  color: #fbbf24 !important; /* Amber for Tracked */
+}
+
+/* --- UNIVERSAL POP-UP VISIBILITY & PINK THEME --- */
+
+/* 1. Backdrop: Darker with blur to make the pop-up pop */
+[data-radix-portal] .fixed.inset-0 {
+  background-color: rgba(0, 0, 0, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 50 !important;
+}
+
+/* 2. The Pop-up Box: Deep background with a LIGHT PINK border */
+[role="dialog"] {
+  background-color: #d60385 !important;
+  border: 1px solid rgba(228, 30, 106, 0.4) !important; /* Light Pink Border */
+  box-shadow: 0 0 40px rgba(228, 30, 106, 0.15) !important;
+  border-radius: 12px !important;
+  z-index: 51 !important;
+  color: white !important;
+}
+
+/* 3. Action Buttons: Force Pink branding for 'Save', 'Add', and 'Assign' */
+[role="dialog"] button.bg-primary, 
+[role="dialog"] button[type="submit"],
+[role="dialog"] .bg-pink-600 {
+  background-color: #e41e6a !important;
+  color: white !important;
+  border: none !important;
+  transition: all 0.2s ease !important;
+}
+
+[role="dialog"] button:hover {
+  filter: brightness(1.1) !important;
+  transform: translateY(-1px);
+}
+
+/* 4. Form Fields: Ensure inputs are visible inside the pop-up */
+[role="dialog"] input, 
+[role="dialog"] select, 
+[role="dialog"] textarea {
+  background-color: rgba(247, 0, 173, 0.05) !important;
+  border: 1px solid rgba(250, 0, 154, 0.1) !important;
+  color: white !important;
+}
+
+[role="dialog"] input:focus {
+  border-color: #e41e6a !important;
+}
+
+
+/* --- GLOBAL PINK POP-UP THEME --- */
+
+[role="dialog"] {
+  background-color: #FFB6E1 !important; /* Solid Light Pink */
+  border: 2px solid #E41E6A !important;  /* Darker Pink Border */
+  color: #111827 !important;            /* Dark Grey/Black Text */
+  box-shadow: 0 0 30px rgba(228, 30, 106, 0.3) !important;
+}
+
+/* Ensure labels inside the pink box are dark */
+[role="dialog"] label, 
+[role="dialog"] .text-white,
+[role="dialog"] .text-muted-foreground {
+  color: #f300df !important; /* Dark Slate 800 */
+}
+
+/* Make inputs inside the pink box stand out */
+[role="dialog"] input, 
+[role="dialog"] select, 
+[role="dialog"] textarea {
+  background-color: rgba(236, 2, 119, 0.5) !important;
+  border: 1px solid rgba(66, 2, 56, 0.1) !important;
+  color: #ecdede !important;
+}
+
+
+

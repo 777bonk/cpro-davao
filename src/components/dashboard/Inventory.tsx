@@ -164,7 +164,7 @@ export function Inventory() {
   const totalValue = inventory.reduce((sum, item) => sum + (item.stock * item.price), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="inventory-page space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -172,7 +172,7 @@ export function Inventory() {
           <p className="text-white/60">Track and manage your supplies and materials</p>
         </div>
         <Button 
-          className="bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#E41E6A]/90 hover:to-pink-600/90 text-white"
+          className="bg-linear-to-r from-[#E41E6A] to-pink-600 hover:from-gray-600 text-white"
           onClick={() => setAddItemOpen(true)}
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -181,8 +181,8 @@ export function Inventory() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Total Items</CardTitle>
           </CardHeader>
@@ -192,7 +192,7 @@ export function Inventory() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Low Stock Items</CardTitle>
           </CardHeader>
@@ -202,7 +202,7 @@ export function Inventory() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Total Inventory Value</CardTitle>
           </CardHeader>
@@ -212,7 +212,7 @@ export function Inventory() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur min-w-0 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-white/70">Total Stock Out</CardTitle>
           </CardHeader>
@@ -233,19 +233,19 @@ export function Inventory() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               {lowStockItems.map((item) => (
                 <div
                   key={item.id}
                   className="p-4 bg-white/5 rounded-lg border border-orange-500/20"
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <p className="text-white font-medium">{item.name}</p>
+                    <p className="text-white font-medium truncate">{item.name}</p>
                     <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
                       {item.status}
                     </Badge>
                   </div>
-                  <p className="text-white/50 text-sm mb-3">{item.category}</p>
+                  <p className="text-white/50 text-sm mb-3 truncate">{item.category}</p>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
                       <span className="text-white/60">Stock: {item.stock} {item.unit}</span>
@@ -290,7 +290,7 @@ export function Inventory() {
           ) : inventory.length === 0 ? (
             <div className="text-center text-white/50 py-8">No inventory items found.</div>
           ) : (
-            <Table>
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow className="border-white/10 hover:bg-transparent">
                   <TableHead className="text-white/70">Item Name</TableHead>
@@ -311,7 +311,7 @@ export function Inventory() {
                         <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#E41E6A] to-pink-600 flex items-center justify-center">
                           <Package className="w-5 h-5 text-white" />
                         </div>
-                        <p className="text-white">{item.name}</p>
+                        <p className="text-white truncate">{item.name}</p>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -381,8 +381,8 @@ export function Inventory() {
 
       {/* 1. Add Item Modal */}
       {addItemOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Add New Item</h2>
               <button onClick={() => setAddItemOpen(false)} className="text-white/50 hover:text-white transition">
@@ -491,8 +491,8 @@ export function Inventory() {
 
       {/* 2. Reorder Modal */}
       {reorderOpen && selectedItem && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Reorder Item</h2>
               <button onClick={() => setReorderOpen(false)} className="text-white/50 hover:text-white transition">
@@ -537,8 +537,8 @@ export function Inventory() {
 
       {/* 3. Edit Item Modal */}
       {editItemOpen && selectedItem && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Edit Stock</h2>
               <button onClick={() => setEditItemOpen(false)} className="text-white/50 hover:text-white transition">
@@ -595,8 +595,8 @@ export function Inventory() {
 
       {/* 4. Inventory Report Modal */}
       {reportOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Inventory Report</h2>
               <button onClick={() => setReportOpen(false)} className="text-white/50 hover:text-white transition">
