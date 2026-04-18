@@ -228,12 +228,12 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Customers */}
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm text-white/70">Total Customers</CardTitle>
             <Users className="w-4 h-4 text-[#E41E6A]" />
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ paddingBottom: "20px" }}>
             <div className="text-white text-2xl">{isLoading ? '...' : stats.totalCustomers}</div>
             <p className={`text-xs flex items-center gap-1 mt-1 ${stats.customerGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {stats.customerGrowth >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -243,12 +243,12 @@ export function Dashboard() {
         </Card>
 
         {/* Appointments */}
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm text-white/70">Today's Appointments</CardTitle>
             <Calendar className="w-4 h-4 text-[#E41E6A]" />
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ paddingBottom: "20px" }}>
             <div className="text-white text-2xl">{isLoading ? '...' : stats.todaysAppts}</div>
             <p className="text-xs text-white/50 flex items-center gap-1 mt-1">
               <Clock className="w-3 h-3 text-blue-400" />
@@ -258,12 +258,12 @@ export function Dashboard() {
         </Card>
 
         {/* Daily Income */}
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm text-white/70">Today's Income</CardTitle>
             <DollarSign className="w-4 h-4 text-[#E41E6A]" />
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ paddingBottom: "20px" }}>
             <div className="text-white text-2xl">₱{isLoading ? '...' : stats.todaysIncome.toLocaleString()}</div>
             <p className={`text-xs flex items-center gap-1 mt-1 ${stats.incomeGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {stats.incomeGrowth >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -273,12 +273,12 @@ export function Dashboard() {
         </Card>
 
         {/* Monthly Revenue */}
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm text-white/70">Monthly Revenue</CardTitle>
             <TrendingUp className="w-4 h-4 text-[#E41E6A]" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-5">
             <div className="text-white text-2xl">₱{isLoading ? '...' : stats.monthlyRevenue.toLocaleString()}</div>
             <p className={`text-xs flex items-center gap-1 mt-1 ${stats.revenueGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {stats.revenueGrowth >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -290,11 +290,11 @@ export function Dashboard() {
 
       {/* Live Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader>
             <CardTitle className="text-white">Monthly Income vs Expenses</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ paddingBottom: "20px" }}>
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={chartData}>
                 <defs>
@@ -319,11 +319,11 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader>
             <CardTitle className="text-white">Service Revenue Breakdown</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ paddingBottom: "20px" }}>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -340,14 +340,14 @@ export function Dashboard() {
       {/* Live Notifications Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Upcoming Appointments */}
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Calendar className="w-5 h-5 text-[#E41E6A]" />
               Upcoming Jobs
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ paddingBottom: "20px" }}>
             <div className="space-y-3">
               {upcomingAppts.length === 0 ? (
                 <p className="text-white/50 text-sm">No upcoming appointments scheduled.</p>
@@ -370,14 +370,14 @@ export function Dashboard() {
         </Card>
 
         {/* Low Stock Items */}
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Package className="w-5 h-5 text-orange-400" />
               Low Stock Alert
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ paddingBottom: "20px" }}>
             <div className="space-y-3">
               {lowStockItems.length === 0 ? (
                 <p className="text-green-400/70 text-sm">Inventory levels are healthy.</p>
@@ -399,14 +399,14 @@ export function Dashboard() {
         </Card>
 
         {/* Active/Pending Jobs */}
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-yellow-400" />
               Active & Pending Jobs
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ paddingBottom: "20px" }}>
             <div className="space-y-3">
               {pendingPayments.length === 0 ? (
                 <p className="text-white/50 text-sm">No active or pending jobs.</p>
