@@ -136,30 +136,6 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
   )}
 </Button>
 
-<<<<<<< HEAD
-              {/* Submenu */}
-              {item.submenu && expandedMenus.includes(item.id) && (
-                <div className="mt-1 border-l border-white/10 ml-7 pl-3 overflow-hidden">
-                  <div className="flex flex-wrap items-center gap-1">
-                    {item.submenu.map((subItem, index) => (
-                      <div key={subItem.id} className="flex items-center">
-                        <Button
-                          variant="ghost"
-                          className={`justify-start text-white/60 hover:text-white hover:bg-white/5 text-xs px-2 py-1 ${
-                            activeSection === subItem.id ? "bg-[#E41E6A]/20 text-[#E41E6A]" : ""
-                          }`}
-                          onClick={() => onSectionChange(subItem.id)}
-                        >
-                          <span className="truncate">{subItem.label}</span>
-                        </Button>
-                        {index < item.submenu.length - 1 && (
-                          <span className="text-white/40 text-xs mx-1">|</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-=======
 {/* Submenu — only for items with 2+ children */}
 {item.submenu && item.submenu.length > 1 && expandedMenus.includes(item.id) && (
   <div className="mt-1 space-y-1 border-l border-white/10 ml-7 pl-3 overflow-hidden">
@@ -176,7 +152,6 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
       </Button>
     ))}
   </div>
->>>>>>> 753ed6d (fixed issues in all modal)
               )}
             </div>
           ))}

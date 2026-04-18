@@ -101,11 +101,7 @@ export default function CustomerManagement() {
           <p className="text-white/60">Manage your customer database and vehicle information</p>
         </div>
         <Button 
-<<<<<<< HEAD
-          className="bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:opacity-90 text-white"
-=======
           className="bg-linear-to-r from-[#E41E6A] to-pink-600 hover:from-gray-600 text-white"
->>>>>>> 753ed6d (fixed issues in all modal)
           onClick={() => setAddCustomerOpen(true)}
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -195,13 +191,8 @@ export default function CustomerManagement() {
 
       {/* MODALS (Details & Add) */}
       {viewDetailsOpen && selectedCustomer && (
-<<<<<<< HEAD
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-gradient-to-br from-white/5 to-[#E41E6A]/10 border border-[#E41E6A]/50 rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
-=======
         <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
           <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
->>>>>>> 753ed6d (fixed issues in all modal)
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Customer Details</h2>
               <button onClick={() => setViewDetailsOpen(false)} className="text-white/50 hover:text-white transition">
@@ -246,13 +237,8 @@ export default function CustomerManagement() {
       )}
 
       {addCustomerOpen && (
-<<<<<<< HEAD
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-gradient-to-br from-white/5 to-[#E41E6A]/10 border border-[#E41E6A]/50 rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-=======
         <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
           <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
->>>>>>> 753ed6d (fixed issues in all modal)
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Add New Customer</h2>
               <button onClick={() => setAddCustomerOpen(false)} className="text-white/50 hover:text-white">
