@@ -98,7 +98,7 @@ export function Inventory() {
 
     try {
       await updateInventoryStock(selectedItem.id, newStock, newStockIn, selectedItem.stockOut);
-      
+       
       // Update local state instantly
       setInventory(inventory.map(item =>
         item.id === selectedItem.id

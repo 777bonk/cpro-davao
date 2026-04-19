@@ -1,24 +1,16 @@
 import { useState } from "react";
-import { Button } from "../ui/button";
+import { Button } from "../ui/button"; // Note: Adjust this import path if needed
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import LoginModal from "./LoginModal";
 
-export function Navigation({ onNavigateToLogin }: { onNavigateToLogin?: () => void }) {
+export function Navigation({ onNavigateToLogin }: { onNavigateToLogin: () => void }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   const scrollToSection = (sectionId: string) => {
-    console.log("scrollToSection called:", sectionId);
     const element = document.getElementById(sectionId);
-    console.log("scrollToSection found element:", element);
-
-    // Close mobile menu immediately so it doesn't block clicks/layout
     setIsMenuOpen(false);
-
     if (!element) return;
 
-    // Wait for menu close animation/layout to settle, then scroll with offset
     setTimeout(() => {
       const navEl = document.querySelector("nav");
       const navHeight = navEl ? Math.round(navEl.getBoundingClientRect().height) : 80;
@@ -60,9 +52,10 @@ export function Navigation({ onNavigateToLogin }: { onNavigateToLogin?: () => vo
                 {item.label}
               </button>
             ))}
+            
             <Button
-              onClick={() => onNavigateToLogin?.()}
-              className="bg-black border border-white/10 text-white"
+              onClick={onNavigateToLogin}
+              className="bg-black border border-white/10 text-white hover:bg-white/10"
             >
               Sign Up / Login
             </Button>
@@ -77,10 +70,7 @@ export function Navigation({ onNavigateToLogin }: { onNavigateToLogin?: () => vo
 
           {/* Mobile Menu Button */}
           <div className="md:hidden">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-white p-2"
-            >
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-white p-2">
               {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
@@ -106,17 +96,20 @@ export function Navigation({ onNavigateToLogin }: { onNavigateToLogin?: () => vo
                   {item.label}
                 </button>
               ))}
-<Button
-  onClick={() => onNavigateToLogin?.()}
-  className="bg-black border border-white/10 text-white"
->
-  Sign Up / Login
-</Button>
-
+              
+              <Button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onNavigateToLogin();
+                }}
+                className="w-full bg-black border border-white/10 text-white"
+              >
+                Sign Up / Login
+              </Button>
 
               <Button
                 onClick={() => scrollToSection("quote")}
-                className="w-full bg-gradient-to-r from-[#E41E6A] to-[#C01854] hover:from-[#C01854] hover:to-[#E41E6A] text-white shadow-lg shadow-[#E41E6A]/50"
+                className="w-full bg-gradient-to-r from-[#E41E6A] to-[#C01854] text-white shadow-lg shadow-[#E41E6A]/50"
               >
                 Get a Quote
               </Button>
@@ -124,11 +117,6 @@ export function Navigation({ onNavigateToLogin }: { onNavigateToLogin?: () => vo
           </motion.div>
         )}
       </AnimatePresence>
-          <LoginModal
-      isOpen={isLoginOpen}
-      onClose={() => setIsLoginOpen(false)}
-    />
-
     </nav>
   );
 }
