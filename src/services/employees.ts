@@ -47,3 +47,10 @@ export const updateEmployeeAssignment = async (id: string, availability: string,
   if (error) throw error;
   return data as Employee;
 };
+
+export const updateEmployee = async (id: string, data: Partial<Employee>) => {
+  const { data: updated, error } = await supabase
+    .from("employees").update(data).eq("id", id).select().single();
+  if (error) throw error;
+  return updated;
+};
