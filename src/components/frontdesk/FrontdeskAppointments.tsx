@@ -1,16 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ChevronLeft, ChevronRight, Search, SlidersHorizontal, Plus,
   Calendar, Car, Clock, Banknote, Shield, Layers, Sparkles,
   Eye, XCircle, ChevronDown, X, User, Phone, FileText, CalendarX,
 } from "lucide-react";
 
+// ─── API PLACEHOLDERS (Replace with your actual service imports) ──────────────
+// import { getAdminAppointments, createAdminAppointment, updateAppointmentStatus } from "../../services/appointments";
+
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 type AppointmentStatus = "Confirmed" | "Pending" | "In Progress" | "Completed" | "Cancelled";
 
 interface Appointment {
-  id: number;
+  id: number | string;
   customer: string;
   contact: string;
   vehicle: string;
@@ -22,28 +25,13 @@ interface Appointment {
   status: AppointmentStatus;
 }
 
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
-
-const INITIAL_APPOINTMENTS: Appointment[] = [
-  { id: 1, customer: "Juan dela Cruz",   contact: "09171234567", vehicle: "2023 Toyota Fortuner",    service: "Ceramic Coating - Full Body",   date: "2026-04-19", time: "9:00 AM",  deposit: 3000, notes: "Prefers morning slot.", status: "In Progress" },
-  { id: 2, customer: "Maria Santos",     contact: "09181234567", vehicle: "2021 Honda Civic",         service: "Window Tinting - Full Car",     date: "2026-04-19", time: "10:30 AM", deposit: 1000, notes: "",                    status: "Confirmed"   },
-  { id: 3, customer: "Carlo Reyes",      contact: "09191234567", vehicle: "2022 Mitsubishi Xpander",  service: "PPF - Hood & Fenders",          date: "2026-04-19", time: "1:00 PM",  deposit: 2500, notes: "Check for scratches first.", status: "Confirmed" },
-  { id: 4, customer: "Ana Villanueva",   contact: "09201234567", vehicle: "2020 Ford Ranger",         service: "Full Interior Detailing",       date: "2026-04-24", time: "9:00 AM",  deposit: 800,  notes: "",                    status: "Confirmed"   },
-  { id: 5, customer: "Ramon Gutierrez",  contact: "09211234567", vehicle: "2023 Nissan Terra",        service: "Nano Ceramic Spray",            date: "2026-05-03", time: "2:00 PM",  deposit: 500,  notes: "Walk-in referral.",   status: "Pending"     },
-  { id: 6, customer: "Liza Mendoza",     contact: "09221234567", vehicle: "2021 Kia Stinger",         service: "Ceramic Coating - Partial",     date: "2026-05-10", time: "10:00 AM", deposit: 1500, notes: "",                    status: "Pending"     },
-  { id: 7, customer: "Paolo Cruz",       contact: "09231234567", vehicle: "2019 Toyota Vios",         service: "Full Interior Detailing",       date: "2026-03-20", time: "3:00 PM",  deposit: 800,  notes: "",                    status: "Completed"   },
-  { id: 8, customer: "Sofia Reyes",      contact: "09241234567", vehicle: "2022 Honda BRV",           service: "Window Tinting - Full Car",     date: "2026-03-28", time: "11:00 AM", deposit: 1000, notes: "",                    status: "Completed"   },
-];
+// ─── CONSTANTS & CONFIG ───────────────────────────────────────────────────────
 
 const SERVICE_OPTIONS = [
-  "Ceramic Coating - Full Body",
-  "Ceramic Coating - Partial",
-  "PPF - Hood & Fenders",
-  "PPF - Full Body",
-  "Window Tinting - Full Car",
-  "Full Interior Detailing",
-  "Nano Ceramic Spray",
-  "Paint Decontamination",
+  "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
+  "PPF - Hood & Fenders", "PPF - Full Body",
+  "Window Tinting - Full Car", "Full Interior Detailing",
+  "Nano Ceramic Spray", "Paint Decontamination",
 ];
 
 const TIME_OPTIONS = [
@@ -51,17 +39,20 @@ const TIME_OPTIONS = [
   "1:00 PM","2:00 PM","3:00 PM","4:00 PM",
 ];
 
-// ─── STATUS CONFIG ─────────────────────────────────────────────────────────────
+const ALL_STATUSES: AppointmentStatus[] = ["Confirmed", "Pending", "In Progress", "Completed", "Cancelled"];
 
 const STATUS_STYLE: Record<AppointmentStatus, { bg: string; text: string; dot: string; border: string }> = {
-  Confirmed:    { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", border: "border-emerald-200" },
-  Pending:      { bg: "bg-amber-50",   text: "text-amber-700",   dot: "bg-amber-400",   border: "border-amber-200"   },
-  "In Progress":{ bg: "bg-blue-50",    text: "text-blue-700",    dot: "bg-blue-500",    border: "border-blue-200"    },
-  Completed:    { bg: "bg-gray-100",   text: "text-gray-600",    dot: "bg-gray-400",    border: "border-gray-200"    },
-  Cancelled:    { bg: "bg-red-50",     text: "text-red-600",     dot: "bg-red-400",     border: "border-red-200"     },
+  Confirmed:    { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30"  },
+  Pending:      { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30" },
+  "In Progress":{ bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30"   },
+  Completed:    { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10"      },
+  Cancelled:    { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
 };
 
-const ALL_STATUSES: AppointmentStatus[] = ["Confirmed", "Pending", "In Progress", "Completed", "Cancelled"];
+// ─── SHARED CLASSES ───────────────────────────────────────────────────────────
+
+const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
+const cardCls  = "bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur rounded-xl border";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -78,17 +69,16 @@ function formatShort(dateStr: string) {
 }
 function serviceIcon(service: string) {
   const s = service.toLowerCase();
-  if (s.includes("coating"))  return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
-  if (s.includes("ppf") || s.includes("paint protection"))
-                               return <Layers   className="w-4 h-4 text-violet-500" />;
-  if (s.includes("tint"))      return <Sparkles className="w-4 h-4 text-sky-500"   />;
-  return                              <Car      className="w-4 h-4 text-gray-400"   />;
+  if (s.includes("coating")) return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
+  if (s.includes("ppf") || s.includes("paint protection")) return <Layers   className="w-4 h-4 text-violet-400" />;
+  if (s.includes("tint"))    return <Sparkles className="w-4 h-4 text-sky-400"   />;
+  return                            <Car      className="w-4 h-4 text-white/50"   />;
 }
 
 // ─── STATUS BADGE ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: AppointmentStatus }) {
-  const s = STATUS_STYLE[status];
+  const s = STATUS_STYLE[status] || STATUS_STYLE.Pending;
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
@@ -127,37 +117,32 @@ function CalendarCard({
 
   const dotColor = (statuses: AppointmentStatus[]) => {
     if (statuses.includes("In Progress")) return "bg-blue-500";
-    if (statuses.includes("Confirmed"))   return "bg-emerald-500";
-    if (statuses.includes("Pending"))     return "bg-amber-400";
-    return "bg-gray-400";
+    if (statuses.includes("Confirmed"))   return "bg-green-500";
+    if (statuses.includes("Pending"))     return "bg-yellow-400";
+    return "bg-white/30";
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <div className={`${cardCls} p-5`}>
       <div className="mb-4">
-        <h2 className="text-sm font-bold text-gray-800">Calendar</h2>
-        <p className="text-xs text-gray-400 mt-0.5">Select a date to filter appointments</p>
+        <h2 className="text-sm font-bold text-white">Calendar</h2>
+        <p className="text-xs text-white/50 mt-0.5">Select a date to filter appointments</p>
       </div>
 
-      {/* Month nav */}
       <div className="flex items-center justify-between mb-4">
-        <button onClick={prev} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
-          <ChevronLeft className="w-4 h-4 text-gray-500" />
+        <button onClick={prev} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors">
+          <ChevronLeft className="w-4 h-4 text-white/60" />
         </button>
-        <span className="text-sm font-semibold text-gray-700">{MONTH_NAMES[viewMonth]} {viewYear}</span>
-        <button onClick={next} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
-          <ChevronRight className="w-4 h-4 text-gray-500" />
+        <span className="text-sm font-semibold text-white">{MONTH_NAMES[viewMonth]} {viewYear}</span>
+        <button onClick={next} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors">
+          <ChevronRight className="w-4 h-4 text-white/60" />
         </button>
       </div>
 
-      {/* Day headers */}
       <div className="grid grid-cols-7 mb-1">
-        {DAY_NAMES.map(d => (
-          <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
-        ))}
+        {DAY_NAMES.map(d => <div key={d} className="text-center text-[10px] font-semibold text-white/30 py-1">{d}</div>)}
       </div>
 
-      {/* Cells */}
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
           if (!day) return <div key={`e-${i}`} />;
@@ -173,28 +158,25 @@ function CalendarCard({
                 relative flex flex-col items-center justify-center w-8 h-8 mx-auto rounded-full text-xs font-medium transition-all
                 ${isSel   ? "bg-[#E41E6A] text-white shadow-md shadow-[#E41E6A]/30" : ""}
                 ${isToday && !isSel ? "border border-[#E41E6A] text-[#E41E6A]" : ""}
-                ${!isSel && !isToday ? "text-gray-600 hover:bg-gray-100" : ""}
+                ${!isSel && !isToday ? "text-white/60 hover:bg-white/10" : ""}
               `}
             >
               {day}
-              {dots && (
-                <span className={`absolute bottom-0.5 w-1.5 h-1.5 rounded-full ${isSel ? "bg-white" : dotColor(dots)}`} />
-              )}
+              {dots && <span className={`absolute bottom-0.5 w-1.5 h-1.5 rounded-full ${isSel ? "bg-white" : dotColor(dots)}`} />}
             </button>
           );
         })}
       </div>
 
-      {/* Legend */}
-      <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col gap-1.5">
+      <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-1.5">
         {[
-          { dot: "bg-emerald-500", label: "Confirmed"    },
-          { dot: "bg-blue-500",    label: "In Progress"  },
-          { dot: "bg-amber-400",   label: "Pending"      },
+          { dot: "bg-green-500",  label: "Confirmed"   },
+          { dot: "bg-blue-500",   label: "In Progress" },
+          { dot: "bg-yellow-400", label: "Pending"     },
         ].map(l => (
           <div key={l.label} className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${l.dot}`} />
-            <span className="text-xs text-gray-500">{l.label}</span>
+            <span className="text-xs text-white/50">{l.label}</span>
           </div>
         ))}
       </div>
@@ -212,51 +194,41 @@ function AppointmentsPanel({
   onViewDetail: (a: Appointment) => void;
 }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col min-h-[420px]">
+    <div className={`${cardCls} p-5 flex flex-col min-h-[420px]`}>
       <div className="mb-4">
-        <h2 className="text-sm font-bold text-gray-800">
+        <h2 className="text-sm font-bold text-white">
           Appointments for <span className="text-[#E41E6A]">{formatShort(selected)}</span>
         </h2>
-        <p className="text-xs text-gray-400 mt-0.5">
-          {appts.length} appointment{appts.length !== 1 ? "s" : ""} scheduled
-        </p>
+        <p className="text-xs text-white/50 mt-0.5">{appts.length} appointment{appts.length !== 1 ? "s" : ""} scheduled</p>
       </div>
 
       {appts.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
-          <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
-            <CalendarX className="w-6 h-6 text-gray-300" />
+          <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mb-3">
+            <CalendarX className="w-6 h-6 text-white/20" />
           </div>
-          <p className="text-sm font-medium text-gray-400">No appointments for this date</p>
+          <p className="text-sm font-medium text-white/40">No appointments for this date</p>
         </div>
       ) : (
         <div className="space-y-3 overflow-y-auto">
           {appts.map(a => (
-            <div key={a.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100 hover:border-[#E41E6A]/30 transition-all">
+            <div key={a.id} className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-[#E41E6A]/40 transition-all">
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
                     {serviceIcon(a.service)}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800 leading-snug">{a.service}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{a.customer} · {a.vehicle}</p>
+                    <p className="text-sm font-semibold text-white leading-snug">{a.service}</p>
+                    <p className="text-xs text-white/50 mt-0.5">{a.customer} · {a.vehicle}</p>
                   </div>
                 </div>
                 <StatusBadge status={a.status} />
               </div>
-              <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-100">
-                <span className="flex items-center gap-1 text-xs text-gray-500">
-                  <Clock className="w-3.5 h-3.5 text-[#E41E6A]" />{a.time}
-                </span>
-                <span className="flex items-center gap-1 text-xs text-gray-500">
-                  <Banknote className="w-3.5 h-3.5 text-emerald-500" />
-                  ₱{a.deposit.toLocaleString()} deposit
-                </span>
-                <button
-                  onClick={() => onViewDetail(a)}
-                  className="ml-auto flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800 transition-colors"
-                >
+              <div className="flex flex-wrap gap-3 pt-2 border-t border-white/10">
+                <span className="flex items-center gap-1 text-xs text-white/50"><Clock className="w-3.5 h-3.5 text-[#E41E6A]" />{a.time}</span>
+                <span className="flex items-center gap-1 text-xs text-white/50"><Banknote className="w-3.5 h-3.5 text-green-400" />₱{a.deposit.toLocaleString()}</span>
+                <button onClick={() => onViewDetail(a)} className="ml-auto flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
                   <Eye className="w-3.5 h-3.5" />View
                 </button>
               </div>
@@ -275,32 +247,32 @@ function AppointmentTable({
 }: {
   appts: Appointment[];
   onViewDetail: (a: Appointment) => void;
-  onCancel: (id: number) => void;
+  onCancel: (id: number | string) => void;
 }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h2 className="text-sm font-bold text-gray-800">All Appointments</h2>
-        <p className="text-xs text-gray-400 mt-0.5">{appts.length} total records</p>
+    <div className={`${cardCls} overflow-hidden`}>
+      <div className="px-5 py-4 border-b border-white/10 flex justify-between items-center">
+        <h2 className="text-sm font-bold text-white">All Appointments</h2>
+        <span className="text-xs text-white/40">{appts.length} total records</span>
       </div>
 
-      {/* Mobile cards */}
-      <div className="sm:hidden divide-y divide-gray-50">
+      {/* Mobile */}
+      <div className="sm:hidden divide-y divide-white/5">
         {appts.map(a => (
-          <div key={a.id} className="p-4 flex flex-col gap-2">
+          <div key={a.id} className="p-4 flex flex-col gap-2 hover:bg-white/5 transition-colors">
             <div className="flex items-start justify-between">
-              <p className="text-sm font-semibold text-gray-800 max-w-[65%] leading-snug">{a.service}</p>
+              <p className="text-sm font-semibold text-white max-w-[65%] leading-snug">{a.service}</p>
               <StatusBadge status={a.status} />
             </div>
-            <p className="text-xs text-gray-400 flex items-center gap-1"><User className="w-3 h-3" />{a.customer}</p>
-            <p className="text-xs text-gray-400 flex items-center gap-1"><Car className="w-3 h-3" />{a.vehicle}</p>
-            <p className="text-xs text-gray-400 flex items-center gap-1"><Calendar className="w-3 h-3 text-[#E41E6A]" />{formatShort(a.date)} · {a.time}</p>
-            <div className="flex gap-3 mt-1">
-              <button onClick={() => onViewDetail(a)} className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800">
+            <p className="text-xs text-white/50 flex items-center gap-1"><User className="w-3 h-3" />{a.customer}</p>
+            <p className="text-xs text-white/50 flex items-center gap-1"><Car className="w-3 h-3" />{a.vehicle}</p>
+            <p className="text-xs text-white/50 flex items-center gap-1"><Calendar className="w-3 h-3 text-[#E41E6A]" />{formatShort(a.date)} · {a.time}</p>
+            <div className="flex gap-3 mt-2 pt-2 border-t border-white/5">
+              <button onClick={() => onViewDetail(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400">
                 <Eye className="w-3.5 h-3.5" />View
               </button>
               {a.status !== "Completed" && a.status !== "Cancelled" && (
-                <button onClick={() => onCancel(a.id)} className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700">
+                <button onClick={() => onCancel(a.id)} className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300">
                   <XCircle className="w-3.5 h-3.5" />Cancel
                 </button>
               )}
@@ -309,47 +281,45 @@ function AppointmentTable({
         ))}
       </div>
 
-      {/* Desktop table */}
+      {/* Desktop */}
       <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 text-left">
+            <tr className="border-b border-white/10 text-left">
               {["Date","Customer","Service","Vehicle","Status","Actions"].map(h => (
-                <th key={h} className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                <th key={h} className="px-5 py-3.5 text-xs font-semibold text-white/50 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-white/5">
             {appts.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm">No appointments found.</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-white/40 text-sm">No appointments found.</td></tr>
             ) : (
               appts.map(a => (
-                <tr key={a.id} className="hover:bg-gray-50/60 transition-colors">
+                <tr key={a.id} className="hover:bg-white/5 transition-colors">
                   <td className="px-5 py-3.5 whitespace-nowrap">
-                    <span className="block text-xs font-medium text-gray-700">{formatShort(a.date)}</span>
-                    <span className="text-xs text-gray-400">{a.time}</span>
+                    <span className="block text-xs font-medium text-white">{formatShort(a.date)}</span>
+                    <span className="text-xs text-white/40">{a.time}</span>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className="block text-sm font-medium text-gray-800">{a.customer}</span>
-                    <span className="text-xs text-gray-400 flex items-center gap-1"><Phone className="w-3 h-3" />{a.contact}</span>
+                    <span className="block text-sm font-medium text-white">{a.customer}</span>
+                    <span className="text-xs text-white/50 flex items-center gap-1 mt-0.5"><Phone className="w-3 h-3" />{a.contact}</span>
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center flex-shrink-0">
-                        {serviceIcon(a.service)}
-                      </div>
-                      <span className="text-sm text-gray-800 max-w-[180px] truncate">{a.service}</span>
+                      <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">{serviceIcon(a.service)}</div>
+                      <span className="text-sm text-white max-w-[180px] truncate">{a.service}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-sm text-gray-500 whitespace-nowrap">{a.vehicle}</td>
+                  <td className="px-5 py-3.5 text-sm text-white/60 whitespace-nowrap">{a.vehicle}</td>
                   <td className="px-5 py-3.5"><StatusBadge status={a.status} /></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <button onClick={() => onViewDetail(a)} className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800 transition-colors">
+                      <button onClick={() => onViewDetail(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
                         <Eye className="w-3.5 h-3.5" />View
                       </button>
                       {a.status !== "Completed" && a.status !== "Cancelled" && (
-                        <button onClick={() => onCancel(a.id)} className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 transition-colors">
+                        <button onClick={() => onCancel(a.id)} className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 transition-colors">
                           <XCircle className="w-3.5 h-3.5" />Cancel
                         </button>
                       )}
@@ -389,98 +359,93 @@ function AddAppointmentModal({
   };
 
   const field = (label: string, required = false) => (
-    <span className="text-sm text-gray-700 font-medium">
+    <span className="text-sm font-medium text-white/70 block mb-1.5">
       {label}{required && <span className="text-red-500 ml-0.5">*</span>}
     </span>
   );
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-800">New Appointment</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Fill in the appointment details</p>
+            <h2 className="text-base font-bold text-white">New Appointment</h2>
+            <p className="text-xs text-white/50 mt-0.5">Fill in the appointment details</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
-            <X className="w-4 h-4 text-gray-500" />
-          </button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Body */}
         <div className="p-6 overflow-y-auto space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div>
               {field("Customer Name", true)}
-              <input className="input-field" placeholder="Full name" value={form.customer} onChange={e => setForm({...form, customer: e.target.value})} />
+              <input className={inputCls} placeholder="Full name" value={form.customer} onChange={e => setForm({...form, customer: e.target.value})} />
             </div>
-            <div className="space-y-1.5">
+            <div>
               {field("Contact Number")}
-              <input className="input-field" placeholder="09XX-XXX-XXXX" value={form.contact} onChange={e => setForm({...form, contact: e.target.value})} />
+              <input className={inputCls} placeholder="09XX-XXX-XXXX" value={form.contact} onChange={e => setForm({...form, contact: e.target.value})} />
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div>
             {field("Vehicle", true)}
-            <input className="input-field" placeholder="Year Make Model (e.g. 2023 Toyota Fortuner)" value={form.vehicle} onChange={e => setForm({...form, vehicle: e.target.value})} />
+            <input className={inputCls} placeholder="Year Make Model (e.g. 2023 Toyota Fortuner)" value={form.vehicle} onChange={e => setForm({...form, vehicle: e.target.value})} />
           </div>
-          <div className="space-y-1.5">
+          <div>
             {field("Service", true)}
             <div className="relative">
-              <select className="input-field appearance-none pr-8" value={form.service} onChange={e => setForm({...form, service: e.target.value})}>
-                <option value="">Select a service...</option>
-                {SERVICE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              <select className={`${inputCls} appearance-none pr-8`} value={form.service} onChange={e => setForm({...form, service: e.target.value})}>
+                <option value="" className="bg-[#0a0a0a]">Select a service...</option>
+                {SERVICE_OPTIONS.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div>
               {field("Date", true)}
-              <input type="date" className="input-field" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
+              <input type="date" className={`${inputCls} [color-scheme:dark]`} value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
             </div>
-            <div className="space-y-1.5">
+            <div>
               {field("Time", true)}
               <div className="relative">
-                <select className="input-field appearance-none pr-8" value={form.time} onChange={e => setForm({...form, time: e.target.value})}>
-                  {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                <select className={`${inputCls} appearance-none pr-8`} value={form.time} onChange={e => setForm({...form, time: e.target.value})}>
+                  {TIME_OPTIONS.map(t => <option key={t} value={t} className="bg-[#0a0a0a]">{t}</option>)}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
               </div>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div>
               {field("Deposit (₱)")}
-              <input type="number" className="input-field" placeholder="0" value={form.deposit} onChange={e => setForm({...form, deposit: e.target.value})} />
+              <input type="number" className={inputCls} placeholder="0" value={form.deposit} onChange={e => setForm({...form, deposit: e.target.value})} />
             </div>
-            <div className="space-y-1.5">
+            <div>
               {field("Status")}
               <div className="relative">
-                <select className="input-field appearance-none pr-8" value={form.status} onChange={e => setForm({...form, status: e.target.value as AppointmentStatus})}>
-                  {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                <select className={`${inputCls} appearance-none pr-8`} value={form.status} onChange={e => setForm({...form, status: e.target.value as AppointmentStatus})}>
+                  {ALL_STATUSES.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
               </div>
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div>
             {field("Notes")}
-            <textarea className="input-field resize-none h-20" placeholder="Optional notes..." value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
+            <textarea className={`${inputCls} resize-none h-20 py-2.5`} placeholder="Optional notes..." value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
           </div>
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
               <X className="w-4 h-4 flex-shrink-0" />{error}
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+        <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
             Cancel
           </button>
-          <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold text-white bg-[#E41E6A] hover:bg-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-colors">
+          <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">
             Save Appointment
           </button>
         </div>
@@ -496,7 +461,7 @@ function DetailModal({
 }: {
   appt: Appointment;
   onClose: () => void;
-  onStatusChange: (id: number, status: AppointmentStatus) => void;
+  onStatusChange: (id: number | string, status: AppointmentStatus) => void;
 }) {
   const [status, setStatus] = useState<AppointmentStatus>(appt.status);
 
@@ -506,65 +471,57 @@ function DetailModal({
   };
 
   const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
-    <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
-      <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+    <div className="flex items-start gap-3 py-3 border-b border-white/10 last:border-0">
+      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5 border border-white/5">
         {icon}
       </div>
       <div>
-        <p className="text-xs text-gray-400 font-medium">{label}</p>
-        <p className="text-sm text-gray-800 font-semibold mt-0.5">{value}</p>
+        <p className="text-xs text-white/50 font-medium">{label}</p>
+        <p className="text-sm text-white font-semibold mt-0.5">{value}</p>
       </div>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-white/10 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-gray-800">Appointment Details</h2>
-            <p className="text-xs text-gray-400 mt-0.5">#{appt.id} · {formatShort(appt.date)}</p>
+            <h2 className="text-base font-bold text-white">Appointment Details</h2>
+            <p className="text-xs text-white/50 mt-0.5">#{appt.id} · {formatShort(appt.date)}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors flex-shrink-0">
-            <X className="w-4 h-4 text-gray-500" />
-          </button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors flex-shrink-0"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Body */}
         <div className="p-6 overflow-y-auto">
-          <Row icon={<User      className="w-4 h-4 text-gray-400" />} label="Customer"  value={appt.customer} />
-          <Row icon={<Phone     className="w-4 h-4 text-gray-400" />} label="Contact"   value={appt.contact || "N/A"} />
-          <Row icon={<Car       className="w-4 h-4 text-gray-400" />} label="Vehicle"   value={appt.vehicle} />
+          <Row icon={<User      className="w-4 h-4 text-white/50" />} label="Customer"  value={appt.customer} />
+          <Row icon={<Phone     className="w-4 h-4 text-white/50" />} label="Contact"   value={appt.contact || "N/A"} />
+          <Row icon={<Car       className="w-4 h-4 text-white/50" />} label="Vehicle"   value={appt.vehicle} />
           <Row icon={<Shield    className="w-4 h-4 text-[#E41E6A]"/>} label="Service"   value={appt.service} />
           <Row icon={<Clock     className="w-4 h-4 text-[#E41E6A]"/>} label="Schedule"  value={`${formatShort(appt.date)} · ${appt.time}`} />
-          <Row icon={<Banknote  className="w-4 h-4 text-emerald-500"/>} label="Deposit" value={`₱${appt.deposit.toLocaleString()}`} />
-          {appt.notes && (
-            <Row icon={<FileText className="w-4 h-4 text-gray-400" />} label="Notes"   value={appt.notes} />
-          )}
+          <Row icon={<Banknote  className="w-4 h-4 text-green-400"/>} label="Deposit" value={`₱${appt.deposit.toLocaleString()}`} />
+          {appt.notes && <Row icon={<FileText className="w-4 h-4 text-white/50" />} label="Notes" value={appt.notes} />}
 
-          {/* Status updater */}
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <p className="text-xs text-gray-500 font-medium mb-2">Update Status</p>
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <p className="text-xs text-white/50 font-medium mb-2">Update Status</p>
             <div className="relative">
               <select
-                className="input-field appearance-none pr-8 font-semibold"
+                className={`${inputCls} appearance-none pr-8 font-semibold`}
                 value={status}
                 onChange={e => setStatus(e.target.value as AppointmentStatus)}
               >
-                {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                {ALL_STATUSES.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+        <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
             Close
           </button>
-          <button onClick={handleUpdate} className="px-4 py-2 text-sm font-semibold text-white bg-[#E41E6A] hover:bg-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-colors">
+          <button onClick={handleUpdate} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">
             Update Status
           </button>
         </div>
@@ -577,7 +534,11 @@ function DetailModal({
 
 export function FrontDeskAppointments() {
   const today = todayStr();
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
+  
+  // State is now initialized as an empty array, ready for backend data.
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isLoading,    setIsLoading]    = useState(true);
+  
   const [selected,     setSelected]     = useState(today);
   const [search,       setSearch]       = useState("");
   const [showAdd,      setShowAdd]      = useState(false);
@@ -587,7 +548,58 @@ export function FrontDeskAppointments() {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  // Dot map for calendar
+  // ─── DATA FETCHING (Simulated) ───
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      // Replace this block with your actual API call:
+      // const data = await getAdminAppointments();
+      // setAppointments(data);
+      
+      // Simulating a fast network request for demonstration
+      await new Promise(res => setTimeout(res, 500));
+      setAppointments([]); 
+    } catch (err) {
+      console.error("Failed to fetch appointments:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ─── HANDLERS ───
+  const handleAdd = async (appt: Omit<Appointment, "id">) => {
+    // try {
+    //   const newAppt = await createAdminAppointment(appt);
+    //   setAppointments(prev => [...prev, newAppt]);
+    // } catch(err) { ... }
+    
+    const newId = Date.now().toString(); // Temporary ID generation
+    setAppointments(prev => [...prev, { ...appt, id: newId }]);
+  };
+
+  const handleCancel = async (id: number | string) => {
+    // try {
+    //   await updateAppointmentStatus(id, "Cancelled");
+    //   ... update state
+    // } catch(err) { ... }
+    
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a));
+  };
+
+  const handleStatusChange = async (id: number | string, status: AppointmentStatus) => {
+    // try {
+    //   await updateAppointmentStatus(id, status);
+    //   ... update state
+    // } catch(err) { ... }
+    
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+  };
+
+  // ─── COMPUTED DATA ───
   const dotDates = useMemo(() => {
     const map: Record<string, AppointmentStatus[]> = {};
     appointments.forEach(a => {
@@ -597,13 +609,11 @@ export function FrontDeskAppointments() {
     return map;
   }, [appointments]);
 
-  // Panel: appointments for selected date
   const forSelected = useMemo(
     () => appointments.filter(a => a.date === selected),
     [appointments, selected]
   );
 
-  // Table: all, filtered by search
   const filtered = useMemo(
     () => appointments
       .filter(a =>
@@ -616,31 +626,18 @@ export function FrontDeskAppointments() {
     [appointments, search]
   );
 
-  const handleAdd = (appt: Omit<Appointment, "id">) => {
-    const newId = Math.max(...appointments.map(a => a.id), 0) + 1;
-    setAppointments(prev => [...prev, { ...appt, id: newId }]);
-  };
-
-  const handleCancel = (id: number) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a));
-  };
-
-  const handleStatusChange = (id: number, status: AppointmentStatus) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-  };
-
   return (
-    <div className="min-h-full bg-gray-50 p-4 md:p-6 space-y-5">
+    <div className="space-y-6">
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Appointments</h1>
-          <p className="text-gray-400 text-sm mt-1">{todayDisplay}</p>
+          <h1 className="text-white text-3xl font-bold mb-1">Manage Appointments</h1>
+          <p className="text-white/60 text-sm">{todayDisplay}</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="self-start sm:self-auto inline-flex items-center gap-2 bg-[#E41E6A] hover:bg-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-colors"
+          className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
         >
           <Plus className="w-4 h-4" />
           New Appointment
@@ -650,51 +647,41 @@ export function FrontDeskAppointments() {
       {/* ── Search + Filter ── */}
       <div className="flex items-center gap-3 max-w-lg">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
           <input
             type="text"
             placeholder="Search by customer, service, vehicle..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors placeholder:text-gray-400"
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors"
           />
         </div>
-        <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-gray-300 hover:bg-gray-50 transition-colors">
+        <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white/60 bg-white/5 border border-white/10 rounded-xl shadow-sm hover:border-white/20 hover:text-white hover:bg-white/10 transition-colors">
           <SlidersHorizontal className="w-4 h-4" />Filter
         </button>
       </div>
 
-      {/* ── Calendar + Panel ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
-        <CalendarCard selected={selected} onSelect={setSelected} dotDates={dotDates} />
-        <AppointmentsPanel selected={selected} appts={forSelected} onViewDetail={setDetailAppt} />
-      </div>
+      {/* ── Content Area ── */}
+      {isLoading ? (
+        <div className={`${cardCls} flex items-center justify-center h-40 text-white/50`}>
+          Loading appointments...
+        </div>
+      ) : (
+        <>
+          {/* ── Calendar + Panel ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
+            <CalendarCard selected={selected} onSelect={setSelected} dotDates={dotDates} />
+            <AppointmentsPanel selected={selected} appts={forSelected} onViewDetail={setDetailAppt} />
+          </div>
 
-      {/* ── All Appointments Table ── */}
-      <AppointmentTable appts={filtered} onViewDetail={setDetailAppt} onCancel={handleCancel} />
+          {/* ── All Appointments Table ── */}
+          <AppointmentTable appts={filtered} onViewDetail={setDetailAppt} onCancel={handleCancel} />
+        </>
+      )}
 
       {/* ── Modals ── */}
       {showAdd    && <AddAppointmentModal onClose={() => setShowAdd(false)} onSave={handleAdd} />}
       {detailAppt && <DetailModal appt={detailAppt} onClose={() => setDetailAppt(null)} onStatusChange={handleStatusChange} />}
-
-      {/* ── Shared input style ── */}
-      <style>{`
-        .input-field {
-          width: 100%;
-          padding: 0 12px;
-          height: 40px;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
-          font-size: 14px;
-          color: #1f2937;
-          background: #fff;
-          outline: none;
-          transition: border-color 0.15s;
-        }
-        .input-field:focus { border-color: #E41E6A; box-shadow: 0 0 0 3px rgba(228,30,106,0.08); }
-        .input-field::placeholder { color: #9ca3af; }
-        textarea.input-field { height: auto; padding-top: 10px; padding-bottom: 10px; }
-      `}</style>
 
     </div>
   );

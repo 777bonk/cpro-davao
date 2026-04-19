@@ -1,16 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Search, Plus, X, User, Phone, Car, Clock,
   Eye, ChevronDown, SlidersHorizontal, UserCheck,
-  Calendar, Banknote, Hash,
+  Calendar, Banknote, Users
 } from "lucide-react";
+
+// ─── API PLACEHOLDERS (Replace with your actual service imports) ──────────────
+// import { getCustomers, createCustomer } from "../../services/customers";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 type CustomerStatus = "Active" | "Inactive";
 
 interface Customer {
-  id: number;
+  id: number | string;
   name: string;
   contact: string;
   email: string;
@@ -22,20 +25,10 @@ interface Customer {
   registeredAt: string;
 }
 
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
+// ─── SHARED CLASSES ───────────────────────────────────────────────────────────
 
-const INITIAL_CUSTOMERS: Customer[] = [
-  { id: 1,  name: "Juan dela Cruz",   contact: "09171234567", email: "juan@email.com",   vehicle: "2023 Toyota Fortuner",    lastService: "Ceramic Coating - Full Body",  totalSpent: 28000, totalVisits: 4, status: "Active",   registeredAt: "2025-01-15" },
-  { id: 2,  name: "Maria Santos",     contact: "09181234567", email: "maria@email.com",  vehicle: "2021 Honda Civic",        lastService: "Window Tinting - Full Car",    totalSpent: 12000, totalVisits: 2, status: "Active",   registeredAt: "2025-02-20" },
-  { id: 3,  name: "Carlo Reyes",      contact: "09191234567", email: "carlo@email.com",  vehicle: "2022 Mitsubishi Xpander", lastService: "PPF - Hood & Fenders",         totalSpent: 35000, totalVisits: 5, status: "Active",   registeredAt: "2024-11-10" },
-  { id: 4,  name: "Ana Villanueva",   contact: "09201234567", email: "ana@email.com",    vehicle: "2020 Ford Ranger",        lastService: "Full Interior Detailing",      totalSpent: 8500,  totalVisits: 2, status: "Active",   registeredAt: "2025-03-05" },
-  { id: 5,  name: "Ramon Gutierrez",  contact: "09211234567", email: "ramon@email.com",  vehicle: "2023 Nissan Terra",       lastService: "Nano Ceramic Spray",           totalSpent: 5000,  totalVisits: 1, status: "Active",   registeredAt: "2026-04-01" },
-  { id: 6,  name: "Liza Mendoza",     contact: "09221234567", email: "liza@email.com",   vehicle: "2021 Kia Stinger",        lastService: "Ceramic Coating - Partial",    totalSpent: 18000, totalVisits: 3, status: "Active",   registeredAt: "2025-06-18" },
-  { id: 7,  name: "Paolo Cruz",       contact: "09231234567", email: "paolo@email.com",  vehicle: "2019 Toyota Vios",        lastService: "Full Interior Detailing",      totalSpent: 4500,  totalVisits: 1, status: "Inactive", registeredAt: "2024-08-22" },
-  { id: 8,  name: "Sofia Reyes",      contact: "09241234567", email: "sofia@email.com",  vehicle: "2022 Honda BRV",          lastService: "Window Tinting - Full Car",    totalSpent: 9000,  totalVisits: 2, status: "Active",   registeredAt: "2025-09-30" },
-  { id: 9,  name: "Marco Bautista",   contact: "09251234567", email: "marco@email.com",  vehicle: "2021 Suzuki Ertiga",      lastService: "Paint Decontamination",        totalSpent: 3200,  totalVisits: 1, status: "Active",   registeredAt: "2026-03-14" },
-  { id: 10, name: "Claire Ocampo",    contact: "09261234567", email: "claire@email.com", vehicle: "2023 Hyundai Tucson",     lastService: "Ceramic Coating - Full Body",  totalSpent: 32000, totalVisits: 4, status: "Active",   registeredAt: "2025-05-07" },
-];
+const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
+const cardCls  = "bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur rounded-xl border";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -49,15 +42,17 @@ function initials(name: string) {
 }
 
 const AVATAR_COLORS = [
-  "from-[#E41E6A] to-pink-400",
-  "from-sky-500 to-blue-400",
-  "from-violet-500 to-purple-400",
-  "from-emerald-500 to-green-400",
-  "from-amber-500 to-orange-400",
+  "from-[#E41E6A] to-pink-600",
+  "from-sky-500 to-blue-600",
+  "from-violet-500 to-purple-600",
+  "from-emerald-500 to-green-600",
+  "from-amber-500 to-orange-600",
 ];
 
-function avatarColor(id: number) {
-  return AVATAR_COLORS[id % AVATAR_COLORS.length];
+// Simple hash to consistently map string/number IDs to an avatar color
+function avatarColor(id: string | number) {
+  const numId = typeof id === 'string' ? id.charCodeAt(0) + id.length : id;
+  return AVATAR_COLORS[numId % AVATAR_COLORS.length];
 }
 
 // ─── STAT CARD ────────────────────────────────────────────────────────────────
@@ -67,13 +62,13 @@ function StatCard({ icon, title, value, iconBg, iconColor }: {
   iconBg: string; iconColor: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+    <div className={`${cardCls} p-5 flex items-center gap-4`}>
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
         <span className={iconColor}>{icon}</span>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{title}</p>
-        <p className="text-2xl font-bold text-gray-800 mt-0.5">{value}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/40">{title}</p>
+        <p className="text-2xl font-bold text-white mt-0.5">{value}</p>
       </div>
     </div>
   );
@@ -83,12 +78,12 @@ function StatCard({ icon, title, value, iconBg, iconColor }: {
 
 function StatusBadge({ status }: { status: CustomerStatus }) {
   return status === "Active" ? (
-    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wide">
       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Active
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />Inactive
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-white/50 border border-white/20 uppercase tracking-wide">
+      <span className="w-1.5 h-1.5 rounded-full bg-white/40" />Inactive
     </span>
   );
 }
@@ -97,60 +92,60 @@ function StatusBadge({ status }: { status: CustomerStatus }) {
 
 function DetailModal({ customer, onClose }: { customer: Customer; onClose: () => void }) {
   const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
-    <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
-      <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+    <div className="flex items-start gap-3 py-3 border-b border-white/10 last:border-0">
+      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">
         {icon}
       </div>
       <div>
-        <p className="text-xs text-gray-400 font-medium">{label}</p>
-        <p className="text-sm text-gray-800 font-semibold mt-0.5">{value}</p>
+        <p className="text-xs text-white/50 font-medium">{label}</p>
+        <p className="text-sm text-white font-semibold mt-0.5">{value}</p>
       </div>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+        <div className="px-6 py-4 border-b border-white/10 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarColor(customer.id)} flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}>
+            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarColor(customer.id)} flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-md`}>
               {initials(customer.name)}
             </div>
             <div>
-              <h2 className="text-base font-bold text-gray-800">{customer.name}</h2>
-              <StatusBadge status={customer.status} />
+              <h2 className="text-base font-bold text-white">{customer.name}</h2>
+              <div className="mt-1"><StatusBadge status={customer.status} /></div>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors flex-shrink-0">
-            <X className="w-4 h-4 text-gray-500" />
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors flex-shrink-0">
+            <X className="w-4 h-4 text-white/50" />
           </button>
         </div>
 
         {/* Body */}
         <div className="p-6 overflow-y-auto">
-          <Row icon={<Phone    className="w-4 h-4 text-gray-400"    />} label="Contact Number"  value={customer.contact || "N/A"} />
-          <Row icon={<User     className="w-4 h-4 text-gray-400"    />} label="Email"            value={customer.email   || "N/A"} />
-          <Row icon={<Car      className="w-4 h-4 text-gray-400"    />} label="Vehicle"          value={customer.vehicle} />
+          <Row icon={<Phone    className="w-4 h-4 text-white/50"    />} label="Contact Number"  value={customer.contact || "N/A"} />
+          <Row icon={<User     className="w-4 h-4 text-white/50"    />} label="Email"            value={customer.email   || "N/A"} />
+          <Row icon={<Car      className="w-4 h-4 text-white/50"    />} label="Vehicle"          value={customer.vehicle} />
           <Row icon={<Clock    className="w-4 h-4 text-[#E41E6A]"   />} label="Last Service"     value={customer.lastService} />
-          <Row icon={<Calendar className="w-4 h-4 text-sky-500"     />} label="Registered"       value={formatDate(customer.registeredAt)} />
+          <Row icon={<Calendar className="w-4 h-4 text-sky-400"     />} label="Registered"       value={formatDate(customer.registeredAt)} />
 
           {/* Stats row */}
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="bg-rose-50 rounded-xl p-4 border border-rose-100 text-center">
-              <p className="text-xs text-gray-500 font-medium">Total Spent</p>
-              <p className="text-lg font-bold text-[#E41E6A] mt-1">₱{customer.totalSpent.toLocaleString()}</p>
+            <div className="bg-[#E41E6A]/10 rounded-xl p-4 border border-[#E41E6A]/20 text-center">
+              <p className="text-xs text-white/50 font-medium">Total Spent</p>
+              <p className="text-lg font-bold text-pink-400 mt-1">₱{customer.totalSpent.toLocaleString()}</p>
             </div>
-            <div className="bg-sky-50 rounded-xl p-4 border border-sky-100 text-center">
-              <p className="text-xs text-gray-500 font-medium">Total Visits</p>
-              <p className="text-lg font-bold text-sky-600 mt-1">{customer.totalVisits} visit{customer.totalVisits !== 1 ? "s" : ""}</p>
+            <div className="bg-sky-500/10 rounded-xl p-4 border border-sky-500/20 text-center">
+              <p className="text-xs text-white/50 font-medium">Total Visits</p>
+              <p className="text-lg font-bold text-sky-400 mt-1">{customer.totalVisits} visit{customer.totalVisits !== 1 ? "s" : ""}</p>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+        <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
             Close
           </button>
         </div>
@@ -187,7 +182,7 @@ function AddCustomerModal({ onClose, onSave }: {
 
   const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium text-gray-700">
+      <label className="text-sm font-medium text-white/70 block">
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
@@ -195,56 +190,56 @@ function AddCustomerModal({ onClose, onSave }: {
   );
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-800">Register Customer</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Add a new customer to the system</p>
+            <h2 className="text-base font-bold text-white">Register Customer</h2>
+            <p className="text-xs text-white/50 mt-0.5">Add a new customer to the system</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
-            <X className="w-4 h-4 text-gray-500" />
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors">
+            <X className="w-4 h-4 text-white/50" />
           </button>
         </div>
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-4">
           <Field label="Full Name" required>
-            <input className="input-field" placeholder="e.g. Juan dela Cruz" value={form.name}    onChange={e => setForm({ ...form, name:    e.target.value })} />
+            <input className={inputCls} placeholder="e.g. Juan dela Cruz" value={form.name}    onChange={e => setForm({ ...form, name:    e.target.value })} />
           </Field>
           <Field label="Contact Number" required>
-            <input className="input-field" placeholder="09XX-XXX-XXXX"       value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
+            <input className={inputCls} placeholder="09XX-XXX-XXXX"       value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
           </Field>
           <Field label="Email Address">
-            <input className="input-field" placeholder="email@example.com"   value={form.email}   onChange={e => setForm({ ...form, email:   e.target.value })} />
+            <input className={inputCls} placeholder="email@example.com"   value={form.email}   onChange={e => setForm({ ...form, email:   e.target.value })} />
           </Field>
           <Field label="Vehicle" required>
-            <input className="input-field" placeholder="Year Make Model"      value={form.vehicle} onChange={e => setForm({ ...form, vehicle: e.target.value })} />
+            <input className={inputCls} placeholder="Year Make Model"      value={form.vehicle} onChange={e => setForm({ ...form, vehicle: e.target.value })} />
           </Field>
           <Field label="Status">
             <div className="relative">
-              <select className="input-field appearance-none pr-8" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as CustomerStatus })}>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+              <select className={`${inputCls} appearance-none pr-8`} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as CustomerStatus })}>
+                <option value="Active" className="bg-[#0a0a0a]">Active</option>
+                <option value="Inactive" className="bg-[#0a0a0a]">Inactive</option>
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </Field>
 
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
               <X className="w-4 h-4 flex-shrink-0" />{error}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+        <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
             Cancel
           </button>
-          <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold text-white bg-[#E41E6A] hover:bg-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-colors">
+          <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">
             Register Customer
           </button>
         </div>
@@ -256,13 +251,37 @@ function AddCustomerModal({ onClose, onSave }: {
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function FrontDeskCustomers() {
-  const [customers,    setCustomers]    = useState<Customer[]>(INITIAL_CUSTOMERS);
+  const [customers,    setCustomers]    = useState<Customer[]>([]);
+  const [isLoading,    setIsLoading]    = useState(true);
+
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState<"All" | CustomerStatus>("All");
   const [showAdd,      setShowAdd]      = useState(false);
   const [detailCust,   setDetailCust]   = useState<Customer | null>(null);
 
-  // Stats
+  // ─── DATA FETCHING (Simulated) ───
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    setIsLoading(true);
+    try {
+      // Replace with actual API call:
+      // const data = await getCustomers();
+      // setCustomers(data);
+      
+      // Simulate network request
+      await new Promise(res => setTimeout(res, 500));
+      setCustomers([]);
+    } catch (err) {
+      console.error("Failed to load customers:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ─── COMPUTED DATA ───
   const totalCustomers  = customers.length;
   const activeCustomers = customers.filter(c => c.status === "Active").length;
   const newThisMonth    = customers.filter(c => {
@@ -272,7 +291,6 @@ export function FrontDeskCustomers() {
   }).length;
   const vipCustomers = customers.filter(c => c.totalSpent > 20000).length;
 
-  // Filtered list
   const filtered = useMemo(() =>
     customers
       .filter(c => filterStatus === "All" || c.status === filterStatus)
@@ -286,23 +304,28 @@ export function FrontDeskCustomers() {
     [customers, search, filterStatus]
   );
 
-  const handleAdd = (c: Omit<Customer, "id">) => {
-    const newId = Math.max(...customers.map(x => x.id), 0) + 1;
+  const handleAdd = async (c: Omit<Customer, "id">) => {
+    // try {
+    //   const newCust = await createCustomer(c);
+    //   setCustomers(prev => [newCust, ...prev]);
+    // } catch (err) { ... }
+    
+    const newId = Date.now().toString(); // Temporary ID generation
     setCustomers(prev => [{ ...c, id: newId }, ...prev]);
   };
 
   return (
-    <div className="min-h-full bg-gray-50 p-4 md:p-6 space-y-5">
+    <div className="space-y-6">
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Customers</h1>
-          <p className="text-gray-400 text-sm mt-1">Manage and view registered customers</p>
+          <h1 className="text-white text-3xl font-bold mb-1">Customers</h1>
+          <p className="text-white/60 text-sm">Manage and view registered customers</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="self-start sm:self-auto inline-flex items-center gap-2 bg-[#E41E6A] hover:bg-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-colors"
+          className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
         >
           <Plus className="w-4 h-4" />
           Register Customer
@@ -311,34 +334,34 @@ export function FrontDeskCustomers() {
 
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <StatCard icon={<User      className="w-5 h-5" />} title="Total Customers"  value={totalCustomers}  iconBg="bg-rose-50"    iconColor="text-[#E41E6A]" />
-        <StatCard icon={<UserCheck className="w-5 h-5" />} title="Active Customers" value={activeCustomers}  iconBg="bg-emerald-50" iconColor="text-emerald-500" />
-        <StatCard icon={<Calendar  className="w-5 h-5" />} title="New This Month"   value={newThisMonth}     iconBg="bg-sky-50"     iconColor="text-sky-500" />
-        <StatCard icon={<Banknote  className="w-5 h-5" />} title="VIP Customers"    value={vipCustomers}     iconBg="bg-violet-50"  iconColor="text-violet-500" />
+        <StatCard icon={<User      className="w-5 h-5" />} title="Total Customers"  value={isLoading ? "-" : totalCustomers}  iconBg="bg-pink-500/20"    iconColor="text-pink-400" />
+        <StatCard icon={<UserCheck className="w-5 h-5" />} title="Active Customers" value={isLoading ? "-" : activeCustomers} iconBg="bg-emerald-500/20" iconColor="text-emerald-400" />
+        <StatCard icon={<Calendar  className="w-5 h-5" />} title="New This Month"   value={isLoading ? "-" : newThisMonth}    iconBg="bg-sky-500/20"     iconColor="text-sky-400" />
+        <StatCard icon={<Banknote  className="w-5 h-5" />} title="VIP Customers"    value={isLoading ? "-" : vipCustomers}    iconBg="bg-violet-500/20"  iconColor="text-violet-400" />
       </div>
 
       {/* ── Search + Filter ── */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-lg">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
           <input
             type="text"
             placeholder="Search by name, contact, vehicle..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors placeholder:text-gray-400"
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors shadow-sm"
           />
         </div>
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
           {(["All", "Active", "Inactive"] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilterStatus(f)}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-lg border transition-colors ${
+              className={`px-3.5 py-2 text-xs font-semibold rounded-lg border transition-all ${
                 filterStatus === f
-                  ? "bg-[#E41E6A] text-white border-[#E41E6A] shadow-sm shadow-[#E41E6A]/25"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                  ? "bg-[#E41E6A] text-white border-transparent shadow-md shadow-[#E41E6A]/25"
+                  : "bg-white/5 text-white/60 border-white/10 hover:border-white/20 hover:bg-white/10"
               }`}
             >
               {f}
@@ -348,35 +371,37 @@ export function FrontDeskCustomers() {
       </div>
 
       {/* ── Customer Table ── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-50">
-          <h2 className="text-sm font-bold text-gray-800">Customer List</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{filtered.length} customer{filtered.length !== 1 ? "s" : ""} found</p>
+      <div className={`${cardCls} overflow-hidden`}>
+        <div className="px-5 py-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
+          <h2 className="text-sm font-bold text-white">Customer List</h2>
+          <span className="text-xs text-white/40">{isLoading ? "..." : filtered.length} records</span>
         </div>
 
         {/* Mobile cards */}
-        <div className="sm:hidden divide-y divide-gray-50">
-          {filtered.length === 0 ? (
+        <div className="sm:hidden divide-y divide-white/5">
+          {isLoading ? (
+             <div className="py-12 text-center text-white/50 text-sm">Loading customers...</div>
+          ) : filtered.length === 0 ? (
             <div className="py-12 flex flex-col items-center text-center">
-              <User className="w-8 h-8 text-gray-200 mb-2" />
-              <p className="text-sm text-gray-400">No customers found</p>
+              <Users className="w-8 h-8 text-white/20 mb-2" />
+              <p className="text-sm text-white/40">No customers found</p>
             </div>
           ) : filtered.map(c => (
-            <div key={c.id} className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarColor(c.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+            <div key={c.id} className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarColor(c.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-md`}>
                 {initials(c.name)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
+                  <p className="text-sm font-semibold text-white truncate">{c.name}</p>
                   <StatusBadge status={c.status} />
                 </div>
-                <p className="text-xs text-gray-400 truncate">{c.vehicle}</p>
-                <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                <p className="text-xs text-white/50 truncate mt-0.5">{c.vehicle}</p>
+                <p className="text-xs text-white/40 flex items-center gap-1 mt-0.5">
                   <Phone className="w-3 h-3" />{c.contact}
                 </p>
               </div>
-              <button onClick={() => setDetailCust(c)} className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800 flex-shrink-0">
+              <button onClick={() => setDetailCust(c)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 flex-shrink-0 transition-colors">
                 <Eye className="w-3.5 h-3.5" />View
               </button>
             </div>
@@ -387,60 +412,66 @@ export function FrontDeskCustomers() {
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-left">
+              <tr className="border-b border-white/10 text-left">
                 {["Customer","Contact","Vehicle","Last Service","Total Spent","Status","Actions"].map(h => (
-                  <th key={h} className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-5 py-3.5 text-xs font-semibold text-white/50 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 ? (
+            <tbody className="divide-y divide-white/5">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-white/50 text-sm">
+                    Loading customers...
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12">
-                    <User className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                    <p className="text-sm text-gray-400">No customers found</p>
+                    <Users className="w-8 h-8 text-white/20 mx-auto mb-2" />
+                    <p className="text-sm text-white/40">No customers found</p>
                   </td>
                 </tr>
               ) : filtered.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
+                <tr key={c.id} className="hover:bg-white/5 transition-colors">
                   {/* Customer */}
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarColor(c.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+                      <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarColor(c.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm`}>
                         {initials(c.name)}
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                        <p className="text-xs text-gray-400">{c.email}</p>
+                        <p className="text-sm font-semibold text-white">{c.name}</p>
+                        <p className="text-xs text-white/40">{c.email}</p>
                       </div>
                     </div>
                   </td>
                   {/* Contact */}
-                  <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                  <td className="px-5 py-3.5 text-sm text-white/60 whitespace-nowrap">
                     <span className="flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-gray-400" />{c.contact}
+                      <Phone className="w-3.5 h-3.5 text-white/40" />{c.contact}
                     </span>
                   </td>
                   {/* Vehicle */}
-                  <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                  <td className="px-5 py-3.5 text-sm text-white/60 whitespace-nowrap">
                     <span className="flex items-center gap-1.5">
-                      <Car className="w-3.5 h-3.5 text-gray-400" />{c.vehicle}
+                      <Car className="w-3.5 h-3.5 text-white/40" />{c.vehicle}
                     </span>
                   </td>
                   {/* Last Service */}
                   <td className="px-5 py-3.5">
-                    <span className="text-xs text-gray-600 max-w-[160px] block truncate">{c.lastService}</span>
+                    <span className="text-xs text-white/60 max-w-[160px] block truncate">{c.lastService}</span>
                   </td>
                   {/* Total Spent */}
                   <td className="px-5 py-3.5">
-                    <span className="text-sm font-semibold text-gray-800">₱{c.totalSpent.toLocaleString()}</span>
-                    <span className="text-xs text-gray-400 block">{c.totalVisits} visit{c.totalVisits !== 1 ? "s" : ""}</span>
+                    <span className="text-sm font-semibold text-white">₱{c.totalSpent.toLocaleString()}</span>
+                    <span className="text-xs text-white/40 block">{c.totalVisits} visit{c.totalVisits !== 1 ? "s" : ""}</span>
                   </td>
                   {/* Status */}
                   <td className="px-5 py-3.5"><StatusBadge status={c.status} /></td>
                   {/* Actions */}
                   <td className="px-5 py-3.5">
-                    <button onClick={() => setDetailCust(c)} className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800 transition-colors">
+                    <button onClick={() => setDetailCust(c)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
                       <Eye className="w-3.5 h-3.5" />View
                     </button>
                   </td>
@@ -455,23 +486,6 @@ export function FrontDeskCustomers() {
       {showAdd    && <AddCustomerModal onClose={() => setShowAdd(false)} onSave={handleAdd} />}
       {detailCust && <DetailModal customer={detailCust} onClose={() => setDetailCust(null)} />}
 
-      {/* Shared input style */}
-      <style>{`
-        .input-field {
-          width: 100%;
-          padding: 0 12px;
-          height: 40px;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
-          font-size: 14px;
-          color: #1f2937;
-          background: #fff;
-          outline: none;
-          transition: border-color 0.15s;
-        }
-        .input-field:focus { border-color: #E41E6A; box-shadow: 0 0 0 3px rgba(228,30,106,0.08); }
-        .input-field::placeholder { color: #9ca3af; }
-      `}</style>
     </div>
   );
 }

@@ -1,14 +1,13 @@
 import "../styles/dashboard.css";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
-import { FrontDeskSidebar }        from "../components/frontdesk/FrontdeskSidebar";
-import { FrontDeskDashboardHome }  from "../components/frontdesk/FrontdeskDashboardHome";
-import { FrontDeskAppointments }   from "../components/frontdesk/FrontdeskAppointments";
-import { FrontDeskCustomers }      from "../components/frontdesk/FrontdeskCustomers";
-import { FrontDeskJobOrders }      from "../components/frontdesk/FrontdeskJobOrders";
-import { FrontDeskSettings }       from "../components/frontdesk/FrontdeskSettings";
+import { StaffSidebar }       from "../components/staff/StaffSidebar";
+import { StaffDashboardHome } from "../components/staff/StaffDashboardHome";
+import { StaffJobOrders }     from "../components/staff/StaffJobOrders";
+import { StaffPartsRequest }  from "../components/staff/StaffPartsRequest";
+import { StaffSettings }      from "../components/staff/StaffSettings";
 
-export default function FrontDeskDashboard() {
+export default function StaffDashboard() {
   const [activeSection, setActiveSection] = useState("home");
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
 
@@ -19,12 +18,11 @@ export default function FrontDeskDashboard() {
 
   const renderContent = () => {
     switch (activeSection) {
-      case "home":         return <FrontDeskDashboardHome />;
-      case "appointments": return <FrontDeskAppointments  />;
-      case "customers":    return <FrontDeskCustomers     />;
-      case "joborders":    return <FrontDeskJobOrders     />;
-      case "settings":     return <FrontDeskSettings      />;
-      default:             return <FrontDeskDashboardHome />;
+      case "home":      return <StaffDashboardHome onNavigate={handleSectionChange} />;
+      case "joborders": return <StaffJobOrders  />;
+      case "parts":     return <StaffPartsRequest />;
+      case "settings":  return <StaffSettings    />;
+      default:          return <StaffDashboardHome onNavigate={handleSectionChange} />;
     }
   };
 
@@ -33,7 +31,7 @@ export default function FrontDeskDashboard() {
 
       {/* DESKTOP sidebar */}
       <div className="hidden md:flex flex-shrink-0">
-        <FrontDeskSidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
+        <StaffSidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
       </div>
 
       {/* MOBILE overlay */}
@@ -50,7 +48,7 @@ export default function FrontDeskDashboard() {
         }}
         className="md:hidden"
       >
-        <FrontDeskSidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
+        <StaffSidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
       </div>
 
       {/* Main content */}
@@ -78,7 +76,6 @@ export default function FrontDeskDashboard() {
             <div className="absolute top-0 right-0 w-96 h-96 bg-[#E41E6A]/10 rounded-full blur-[120px]" />
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-pink-600/10 rounded-full blur-[120px]" />
           </div>
-          {/* Content */}
           <div className="relative z-10">
             {renderContent()}
           </div>
