@@ -7,32 +7,32 @@ export function GallerySection() {
 
   const galleryItems = [
     {
-      image: "public/lambo.jpg",
+      image: "/lambo.jpg",
       title: "Lamborghini Huracan STO",
       subtitle: "Full Ceramic Coating - Gold Package",
     },
     {
-      image: "public/gt3.jpeg",
+      image: "/gt3.jpeg",
       title: "Porsche 911 GT3",
       subtitle: "Gold Package+ PPF",
     },
     {
-      image: "public/matte.jpg",
+      image: "/matte.jpg",
       title: "Land Rover Defender",
       subtitle: "Matte PPF Installation",
     },
     {
-      image: "public/gwag.jpg",
+      image: "/gwag.jpg",
       title: "Mercedes-Benz G 400d",
       subtitle: "Ceramic Coating - Silver Package",
     },
     {
-      image: "public/bmw.jpg",
+      image: "/bmw.jpg",
       title: "BMW X5",
       subtitle: "Interior Detailing + Coating",
     },
     {
-      image: "public/shelby.jpg",
+      image: "/shelby.jpg",
       title: "Shelby GT500CR",
       subtitle: "Gold Package - Ceramic Coating",
     },
