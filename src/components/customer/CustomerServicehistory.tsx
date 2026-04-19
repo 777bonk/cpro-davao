@@ -1,14 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Search, Car, Calendar, User, Banknote,
   Shield, Layers, Sparkles, Wrench, ChevronDown,
-  SlidersHorizontal, FileText, X, CheckCircle,
+  SlidersHorizontal, FileText, X, CheckCircle, Clock,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
+import { Badge } from "../dashboard-ui/badge";
+import { getAppointments } from "../../services/appointments";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 interface ServiceRecord {
-  id: number;
+  id: string | number;
   service: string;
   category: string;
   vehicle: string;
@@ -21,101 +24,101 @@ interface ServiceRecord {
   duration: string;
 }
 
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
-
-const MOCK_HISTORY: ServiceRecord[] = [
-  { id: 1,  service: "Ceramic Coating - Full Body",   category: "Coating",   vehicle: "2023 Toyota Fortuner",  plate: "ABC 1234", date: "2026-03-15", amount: 28000, technician: "Carlo M.",  status: "Completed", duration: "6 hrs",   notes: "Applied 9H coating. Surface prep done. No scratches detected." },
-  { id: 2,  service: "Full Interior Detailing",       category: "Detailing", vehicle: "2023 Toyota Fortuner",  plate: "ABC 1234", date: "2026-02-10", amount: 4500,  technician: "Jomar D.",  status: "Completed", duration: "4 hrs",   notes: "Full vacuum, steam clean, and leather conditioning." },
-  { id: 3,  service: "Window Tinting - Full Car",     category: "Tinting",   vehicle: "2021 Honda Civic",       plate: "XYZ 5678", date: "2026-01-28", amount: 8000,  technician: "Rico B.",   status: "Completed", duration: "3 hrs",   notes: "35% tint applied front and rear. No bubbles." },
-  { id: 4,  service: "PPF - Hood & Fenders",          category: "PPF",       vehicle: "2023 Toyota Fortuner",  plate: "ABC 1234", date: "2025-12-05", amount: 15000, technician: "Carlo M.",  status: "Completed", duration: "5 hrs",   notes: "PPF applied on hood, both fenders, and front bumper." },
-  { id: 5,  service: "Nano Ceramic Spray",            category: "Coating",   vehicle: "2021 Honda Civic",       plate: "XYZ 5678", date: "2025-11-18", amount: 3200,  technician: "Jomar D.",  status: "Completed", duration: "2 hrs",   notes: "Spray coating topped with sealant." },
-  { id: 6,  service: "Paint Decontamination",         category: "Detailing", vehicle: "2021 Honda Civic",       plate: "XYZ 5678", date: "2025-10-30", amount: 2500,  technician: "Rico B.",   status: "Completed", duration: "2.5 hrs", notes: "Iron remover and clay bar treatment." },
-  { id: 7,  service: "Ceramic Coating - Partial",     category: "Coating",   vehicle: "2021 Honda Civic",       plate: "XYZ 5678", date: "2025-09-12", amount: 12000, technician: "Carlo M.",  status: "Cancelled", duration: "—",       notes: "Customer rescheduled. No work performed." },
-];
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 const CATEGORIES = ["All", "Coating", "PPF", "Detailing", "Tinting"];
-
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function formatDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
-function serviceIcon(category: string) {
-  if (category === "Coating")   return <Shield   className="w-4 h-4 text-[#E41E6A]"   />;
-  if (category === "PPF")       return <Layers   className="w-4 h-4 text-violet-500"  />;
-  if (category === "Tinting")   return <Sparkles className="w-4 h-4 text-sky-500"    />;
-  return                               <Wrench   className="w-4 h-4 text-emerald-500" />;
+function guessCategory(service: string): string {
+  const s = (service ?? "").toLowerCase();
+  if (s.includes("coat") || s.includes("ceramic") || s.includes("nano")) return "Coating";
+  if (s.includes("ppf") || s.includes("paint protection"))               return "PPF";
+  if (s.includes("tint"))                                                 return "Tinting";
+  return "Detailing";
 }
 
-const CATEGORY_COLOR: Record<string, string> = {
-  Coating:   "bg-[#E41E6A]/10 text-[#E41E6A] border-[#E41E6A]/20",
-  PPF:       "bg-violet-500/10 text-violet-600 border-violet-500/20",
-  Tinting:   "bg-sky-500/10 text-sky-600 border-sky-500/20",
-  Detailing: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+function serviceIcon(category: string) {
+  if (category === "Coating")  return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
+  if (category === "PPF")      return <Layers   className="w-4 h-4 text-violet-400" />;
+  if (category === "Tinting")  return <Sparkles className="w-4 h-4 text-sky-400"    />;
+  return                              <Wrench   className="w-4 h-4 text-emerald-400" />;
+}
+
+const CATEGORY_BADGE: Record<string, string> = {
+  Coating:   "bg-[#E41E6A]/20 text-[#E41E6A] border-[#E41E6A]/30",
+  PPF:       "bg-violet-500/20 text-violet-400 border-violet-500/30",
+  Tinting:   "bg-sky-500/20 text-sky-400 border-sky-500/30",
+  Detailing: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
 };
 
 // ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
 
 function DetailModal({ record, onClose }: { record: ServiceRecord; onClose: () => void }) {
   const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
-    <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
-      <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 mt-0.5 text-[#E41E6A]">{icon}</div>
+    <div className="p-3 bg-white/5 rounded-lg border border-white/10 flex items-start gap-3">
+      <div className="mt-0.5 text-[#E41E6A] flex-shrink-0">{icon}</div>
       <div>
-        <p className="text-xs text-gray-400 font-medium">{label}</p>
-        <p className="text-sm text-gray-800 font-semibold mt-0.5">{value}</p>
+        <p className="text-white/50 text-xs">{label}</p>
+        <p className="text-white text-sm font-medium mt-0.5">{value}</p>
       </div>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
+
+        {/* Header */}
+        <div className="p-6 border-b border-white/10 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
               {serviceIcon(record.category)}
             </div>
             <div>
-              <h2 className="text-base font-bold text-gray-800 leading-snug">{record.service}</h2>
-              <p className="text-xs text-gray-400 mt-0.5">{formatDate(record.date)}</p>
+              <h2 className="text-base font-bold text-white leading-snug">{record.service}</h2>
+              <p className="text-white/50 text-xs mt-0.5">{formatDate(record.date)}</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
-            <X className="w-4 h-4 text-gray-500" />
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
-          <Row icon={<Car      className="w-4 h-4" />} label="Vehicle"     value={`${record.vehicle} (${record.plate})`} />
-          <Row icon={<User     className="w-4 h-4" />} label="Technician"  value={record.technician} />
+        {/* Body */}
+        <div className="p-6 space-y-3">
+          <Row icon={<Car      className="w-4 h-4" />} label="Vehicle"     value={record.plate ? `${record.vehicle} (${record.plate})` : record.vehicle} />
+          <Row icon={<User     className="w-4 h-4" />} label="Technician"  value={record.technician || "N/A"} />
           <Row icon={<Banknote className="w-4 h-4" />} label="Amount Paid" value={`₱${record.amount.toLocaleString()}`} />
-          <Row icon={<Shield   className="w-4 h-4" />} label="Duration"    value={record.duration} />
+          <Row icon={<Clock    className="w-4 h-4" />} label="Duration"    value={record.duration || "N/A"} />
 
           {record.notes && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <p className="text-xs text-gray-400 font-medium mb-1">Technician Notes</p>
-              <p className="text-sm text-gray-700 leading-relaxed">{record.notes}</p>
+            <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+              <p className="text-white/50 text-xs font-medium mb-1.5">Technician Notes</p>
+              <p className="text-white/80 text-sm leading-relaxed">{record.notes}</p>
             </div>
           )}
 
-          <div className="mt-4 flex items-center justify-between">
-            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+          <div className="flex items-center justify-between pt-1">
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${
               record.status === "Completed"
-                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                : "bg-red-50 text-red-600 border border-red-200"
+                ? "bg-green-500/20 text-green-400 border-green-500/30"
+                : "bg-red-500/20 text-red-400 border-red-500/30"
             }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${record.status === "Completed" ? "bg-emerald-500" : "bg-red-400"}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${record.status === "Completed" ? "bg-green-500" : "bg-red-400"}`} />
               {record.status}
             </span>
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${CATEGORY_COLOR[record.category] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${CATEGORY_BADGE[record.category] ?? "bg-white/10 text-white/60 border-white/10"}`}>
               {record.category}
             </span>
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+        {/* Footer */}
+        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
             Close
           </button>
         </div>
@@ -127,145 +130,204 @@ function DetailModal({ record, onClose }: { record: ServiceRecord; onClose: () =
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function CustomerServiceHistory() {
-  const [search,      setSearch]      = useState("");
-  const [filterCat,   setFilterCat]   = useState("All");
-  const [filterVeh,   setFilterVeh]   = useState("All");
-  const [viewRecord,  setViewRecord]  = useState<ServiceRecord | null>(null);
+  const [records,    setRecords]    = useState<ServiceRecord[]>([]);
+  const [isLoading,  setIsLoading]  = useState(true);
+  const [search,     setSearch]     = useState("");
+  const [filterCat,  setFilterCat]  = useState("All");
+  const [filterVeh,  setFilterVeh]  = useState("All");
+  const [viewRecord, setViewRecord] = useState<ServiceRecord | null>(null);
 
-  const vehicles = ["All", ...Array.from(new Set(MOCK_HISTORY.map(r => r.vehicle)))];
+  useEffect(() => { fetchData(); }, []);
 
-  const totalSpent     = MOCK_HISTORY.filter(r => r.status === "Completed").reduce((s, r) => s + r.amount, 0);
-  const completedCount = MOCK_HISTORY.filter(r => r.status === "Completed").length;
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const appts = await getAppointments().catch(() => []);
 
+      // Only show completed or cancelled
+      const history: ServiceRecord[] = appts
+        .filter((a: any) => a.status === "Completed" || a.status === "Cancelled")
+        .map((a: any) => {
+          const raw  = a.date || a.scheduled_date;
+          const d    = new Date(raw);
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+          const svc  = a.service_type ?? a.service ?? "Service";
+          const cat  = guessCategory(svc);
+          return {
+            id:         a.id,
+            service:    svc,
+            category:   cat,
+            vehicle:    a.customers?.vehicle ?? a.vehicle ?? "Vehicle",
+            plate:      a.customers?.plate   ?? a.plate   ?? "",
+            date:       dateStr,
+            amount:     Number(a.total_cost  ?? a.amount  ?? 0),
+            technician: a.employees?.name    ?? a.technician ?? "Staff",
+            status:     (a.status === "Completed" ? "Completed" : "Cancelled") as "Completed" | "Cancelled",
+            notes:      a.notes ?? "",
+            duration:   a.duration ?? "—",
+          };
+        })
+        .sort((a: ServiceRecord, b: ServiceRecord) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+
+      setRecords(history);
+    } catch (err) {
+      console.error("CustomerServiceHistory fetch error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Derived stats ─────────────────────────────────────────────────────────
+  const totalSpent      = records.filter(r => r.status === "Completed").reduce((s, r) => s + r.amount, 0);
+  const completedCount  = records.filter(r => r.status === "Completed").length;
+  const vehiclesServiced = Array.from(new Set(records.filter(r => r.status === "Completed").map(r => r.vehicle))).length;
+  const vehicles = ["All", ...Array.from(new Set(records.map(r => r.vehicle)))];
+
+  // ── Filtered list ─────────────────────────────────────────────────────────
   const filtered = useMemo(() =>
-    MOCK_HISTORY
+    records
       .filter(r => filterCat === "All" || r.category === filterCat)
-      .filter(r => filterVeh === "All" || r.vehicle   === filterVeh)
+      .filter(r => filterVeh === "All" || r.vehicle  === filterVeh)
       .filter(r =>
-        r.service.toLowerCase().includes(search.toLowerCase()) ||
-        r.vehicle.toLowerCase().includes(search.toLowerCase()) ||
+        r.service.toLowerCase().includes(search.toLowerCase())    ||
+        r.vehicle.toLowerCase().includes(search.toLowerCase())    ||
         r.technician.toLowerCase().includes(search.toLowerCase())
-      )
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [search, filterCat, filterVeh]
+      ),
+    [records, search, filterCat, filterVeh]
   );
 
   return (
-    <div className="min-h-full bg-gray-50 p-4 md:p-6 space-y-5">
+    <div className="space-y-6">
 
       {/* ── Header ── */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Service History</h1>
-        <p className="text-gray-400 text-sm mt-1">All your past services and completed work</p>
+        <h1 className="text-white text-3xl font-bold mb-1">Service History</h1>
+        <p className="text-white/60 text-sm">All your past services and completed work</p>
       </div>
 
       {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0"><CheckCircle className="w-5 h-5 text-emerald-500" /></div>
-          <div>
-            <p className="text-xs text-gray-400 font-medium">Services Done</p>
-            <p className="text-xl font-bold text-gray-800">{completedCount}</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center flex-shrink-0"><Banknote className="w-5 h-5 text-[#E41E6A]" /></div>
-          <div>
-            <p className="text-xs text-gray-400 font-medium">Total Spent</p>
-            <p className="text-xl font-bold text-gray-800">₱{Math.round(totalSpent/1000)}K</p>
-          </div>
-        </div>
-        <div className="col-span-2 sm:col-span-1 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center flex-shrink-0"><Car className="w-5 h-5 text-sky-500" /></div>
-          <div>
-            <p className="text-xs text-gray-400 font-medium">Vehicles Serviced</p>
-            <p className="text-xl font-bold text-gray-800">{Array.from(new Set(MOCK_HISTORY.filter(r => r.status === "Completed").map(r => r.vehicle))).length}</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { icon: <CheckCircle className="w-4 h-4" />, label: "Services Done",      value: isLoading ? "..." : completedCount,              iconBg: "bg-green-500/10",  iconColor: "text-green-400"  },
+          { icon: <Banknote    className="w-4 h-4" />, label: "Total Spent",        value: isLoading ? "..." : `₱${Math.round(totalSpent/1000)}K`, iconBg: "bg-[#E41E6A]/10", iconColor: "text-[#E41E6A]"  },
+          { icon: <Car         className="w-4 h-4" />, label: "Vehicles Serviced",  value: isLoading ? "..." : vehiclesServiced,              iconBg: "bg-sky-500/10",    iconColor: "text-sky-400"    },
+        ].map((s, i) => (
+          <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm text-white/70">{s.label}</CardTitle>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${s.iconBg}`}>
+                <span className={s.iconColor}>{s.icon}</span>
+              </div>
+            </CardHeader>
+            <CardContent style={{ paddingBottom: "20px" }}>
+              <div className="text-white text-2xl font-bold">{s.value}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* ── Search + Filters ── */}
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
           <input
             type="text"
             placeholder="Search by service, vehicle, or technician..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 placeholder:text-gray-400 transition-colors"
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors"
           />
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <SlidersHorizontal className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
           {CATEGORIES.map(c => (
             <button key={c} onClick={() => setFilterCat(c)}
               className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${
-                filterCat === c ? "bg-[#E41E6A] text-white border-[#E41E6A]" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-              }`}>{c}</button>
+                filterCat === c
+                  ? "bg-[#E41E6A] text-white border-[#E41E6A]"
+                  : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
+              }`}>{c}
+            </button>
           ))}
         </div>
 
         <div className="relative">
           <select value={filterVeh} onChange={e => setFilterVeh(e.target.value)}
-            className="pl-3 pr-8 py-2.5 text-xs font-semibold bg-white border border-gray-200 rounded-xl text-gray-600 focus:outline-none focus:border-[#E41E6A] appearance-none">
-            {vehicles.map(v => <option key={v} value={v}>{v === "All" ? "All Vehicles" : v.split(" ").slice(1).join(" ")}</option>)}
+            className="pl-3 pr-8 py-2.5 text-xs font-semibold bg-white/5 border border-white/10 rounded-xl text-white/70 focus:outline-none focus:border-[#E41E6A] appearance-none">
+            {vehicles.map(v => (
+              <option key={v} value={v} className="bg-[#0a0a0a]">
+                {v === "All" ? "All Vehicles" : v.split(" ").slice(1).join(" ")}
+              </option>
+            ))}
           </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none" />
         </div>
       </div>
 
       {/* ── Records List ── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-50">
-          <h2 className="text-sm font-bold text-gray-800">Service Records</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{filtered.length} record{filtered.length !== 1 ? "s" : ""} found</p>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div className="py-12 flex flex-col items-center text-center">
-            <FileText className="w-10 h-10 text-gray-200 mb-3" />
-            <p className="text-sm text-gray-400">No service records found</p>
+      <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden" style={{ borderRadius: "12px" }}>
+        <CardHeader className="border-b border-white/10 pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white">Service Records</CardTitle>
+            <span className="text-white/40 text-xs">{isLoading ? "..." : `${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}</span>
           </div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {filtered.map(r => (
-              <div
-                key={r.id}
-                onClick={() => setViewRecord(r)}
-                className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors cursor-pointer"
-              >
-                {/* Icon */}
-                <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
-                  {serviceIcon(r.category)}
-                </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-8 h-8 border-2 border-[#E41E6A]/30 border-t-[#E41E6A] rounded-full animate-spin mb-3" />
+              <p className="text-white/50 text-sm">Loading service history...</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-12 flex flex-col items-center text-center">
+              <FileText className="w-10 h-10 text-white/20 mb-3" />
+              <p className="text-white/50 text-sm">No service records found</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {filtered.map(r => (
+                <div
+                  key={r.id}
+                  onClick={() => setViewRecord(r)}
+                  className="flex items-center gap-4 px-5 py-4 hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  {/* Icon */}
+                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                    {serviceIcon(r.category)}
+                  </div>
 
-                {/* Details */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{r.service}</p>
-                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                    <span className="text-xs text-gray-400 flex items-center gap-1"><Car className="w-3 h-3" />{r.vehicle}</span>
-                    <span className="text-xs text-gray-400 flex items-center gap-1"><Calendar className="w-3 h-3 text-[#E41E6A]" />{formatDate(r.date)}</span>
-                    <span className="text-xs text-gray-400 flex items-center gap-1"><User className="w-3 h-3" />{r.technician}</span>
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-semibold truncate">{r.service}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                      <span className="text-xs text-white/50 flex items-center gap-1"><Car      className="w-3 h-3" />{r.vehicle}</span>
+                      <span className="text-xs text-white/50 flex items-center gap-1"><Calendar className="w-3 h-3 text-[#E41E6A]" />{formatDate(r.date)}</span>
+                      <span className="text-xs text-white/50 flex items-center gap-1"><User     className="w-3 h-3" />{r.technician}</span>
+                    </div>
+                  </div>
+
+                  {/* Right side */}
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <p className="text-white text-sm font-bold">₱{r.amount.toLocaleString()}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${CATEGORY_BADGE[r.category] ?? "bg-white/10 text-white/60 border-white/10"}`}>
+                        {r.category}
+                      </span>
+                      <span
+                        className={`w-2 h-2 rounded-full ${r.status === "Completed" ? "bg-green-500" : "bg-red-400"}`}
+                        title={r.status}
+                      />
+                    </div>
                   </div>
                 </div>
-
-                {/* Right side */}
-                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                  <p className="text-sm font-bold text-gray-800">₱{r.amount.toLocaleString()}</p>
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLOR[r.category] ?? "bg-gray-100 text-gray-600"}`}>
-                      {r.category}
-                    </span>
-                    <span className={`w-2 h-2 rounded-full ${r.status === "Completed" ? "bg-emerald-500" : "bg-red-400"}`} title={r.status} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {viewRecord && <DetailModal record={viewRecord} onClose={() => setViewRecord(null)} />}
     </div>
