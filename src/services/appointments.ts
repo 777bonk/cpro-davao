@@ -9,8 +9,8 @@ export interface Appointment {
   service: string;
   procedures: string;
   paymentInfo: string;
-  status: "Completed" | "In Progress" | "Scheduled";
   totalAmount: number;
+  status: "Scheduled" | "In Progress" | "Completed" | "Archived";
 }
 
 // TRANSLATOR 1: Database to UI
