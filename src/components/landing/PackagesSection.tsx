@@ -13,69 +13,83 @@ export function PackagesSection() {
   const packages = [
     {
       name: "Bronze",
-      tier: "STARTER",
-      price: "₱15,000 - ₱25,000",
+      tier: "1 Layer Coating",
+      price: "₱20,000",
       features: [
-        "1 Layer Ceramic Coating",
-        "Exterior Paint Protection",
-        "3 Year Warranty",
-        "Hydrophobic Effect",
-        "UV Protection",
-        "Basic Paint Prep",
+        "Detailed Carwash",
+        "2 Step Paint Correction",
+        "1 Layer Glass Coating (windshield)",
+        "1 Layer Ceramic Pro Top Coat",
+        "Plastic Parts Coating",
+        "Wheel Coating",
+        "Free 1st Wash & Check-up",
       ],
+      addons: [
+      {
+        name: "Windows and Side Mirror Coating",
+        price: "₱1,500",
+      },
+      {
+        name: "Interior Coating",
+        price: "₱18,000",
+      },
+      {
+        name: "Windshield Film Protection",
+        price: "₱22,000",
+      },
+    ],
       color: "#CD7F32",
       popular: false,
     },
     {
       name: "Silver",
-      tier: "ADVANCED",
-      price: "₱30,000 - ₱45,000",
+      tier: "2 Layer Permanent Bond Coating",
+      price: "₱55,000",
       features: [
-        "2 Layer Ceramic Coating",
-        "Exterior + Wheels Protection",
-        "5 Year Warranty",
-        "Enhanced Hydrophobic Effect",
-        "UV & Chemical Protection",
-        "Professional Paint Correction",
-        "Trim & Glass Coating",
+        "Full Exterior Detail",
+        "Full comprehensive Paint Correction",
+        "1 Layer of Ceramic Pro Top Coat",
+        "1 Layer of Ceramic Pro 9H",
+        "3 Years Annual Maintenance (Full detail w/o polishing, carwash, and check-up f coating function)",
+        "3 Years warranty on Hydrophobicity (Body only)",
       ],
+      addons: [
+      {
+        name: "Interior Coating",
+        price: "₱18,000",
+      },
+      {
+        name: "Windshield Film Protection",
+        price: "₱22,000",
+      },
+    ],
       color: "#C0C0C0",
       popular: false,
     },
     {
       name: "Gold",
-      tier: "PREMIUM",
-      price: "₱55,000 - ₱75,000",
+      tier: "4 Layer Permanent Bond Coating",
+      price: "₱75,000",
       features: [
-        "3 Layer Ceramic Coating",
-        "Full Exterior Protection",
-        "7 Year Warranty",
-        "Maximum Hydrophobic Effect",
-        "Complete UV & Chemical Shield",
-        "Advanced Paint Correction",
-        "Windows, Trim & Wheels Coating",
-        "Interior Fabric Protection",
+        "Full Exterior Detail",
+        "Full Comprehensive Paint Correction",
+        "1 Layer of Ceramic Coating Top Coat",
+        "3 Layers of Ceramic Pro 9H",
+        "5 Years Annual Maintenance (Full detail w/o polishing, carwash, and check-up f coating function)",
+        "5 Years warranty on Hydrophobicity (Body only)",
       ],
+      addons: [
+      {
+        name: "Interior Coating",
+        price: "₱18,000",
+      },
+      {
+        name: "Windshield Film Protection",
+        price: "₱22,000",
+      },
+    ],
       color: "#FFD700",
       popular: true,
-    },
-    {
-      name: "Platinum",
-      tier: "ULTIMATE",
-      price: "₱85,000 - ₱120,000",
-      features: [
-        "4 Layer Ceramic Coating",
-        "Full Vehicle Protection",
-        "Lifetime Warranty",
-        "Ultimate Hydrophobic Effect",
-        "Maximum UV & Chemical Protection",
-        "Premium Paint Correction & Polish",
-        "Complete Interior & Exterior Coating",
-        "PPF on High-Impact Areas",
-        "Annual Maintenance Included",
-      ],
-      color: "#E5E4E2",
-      popular: false,
     },
   ];
 
@@ -108,7 +122,7 @@ export function PackagesSection() {
         </motion.div>
 
         {/* Packages Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-10">
           {packages.map((pkg, index) => (
             <motion.div
               key={index}
@@ -165,6 +179,20 @@ export function PackagesSection() {
                       </li>
                     ))}
                   </ul>
+
+                  {/* Add-ons */}
+                  {pkg.addons && pkg.addons.length > 0 && (
+                    <>
+                      <p className="text-sm font-semibold text-white mt-4">Add-ons:</p>
+                      <ul className="text-sm text-[#C0C0C0] mt-1 space-y-1 pb-6">
+                        {pkg.addons.map((addon, index) => (
+                          <li key={index}>
+                            {addon.name} - {addon.price}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
 
                   {/* Button */}
                   <Button

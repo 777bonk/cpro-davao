@@ -28,19 +28,19 @@ export function ContactSection() {
     {
       icon: Facebook,
       name: "Facebook",
-      link: "https://facebook.com/ceramicprodavao",
+      link: "https://www.facebook.com/ceramicprodavao",
       color: "#1877F2",
     },
     {
       icon: Instagram,
       name: "Instagram",
-      link: "https://instagram.com/ceramicprodavao",
+      link: "https://www.instagram.com/ceramicpro_davao",
       color: "#E4405F",
     },
     {
       icon: MessageCircle,
       name: "Messenger",
-      link: "https://m.me/ceramicprodavao",
+      link: "https://www.facebook.com/ceramicprodavao",
       color: "#0084FF",
     },
   ];

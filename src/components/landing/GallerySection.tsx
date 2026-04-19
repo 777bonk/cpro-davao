@@ -7,33 +7,33 @@ export function GallerySection() {
 
   const galleryItems = [
     {
-      image: "https://images.unsplash.com/photo-1685023911870-12430a741d41?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBzcG9ydHMlMjBjYXIlMjBuaWdodHxlbnwxfHx8fDE3NjEyMDgzMjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      title: "Ferrari 488 GTB",
+      image: "/lambo.jpg",
+      title: "Lamborghini Huracan STO",
       subtitle: "Full Ceramic Coating - Gold Package",
     },
     {
-      image: "https://images.unsplash.com/photo-1646012656811-d6c6b0be5d9f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMGNhciUyMHJlZmxlY3Rpb258ZW58MXx8fHwxNzYxMjA4MzIxfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      title: "Mercedes-Benz S-Class",
-      subtitle: "Platinum Package + PPF",
+      image: "/gt3.jpeg",
+      title: "Porsche 911 GT3",
+      subtitle: "Gold Package+ PPF",
     },
     {
-      image: "https://images.unsplash.com/photo-1629320029146-72ec6e79c7ed?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMGx1eHVyeSUyMGNhciUyMHNob3dyb29tfGVufDF8fHx8MTc2MTIwODMyMnww&ixlib=rb-4.1.0&q=80&w=1080",
-      title: "Porsche 911",
+      image: "/matte.jpg",
+      title: "Land Rover Defender",
       subtitle: "Matte PPF Installation",
     },
     {
-      image: "https://images.unsplash.com/photo-1652368688249-39c6ff353e04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZWQlMjBzcG9ydHMlMjBjYXIlMjBnYXJhZ2V8ZW58MXx8fHwxNzYxMjA4MzIyfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      title: "Audi R8",
+      image: "/gwag.jpg",
+      title: "Mercedes-Benz G 400d",
       subtitle: "Ceramic Coating - Silver Package",
     },
     {
-      image: "https://images.unsplash.com/photo-1695029502107-9fd205276f1c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjYXIlMjBnbG9zc3klMjBjZXJhbWljJTIwY29hdGluZ3xlbnwxfHx8fDE3NjEyMDgzMTl8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      title: "BMW M4",
-      subtitle: "Complete Detailing + Coating",
+      image: "/bmw.jpg",
+      title: "BMW X5",
+      subtitle: "Interior Detailing + Coating",
     },
     {
-      image: "https://images.unsplash.com/photo-1606235994317-b517abfd89cf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXIlMjBwYWludCUyMHByb3RlY3Rpb24lMjBmaWxtfGVufDF8fHx8MTc2MTIwODMyMXww&ixlib=rb-4.1.0&q=80&w=1080",
-      title: "Tesla Model 3",
+      image: "/shelby.jpg",
+      title: "Shelby GT500CR",
       subtitle: "Gold Package - Ceramic Coating",
     },
   ];
