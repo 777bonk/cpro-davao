@@ -1,11 +1,11 @@
 import "../styles/dashboard.css";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
-import { FrontDeskSidebar }        from "../components/frontdesk/Frontdesksidebar";
-import { FrontDeskDashboardHome }  from "../components/frontdesk/Frontdeskdashboardhome";
-import { FrontDeskAppointments }   from "../components/frontdesk/Frontdeskappointments";
-import { FrontDeskCustomers }      from "../components/frontdesk/Frontdeskcustomers";
-import { FrontDeskJobOrders }      from "../components/frontdesk/Frontdeskjoborders";
+import { FrontDeskSidebar }        from "../components/frontdesk/FrontdeskSidebar";
+import { FrontDeskDashboardHome }  from "../components/frontdesk/FrontdeskDashboardHome";
+import { FrontDeskAppointments }   from "../components/frontdesk/FrontdeskAppointments";
+import { FrontDeskCustomers }      from "../components/frontdesk/FrontdeskCustomers";
+import { FrontDeskJobOrders }      from "../components/frontdesk/FrontdeskJobOrders";
 import { FrontDeskSettings }       from "../components/frontdesk/FrontdeskSettings";
 
 export default function FrontDeskDashboard() {
