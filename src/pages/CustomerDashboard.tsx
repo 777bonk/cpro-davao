@@ -4,7 +4,7 @@ import { Menu, X } from "lucide-react";
 import { CustomerSidebar }        from "../components/customer/CustomerSidebar";
 import { CustomerDashboardHome }  from "../components/customer/CustomerDashboardhome";
 import { CustomerAppointments }   from "../components/customer/CustomerAppointments";
-import { CustomerServiceHistory } from "../components/customer/Customerservicehistory";
+import { CustomerServiceHistory } from "../components/customer/CustomerServicehistory";
 import { CustomerPayments }       from "../components/customer/CustomerPayments";
 import { CustomerSettings }       from "../components/customer/CustomerSettings";
 

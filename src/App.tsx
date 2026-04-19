@@ -1,21 +1,28 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import LandingPage from './pages/LandingPage'
-import AdminDashboard from './pages/AdminDashboard'
-import { AuthProvider, useAuth } from './hooks/useAuth'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import LandingPage from './pages/LandingPage';
+import { AuthProvider, useAuth } from './hooks/useAuth';
+import CustomerDashboard from './pages/CustomerDashboard';
 
-// This wrapper prevents unauthenticated users from seeing the dashboard
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { session, isLoading } = useAuth();
+const AuthRedirector = () => {
+  const { session, profile, isLoading } = useAuth();
 
-  // Show a blank dark screen or spinner while checking auth status
-  if (isLoading) {
-    return <div className="h-screen w-screen bg-[#000000] flex items-center justify-center text-white">Loading...</div>;
+  if (isLoading) return <div className="h-screen w-screen bg-[#000000] flex items-center justify-center text-white">Loading...</div>;
+  if (!session || !profile) return <Navigate to="/" replace />;
+
+  switch (profile.role) {
+    case 'customer': return <Navigate to="/customer" replace />;
+    case 'staff':    return <Navigate to="/staff" replace />;
+    case 'admin':    return <Navigate to="/admin" replace />;
+    default:         return <Navigate to="/" replace />;
   }
+};
 
-  // If no session exists, boot them back to the landing page
-  if (!session) {
-    return <Navigate to="/" replace />;
-  }
+const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles: string[] }) => {
+  const { session, profile, isLoading } = useAuth();
+
+  if (isLoading) return <div className="h-screen w-screen bg-[#000000] flex items-center justify-center text-white">Loading...</div>;
+  if (!session || !profile) return <Navigate to="/" replace />;
+  if (!allowedRoles.includes(profile.role)) return <Navigate to="/dashboard" replace />;
 
   return <>{children}</>;
 };
@@ -25,22 +32,24 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public Route */}
-          <Route path="/*" element={<LandingPage />} />
-          
-          {/* Protected Admin Route */}
-          <Route 
-            path="/admin/*" 
+          {/* Auth redirect hub — Google OAuth lands here */}
+          <Route path="/dashboard" element={<AuthRedirector />} />
+
+          {/* Customer route */}
+          <Route
+            path="/customer/*"
             element={
-              <ProtectedRoute>
-                <AdminDashboard />
+              <ProtectedRoute allowedRoles={['admin', 'customer']}>
+                <CustomerDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
+
+          {/* Public route — MUST be last */}
+          <Route path="/*" element={<LandingPage />} />
         </Routes>
       </BrowserRouter>
-       <div id="portal-root" />
+      <div id="portal-root" />
     </AuthProvider>
-  )
-  
+  );
 }
