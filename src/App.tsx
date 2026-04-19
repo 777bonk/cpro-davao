@@ -2,11 +2,17 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import CustomerDashboard from './pages/CustomerDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 const AuthRedirector = () => {
   const { session, profile, isLoading } = useAuth();
 
-  if (isLoading) return <div className="h-screen w-screen bg-[#000000] flex items-center justify-center text-white">Loading...</div>;
+  if (isLoading) return (
+    <div className="h-screen w-screen bg-[#000000] flex items-center justify-center text-white">
+      Loading...
+    </div>
+  );
+
   if (!session || !profile) return <Navigate to="/" replace />;
 
   switch (profile.role) {
@@ -17,10 +23,18 @@ const AuthRedirector = () => {
   }
 };
 
-const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles: string[] }) => {
+const ProtectedRoute = ({ children, allowedRoles }: { 
+  children: React.ReactNode, 
+  allowedRoles: string[] 
+}) => {
   const { session, profile, isLoading } = useAuth();
 
-  if (isLoading) return <div className="h-screen w-screen bg-[#000000] flex items-center justify-center text-white">Loading...</div>;
+  if (isLoading) return (
+    <div className="h-screen w-screen bg-[#000000] flex items-center justify-center text-white">
+      Loading...
+    </div>
+  );
+
   if (!session || !profile) return <Navigate to="/" replace />;
   if (!allowedRoles.includes(profile.role)) return <Navigate to="/dashboard" replace />;
 
@@ -35,12 +49,22 @@ export default function App() {
           {/* Auth redirect hub — Google OAuth lands here */}
           <Route path="/dashboard" element={<AuthRedirector />} />
 
-          {/* Customer route */}
+          {/* Customer route — only customers and admins can access */}
           <Route
             path="/customer/*"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'customer']}>
+              <ProtectedRoute allowedRoles={['customer']}>
                 <CustomerDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Admin route — only admins can access */}
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
               </ProtectedRoute>
             }
           />
