@@ -24,7 +24,7 @@ export default function LandingPage() {
       <HeroSection />
       <AboutSection />
       <ServicesSection />
-      <CarConfigurator />
+      {/* <CarConfigurator /> */}
       <PackagesSection />
       <GallerySection />
       <QuoteForm />
