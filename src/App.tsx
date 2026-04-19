@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import LandingPage from './pages/LandingPage';
+import LandingPage        from './pages/LandingPage';
 import { AuthProvider, useAuth } from './hooks/useAuth';
-import CustomerDashboard from './pages/CustomerDashboard';
-import AdminDashboard from './pages/AdminDashboard';
+import CustomerDashboard  from './pages/CustomerDashboard';
+import AdminDashboard     from './pages/AdminDashboard';
+import FrontDeskDashboard from './pages/FrontDeskDashboard';
+import StaffDashboard     from './pages/StaffDashboard';
 
 const AuthRedirector = () => {
   const { session, profile, isLoading } = useAuth();
@@ -16,16 +18,17 @@ const AuthRedirector = () => {
   if (!session || !profile) return <Navigate to="/" replace />;
 
   switch (profile.role) {
-    case 'customer': return <Navigate to="/customer" replace />;
-    case 'staff':    return <Navigate to="/staff" replace />;
-    case 'admin':    return <Navigate to="/admin" replace />;
-    default:         return <Navigate to="/" replace />;
+    case 'customer':  return <Navigate to="/customer"  replace />;
+    case 'frontdesk': return <Navigate to="/frontdesk" replace />;
+    case 'staff':     return <Navigate to="/staff"     replace />;
+    case 'admin':     return <Navigate to="/admin"     replace />;
+    default:          return <Navigate to="/"          replace />;
   }
 };
 
-const ProtectedRoute = ({ children, allowedRoles }: { 
-  children: React.ReactNode, 
-  allowedRoles: string[] 
+const ProtectedRoute = ({ children, allowedRoles }: {
+  children: React.ReactNode;
+  allowedRoles: string[];
 }) => {
   const { session, profile, isLoading } = useAuth();
 
@@ -36,6 +39,8 @@ const ProtectedRoute = ({ children, allowedRoles }: {
   );
 
   if (!session || !profile) return <Navigate to="/" replace />;
+
+  // Wrong role → bounce back to their correct dashboard
   if (!allowedRoles.includes(profile.role)) return <Navigate to="/dashboard" replace />;
 
   return <>{children}</>;
@@ -46,10 +51,10 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Auth redirect hub — Google OAuth lands here */}
+          {/* Auth redirect hub — Google OAuth and login land here */}
           <Route path="/dashboard" element={<AuthRedirector />} />
 
-          {/* Customer route — only customers and admins can access */}
+          {/* Customer */}
           <Route
             path="/customer/*"
             element={
@@ -59,7 +64,27 @@ export default function App() {
             }
           />
 
-          {/* Admin route — only admins can access */}
+          {/* Front Desk */}
+          <Route
+            path="/frontdesk/*"
+            element={
+              <ProtectedRoute allowedRoles={['frontdesk']}>
+                <FrontDeskDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Staff / Technician */}
+          <Route
+            path="/staff/*"
+            element={
+              <ProtectedRoute allowedRoles={['staff']}>
+                <StaffDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Admin */}
           <Route
             path="/admin/*"
             element={
@@ -69,7 +94,7 @@ export default function App() {
             }
           />
 
-          {/* Public route — MUST be last */}
+          {/* Public — MUST be last */}
           <Route path="/*" element={<LandingPage />} />
         </Routes>
       </BrowserRouter>
