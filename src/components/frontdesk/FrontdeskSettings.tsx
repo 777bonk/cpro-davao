@@ -9,7 +9,7 @@ import { Label } from "../dashboard-ui/label";
 import { Switch } from "../dashboard-ui/switch";
 import { Separator } from "../dashboard-ui/separator";
 import { supabase } from "../../lib/supabase";
-import { useAuth } from "../../context/useAuth";
+import { useAuth } from "../../hooks/useAuth";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
