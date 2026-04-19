@@ -25,11 +25,13 @@ export const authService = {
   },
 
   // 3. Social Login (Google & Facebook)
+  // 3. Social Login (Google & Facebook)
   async loginWithProvider(provider: 'google' | 'facebook') {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/admin`, // Send them to dashboard after login
+        // Send everyone to the traffic controller first!
+        redirectTo: `${window.location.origin}/dashboard`, 
       }
     });
     if (error) throw error;
