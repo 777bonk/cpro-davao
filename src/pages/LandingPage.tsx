@@ -10,8 +10,8 @@ import { QuoteForm } from "../components/landing/QuoteForm";
 import { ContactSection } from "../components/landing/ContactSection";
 import { Footer } from "../components/landing/Footer";
 import { Toaster } from "../components/ui/sonner";
-import LoginModal from "../components/landing/LoginModal";
-import RegisterModal from "../components/landing/RegisterModal";
+import { LoginModal } from "../components/landing/LoginModal";
+import { RegisterModal } from "../components/landing/RegisterModal";
 
 export default function LandingPage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -19,9 +19,8 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A]">
-      {/* Navigation gets a function to open the modal */}
       <Navigation onNavigateToLogin={() => setIsLoginOpen(true)} />
-
+      
       <HeroSection />
       <AboutSection />
       <ServicesSection />
@@ -33,9 +32,24 @@ export default function LandingPage() {
       <Footer />
       <Toaster />
 
-      {/* Render the LoginModal at the root, completely separate from Navigation */}
-<LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onRegister={() => { setIsLoginOpen(false); setIsRegisterOpen(true); }} />
-<RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} />
+      {/* Render the Modals at the root level! */}
+      <LoginModal 
+        isOpen={isLoginOpen} 
+        onClose={() => setIsLoginOpen(false)} 
+        onSwitchToRegister={() => { 
+          setIsLoginOpen(false); 
+          setIsRegisterOpen(true); 
+        }} 
+      />
+      
+      <RegisterModal 
+        isOpen={isRegisterOpen} 
+        onClose={() => setIsRegisterOpen(false)} 
+        onSwitchToLogin={() => {
+          setIsRegisterOpen(false);
+          setIsLoginOpen(true);
+        }}
+      />
     </div>
   );
 }
