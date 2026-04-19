@@ -3,7 +3,7 @@ import LandingPage        from './pages/LandingPage';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import CustomerDashboard  from './pages/CustomerDashboard';
 import AdminDashboard     from './pages/AdminDashboard';
-import FrontDeskDashboard from './pages/FrontDeskDashboard';
+import FrontDeskDashboard from './pages/FrontdeskDashboard';
 import StaffDashboard     from './pages/StaffDashboard';
 
 const AuthRedirector = () => {
