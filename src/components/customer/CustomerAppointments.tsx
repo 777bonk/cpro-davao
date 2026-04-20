@@ -1,367 +1,378 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  SlidersHorizontal,
-  Plus,
-  Calendar,
-  Car,
-  Clock,
-  Banknote,
-  Shield,
-  Layers,
-  Sparkles,
-  Eye,
-  XCircle,
-  CalendarX,
+  ChevronLeft, ChevronRight, Search, SlidersHorizontal,
+  Plus, Calendar, Car, Clock, Banknote, Shield, Layers,
+  Sparkles, Wrench, Eye, XCircle, CalendarX, X,
+  CheckCircle, AlertCircle,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
+import { Badge } from "../dashboard-ui/badge";
+import { getAppointments, createAppointment } from "../../services/appointments";
+import { getServices } from "../../services/settings";
+import { getCustomers } from "../../services/customer";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
-type AppointmentStatus = "Confirmed" | "Pending" | "In Progress" | "Completed" | "Cancelled";
+type AppointmentStatus = "Confirmed" | "Pending" | "In Progress" | "Completed" | "Cancelled" | "Scheduled";
 
 interface Appointment {
-  id: number;
+  id: string | number;
   service: string;
   vehicle: string;
-  date: string; // "YYYY-MM-DD"
+  date: string;
   time: string;
   deposit: number;
   status: AppointmentStatus;
+  notes?: string;
 }
-
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
-
-const MOCK: Appointment[] = [
-  { id: 1, service: "Ceramic Coating - Full Body",     vehicle: "2023 Toyota Fortuner",  date: "2026-04-24", time: "9:00 AM",  deposit: 3000, status: "Confirmed"   },
-  { id: 2, service: "Paint Protection Film - Hood",    vehicle: "2021 Honda Civic",       date: "2026-05-03", time: "1:00 PM",  deposit: 1500, status: "Pending"     },
-  { id: 3, service: "Window Tinting - Full Car",       vehicle: "2023 Toyota Fortuner",  date: "2026-05-10", time: "10:30 AM", deposit: 1000, status: "Pending"     },
-  { id: 4, service: "Ceramic Coating - Partial",       vehicle: "2021 Honda Civic",       date: "2026-04-19", time: "2:00 PM",  deposit: 2000, status: "In Progress" },
-  { id: 5, service: "Detailing - Full Interior",       vehicle: "2023 Toyota Fortuner",  date: "2026-03-15", time: "8:00 AM",  deposit: 800,  status: "Completed"   },
-  { id: 6, service: "Nano Ceramic Spray",              vehicle: "2021 Honda Civic",       date: "2026-03-28", time: "3:00 PM",  deposit: 500,  status: "Completed"   },
-];
 
 // ─── STATUS CONFIG ─────────────────────────────────────────────────────────────
 
-const STATUS: Record<AppointmentStatus, { bg: string; text: string; dot: string; border: string }> = {
-  Confirmed:   { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", border: "border-emerald-200" },
-  Pending:     { bg: "bg-amber-50",   text: "text-amber-700",   dot: "bg-amber-400",   border: "border-amber-200"   },
-  "In Progress":{ bg: "bg-blue-50",  text: "text-blue-700",    dot: "bg-blue-500",    border: "border-blue-200"    },
-  Completed:   { bg: "bg-gray-100",   text: "text-gray-600",    dot: "bg-gray-400",    border: "border-gray-200"    },
-  Cancelled:   { bg: "bg-red-50",     text: "text-red-600",     dot: "bg-red-400",     border: "border-red-200"     },
+const STATUS: Record<string, { bg: string; text: string; dot: string; border: string }> = {
+  Confirmed:    { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30"  },
+  Pending:      { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30" },
+  Scheduled:    { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30"  },
+  "In Progress":{ bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30"   },
+  Completed:    { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10"      },
+  Cancelled:    { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-const MONTH_NAMES = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
-];
-const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-function today() {
+function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
-
-function formatFull(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
-}
-
 function formatShort(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
-
 function serviceIcon(service: string) {
-  const s = service.toLowerCase();
-  if (s.includes("coating"))  return <Shield  className="w-4 h-4 text-[#E41E6A]"    />;
-  if (s.includes("ppf") || s.includes("paint protection"))
-                               return <Layers  className="w-4 h-4 text-violet-500"   />;
-  if (s.includes("tint"))      return <Sparkles className="w-4 h-4 text-sky-500"    />;
-  return                              <Car     className="w-4 h-4 text-gray-400"     />;
+  const s = (service ?? "").toLowerCase();
+  if (s.includes("coating"))                                return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
+  if (s.includes("ppf") || s.includes("paint protection")) return <Layers   className="w-4 h-4 text-violet-400" />;
+  if (s.includes("tint"))                                   return <Sparkles className="w-4 h-4 text-sky-400"    />;
+  return                                                           <Wrench   className="w-4 h-4 text-white/50"   />;
 }
 
 // ─── STATUS BADGE ─────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: AppointmentStatus }) {
-  const s = STATUS[status];
+function StatusBadge({ status }: { status: string }) {
+  const s = STATUS[status] ?? STATUS["Pending"];
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {status}
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{status}
     </span>
   );
 }
 
-// ─── APPOINTMENT CARD (panel) ─────────────────────────────────────────────────
-
-function AppointmentCard({ appt }: { appt: Appointment }) {
-  return (
-    <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:border-[#E41E6A]/30 hover:shadow-md transition-all duration-200">
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center flex-shrink-0">
-            {serviceIcon(appt.service)}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-800 leading-snug">{appt.service}</p>
-            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-              <Car className="w-3 h-3" />{appt.vehicle}
-            </p>
-          </div>
-        </div>
-        <StatusBadge status={appt.status} />
-      </div>
-      <div className="flex flex-wrap gap-3 pt-2.5 border-t border-gray-50">
-        <span className="flex items-center gap-1 text-xs text-gray-500">
-          <Clock className="w-3.5 h-3.5 text-[#E41E6A]" />{appt.time}
-        </span>
-        <span className="flex items-center gap-1 text-xs text-gray-500 ml-auto">
-          <Banknote className="w-3.5 h-3.5 text-emerald-500" />
-          Deposit: <span className="font-semibold text-gray-700 ml-0.5">₱{appt.deposit.toLocaleString()}</span>
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ─── CALENDAR CARD ────────────────────────────────────────────────────────────
+// ─── CALENDAR ─────────────────────────────────────────────────────────────────
 
 function CalendarCard({
-  selected,
-  onSelect,
-  dotDates,
+  selected, onSelect, dotDates,
 }: {
   selected: string;
   onSelect: (d: string) => void;
-  dotDates: Record<string, AppointmentStatus[]>;
+  dotDates: Record<string, string[]>;
 }) {
-  const todayStr = today();
-  const selDate  = new Date(selected + "T00:00:00");
+  const today = todayStr();
+  const selDate = new Date(selected + "T00:00:00");
   const [viewYear,  setViewYear]  = useState(selDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selDate.getMonth());
 
-  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
-  // pad to complete last row
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const prev = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
-    else setViewMonth(m => m - 1);
-  };
-  const next = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
-    else setViewMonth(m => m + 1);
-  };
+  const prev = () => viewMonth === 0 ? (setViewMonth(11), setViewYear(y => y - 1)) : setViewMonth(m => m - 1);
+  const next = () => viewMonth === 11 ? (setViewMonth(0),  setViewYear(y => y + 1)) : setViewMonth(m => m + 1);
 
   const cellKey = (day: number) =>
     `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
 
-  // dot color priority
-  const dotColor = (statuses: AppointmentStatus[]) => {
+  const dotColor = (statuses: string[]) => {
     if (statuses.includes("In Progress")) return "bg-blue-500";
-    if (statuses.includes("Confirmed"))   return "bg-emerald-500";
-    if (statuses.includes("Pending"))     return "bg-amber-400";
-    return "bg-gray-400";
+    if (statuses.includes("Confirmed") || statuses.includes("Scheduled")) return "bg-green-500";
+    if (statuses.includes("Pending"))   return "bg-yellow-400";
+    return "bg-white/30";
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-      <div className="mb-4">
-        <h2 className="text-sm font-bold text-gray-800">Calendar</h2>
-        <p className="text-xs text-gray-400 mt-0.5">Select a date to view appointments</p>
-      </div>
+    <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-white text-sm">Calendar</CardTitle>
+        <p className="text-white/50 text-xs">Select a date to view appointments</p>
+      </CardHeader>
+      <CardContent style={{ paddingBottom: "20px" }}>
+        {/* Month nav */}
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={prev} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors">
+            <ChevronLeft className="w-4 h-4 text-white/60" />
+          </button>
+          <span className="text-white text-sm font-semibold">{MONTH_NAMES[viewMonth]} {viewYear}</span>
+          <button onClick={next} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors">
+            <ChevronRight className="w-4 h-4 text-white/60" />
+          </button>
+        </div>
 
-      {/* Month nav */}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={prev} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
-          <ChevronLeft className="w-4 h-4 text-gray-500" />
-        </button>
-        <span className="text-sm font-semibold text-gray-700">
-          {MONTH_NAMES[viewMonth]} {viewYear}
-        </span>
-        <button onClick={next} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
-          <ChevronRight className="w-4 h-4 text-gray-500" />
-        </button>
-      </div>
+        {/* Day headers */}
+        <div className="grid grid-cols-7 mb-1">
+          {DAY_NAMES.map(d => (
+            <div key={d} className="text-center text-[10px] font-semibold text-white/30 py-1">{d}</div>
+          ))}
+        </div>
 
-      {/* Day headers */}
-      <div className="grid grid-cols-7 mb-1">
-        {DAY_NAMES.map(d => (
-          <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
-        ))}
-      </div>
+        {/* Cells */}
+        <div className="grid grid-cols-7 gap-y-1">
+          {cells.map((day, i) => {
+            if (!day) return <div key={`e-${i}`} />;
+            const key     = cellKey(day);
+            const isToday = key === today;
+            const isSel   = key === selected;
+            const dots    = dotDates[key];
+            return (
+              <button key={key} onClick={() => onSelect(key)}
+                className={`
+                  relative flex flex-col items-center justify-center w-8 h-8 mx-auto rounded-full text-xs font-medium transition-all
+                  ${isSel   ? "bg-[#E41E6A] text-white shadow-md shadow-[#E41E6A]/30" : ""}
+                  ${isToday && !isSel ? "border border-[#E41E6A] text-[#E41E6A]" : ""}
+                  ${!isSel && !isToday ? "text-white/60 hover:bg-white/10" : ""}
+                `}
+              >
+                {day}
+                {dots && (
+                  <span className={`absolute bottom-0.5 w-1.5 h-1.5 rounded-full ${isSel ? "bg-white" : dotColor(dots)}`} />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-      {/* Day cells */}
-      <div className="grid grid-cols-7 gap-y-1">
-        {cells.map((day, i) => {
-          if (!day) return <div key={`e-${i}`} />;
-          const key      = cellKey(day);
-          const isToday  = key === todayStr;
-          const isSel    = key === selected;
-          const hasDots  = dotDates[key];
-
-          return (
-            <button
-              key={key}
-              onClick={() => onSelect(key)}
-              className={`
-                relative flex flex-col items-center justify-center w-8 h-8 mx-auto rounded-full text-xs font-medium transition-all duration-150
-                ${isSel  ? "bg-[#E41E6A] text-white shadow-md shadow-[#E41E6A]/30" : ""}
-                ${isToday && !isSel ? "border border-[#E41E6A] text-[#E41E6A]" : ""}
-                ${!isSel && !isToday ? "text-gray-600 hover:bg-gray-100" : ""}
-              `}
-            >
-              {day}
-              {hasDots && (
-                <span className={`absolute bottom-0.5 w-1.5 h-1.5 rounded-full ${isSel ? "bg-white" : dotColor(hasDots)}`} />
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Legend */}
-      <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col gap-1.5">
-        {[
-          { dot: "bg-emerald-500", label: "Confirmed"   },
-          { dot: "bg-blue-500",    label: "In Progress" },
-          { dot: "bg-amber-400",   label: "Pending"     },
-        ].map(l => (
-          <div key={l.label} className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${l.dot}`} />
-            <span className="text-xs text-gray-500">{l.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+        {/* Legend */}
+        <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-1.5">
+          {[
+            { dot: "bg-green-500",  label: "Confirmed"   },
+            { dot: "bg-blue-500",   label: "In Progress" },
+            { dot: "bg-yellow-400", label: "Pending"     },
+          ].map(l => (
+            <div key={l.label} className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${l.dot}`} />
+              <span className="text-xs text-white/50">{l.label}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
 // ─── APPOINTMENTS PANEL ───────────────────────────────────────────────────────
 
-function AppointmentsPanel({ selected, appts }: { selected: string; appts: Appointment[] }) {
+function AppointmentsPanel({ selected, appts, onView }: {
+  selected: string;
+  appts: Appointment[];
+  onView: (a: Appointment) => void;
+}) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col min-h-[420px]">
-      <div className="mb-4">
-        <h2 className="text-sm font-bold text-gray-800">
+    <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur flex flex-col min-h-[420px]" style={{ borderRadius: "12px" }}>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-white text-sm">
           Appointments for <span className="text-[#E41E6A]">{formatShort(selected)}</span>
-        </h2>
-        <p className="text-xs text-gray-400 mt-0.5">
-          {appts.length} appointment{appts.length !== 1 ? "s" : ""} scheduled
-        </p>
-      </div>
-
-      {appts.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
-          <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
-            <CalendarX className="w-6 h-6 text-gray-300" />
+        </CardTitle>
+        <p className="text-white/50 text-xs">{appts.length} appointment{appts.length !== 1 ? "s" : ""} scheduled</p>
+      </CardHeader>
+      <CardContent style={{ paddingBottom: "20px", flex: 1 }}>
+        {appts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full py-10 text-center">
+            <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mb-3">
+              <CalendarX className="w-6 h-6 text-white/20" />
+            </div>
+            <p className="text-white/50 text-sm">No appointments for this date</p>
           </div>
-          <p className="text-sm font-medium text-gray-400">No appointments scheduled</p>
-          <p className="text-xs text-gray-300 mt-1">for this date</p>
+        ) : (
+          <div className="space-y-3">
+            {appts.map(a => (
+              <div key={a.id} className="p-3 bg-white/5 rounded-xl border border-white/10 hover:border-[#E41E6A]/40 transition-colors">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
+                      {serviceIcon(a.service)}
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium leading-snug truncate max-w-[140px]">{a.service}</p>
+                      <p className="text-white/50 text-xs flex items-center gap-1 mt-0.5"><Car className="w-3 h-3" />{a.vehicle}</p>
+                    </div>
+                  </div>
+                  <StatusBadge status={a.status} />
+                </div>
+                <div className="flex flex-wrap gap-3 pt-2 border-t border-white/10">
+                  <span className="flex items-center gap-1 text-xs text-white/50"><Clock className="w-3.5 h-3.5 text-[#E41E6A]" />{a.time}</span>
+                  <span className="flex items-center gap-1 text-xs text-white/50"><Banknote className="w-3.5 h-3.5 text-green-400" />₱{Number(a.deposit).toLocaleString()} deposit</span>
+                  <button onClick={() => onView(a)} className="ml-auto flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
+                    <Eye className="w-3.5 h-3.5" />View
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── BOOK APPOINTMENT MODAL ───────────────────────────────────────────────────
+
+function BookModal({
+  onClose, onSave, services, vehicles,
+}: {
+  onClose: () => void;
+  onSave: (data: any) => Promise<void>;
+  services: string[];
+  vehicles: string[];
+}) {
+  const [form, setForm] = useState({
+    service: "", vehicle: "", date: todayStr(),
+    time: "9:00 AM", deposit: "", notes: "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const TIME_OPTIONS = ["8:00 AM","9:00 AM","10:00 AM","10:30 AM","11:00 AM","1:00 PM","2:00 PM","3:00 PM","4:00 PM"];
+
+  const handleSave = async () => {
+    if (!form.service || !form.vehicle || !form.date || !form.time) {
+      alert("Please fill in Service, Vehicle, Date, and Time."); return;
+    }
+    setIsSaving(true);
+    try {
+      await onSave({ ...form, deposit: parseFloat(form.deposit) || 0, status: "Pending" });
+      onClose();
+    } catch (error: any) {
+      alert(`Error: ${error?.message || "Failed to book appointment."}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
+  const selCls   = inputCls + " appearance-none pr-8";
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-white">Book Appointment</h2>
+            <p className="text-white/50 text-xs mt-0.5">Schedule a new service</p>
+          </div>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
-      ) : (
-        <div className="space-y-3 overflow-y-auto">
-          {appts.map(a => <AppointmentCard key={a.id} appt={a} />)}
+
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-white/70">Service <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <select className={selCls} value={form.service} onChange={e => setForm({ ...form, service: e.target.value })}>
+                <option value="" className="bg-[#0a0a0a]">Select a service...</option>
+                {services.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
+              </select>
+              <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none rotate-90" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-white/70">Vehicle <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <select className={selCls} value={form.vehicle} onChange={e => setForm({ ...form, vehicle: e.target.value })}>
+                <option value="" className="bg-[#0a0a0a]">Select a vehicle...</option>
+                {vehicles.map(v => <option key={v} value={v} className="bg-[#0a0a0a]">{v}</option>)}
+              </select>
+              <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none rotate-90" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-white/70">Date <span className="text-red-500">*</span></label>
+              <input type="date" className={inputCls + " [color-scheme:dark]"} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-white/70">Time <span className="text-red-500">*</span></label>
+              <div className="relative">
+                <select className={selCls} value={form.time} onChange={e => setForm({ ...form, time: e.target.value })}>
+                  {TIME_OPTIONS.map(t => <option key={t} value={t} className="bg-[#0a0a0a]">{t}</option>)}
+                </select>
+                <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none rotate-90" />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-white/70">Deposit (₱)</label>
+            <input type="number" className={inputCls} placeholder="0" value={form.deposit} onChange={e => setForm({ ...form, deposit: e.target.value })} />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-white/70">Notes</label>
+            <textarea className={inputCls + " resize-none h-20 py-2.5"} placeholder="Any special requests..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+          </div>
         </div>
-      )}
+
+        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
+          <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all disabled:opacity-50">
+            {isSaving ? "Booking..." : "Confirm Booking"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── APPOINTMENT LIST (ALL) ───────────────────────────────────────────────────
+// ─── VIEW DETAIL MODAL ────────────────────────────────────────────────────────
 
-function AppointmentList({ appts }: { appts: Appointment[] }) {
+function ViewModal({ appt, onClose }: { appt: Appointment; onClose: () => void }) {
+  const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
+    <div className="p-3 bg-white/5 rounded-lg border border-white/10 flex items-start gap-3">
+      <div className="mt-0.5 text-[#E41E6A] flex-shrink-0">{icon}</div>
+      <div>
+        <p className="text-white/50 text-xs">{label}</p>
+        <p className="text-white text-sm font-medium mt-0.5">{value}</p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-50">
-        <h2 className="text-sm font-bold text-gray-800">All Appointments</h2>
-        <p className="text-xs text-gray-400 mt-0.5">{appts.length} total records</p>
-      </div>
-
-      {/* Mobile: cards */}
-      <div className="sm:hidden divide-y divide-gray-50">
-        {appts.map(a => (
-          <div key={a.id} className="p-4 flex flex-col gap-2">
-            <div className="flex items-start justify-between">
-              <p className="text-sm font-semibold text-gray-800 leading-snug max-w-[70%]">{a.service}</p>
-              <StatusBadge status={a.status} />
-            </div>
-            <p className="text-xs text-gray-400 flex items-center gap-1"><Car className="w-3 h-3" />{a.vehicle}</p>
-            <p className="text-xs text-gray-400 flex items-center gap-1"><Calendar className="w-3 h-3 text-[#E41E6A]" />{formatShort(a.date)} · {a.time}</p>
-            <div className="flex gap-2 mt-1">
-              <button className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800 transition-colors">
-                <Eye className="w-3.5 h-3.5" />View
-              </button>
-              {a.status !== "Completed" && a.status !== "Cancelled" && (
-                <button className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 transition-colors ml-2">
-                  <XCircle className="w-3.5 h-3.5" />Cancel
-                </button>
-              )}
-            </div>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-white">Appointment Details</h2>
+            <p className="text-white/50 text-xs mt-0.5">{formatShort(appt.date)}</p>
           </div>
-        ))}
-      </div>
-
-      {/* Desktop: table */}
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 text-left">
-              <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
-              <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Service</th>
-              <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Vehicle</th>
-              <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-              <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {appts.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">No appointments found.</td>
-              </tr>
-            ) : (
-              appts.map(a => (
-                <tr key={a.id} className="hover:bg-gray-50/60 transition-colors">
-                  <td className="px-5 py-3.5 text-xs text-gray-500 whitespace-nowrap">
-                    <span className="block font-medium text-gray-700">{formatShort(a.date)}</span>
-                    <span className="text-gray-400">{a.time}</span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center flex-shrink-0">
-                        {serviceIcon(a.service)}
-                      </div>
-                      <span className="text-sm text-gray-800 font-medium leading-snug max-w-[220px] truncate">{a.service}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-gray-500 whitespace-nowrap">{a.vehicle}</td>
-                  <td className="px-5 py-3.5"><StatusBadge status={a.status} /></td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <button className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800 transition-colors">
-                        <Eye className="w-3.5 h-3.5" />View
-                      </button>
-                      {a.status !== "Completed" && a.status !== "Cancelled" && (
-                        <button className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 transition-colors">
-                          <XCircle className="w-3.5 h-3.5" />Cancel
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-6 space-y-3">
+          <Row icon={<Shield  className="w-4 h-4" />} label="Service"  value={appt.service} />
+          <Row icon={<Car     className="w-4 h-4" />} label="Vehicle"  value={appt.vehicle} />
+          <Row icon={<Calendar className="w-4 h-4"/>} label="Date"     value={formatShort(appt.date)} />
+          <Row icon={<Clock   className="w-4 h-4" />} label="Time"     value={appt.time} />
+          <Row icon={<Banknote className="w-4 h-4"/>} label="Deposit"  value={`₱${Number(appt.deposit).toLocaleString()}`} />
+          {appt.notes && <Row icon={<Eye className="w-4 h-4" />} label="Notes" value={appt.notes} />}
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-white/50 text-sm">Status</span>
+            <StatusBadge status={appt.status} />
+          </div>
+        </div>
+        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Close</button>
+        </div>
       </div>
     </div>
   );
@@ -370,88 +381,254 @@ function AppointmentList({ appts }: { appts: Appointment[] }) {
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function CustomerAppointments() {
-  const todayStr = today();
-  const [selected, setSelected] = useState(todayStr);
-  const [search,   setSearch]   = useState("");
+  const today = todayStr();
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [services,     setServices]     = useState<string[]>([]);
+  const [vehicles,     setVehicles]     = useState<string[]>([]);
+  const [isLoading,    setIsLoading]    = useState(true);
+  const [selected,     setSelected]     = useState(today);
+  const [search,       setSearch]       = useState("");
+  const [filterStatus, setFilterStatus] = useState<"All" | string>("All");
+  const [showBook,     setShowBook]     = useState(false);
+  const [viewAppt,     setViewAppt]     = useState<Appointment | null>(null);
 
-  const todayFull = new Date().toLocaleDateString("en-US", {
+  const todayDisplay = new Date().toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  // Build dot map for calendar
+  useEffect(() => { fetchData(); }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [rawAppts, rawServices, customers] = await Promise.all([
+        getAppointments().catch(() => []),
+        getServices().catch(() => []),
+        getCustomers().catch(() => []),
+      ]);
+
+      // Normalize appointments to local shape
+      const normalized: Appointment[] = rawAppts.map((a: any) => {
+        const d = new Date(a.date || a.scheduled_date);
+        return {
+          id:      a.id,
+          service: a.service_type ?? a.service ?? "Appointment",
+          vehicle: a.customers?.vehicle ?? a.vehicle ?? "Vehicle",
+          date:    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,
+          time:    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          deposit: Number(a.deposit || a.deposit_amount || 0),
+          status:  (a.status ?? "Pending") as AppointmentStatus,
+          notes:   a.notes ?? "",
+        };
+      });
+      setAppointments(normalized);
+
+      // Services list from settings
+      const svcNames = rawServices.map((s: any) => s.name).filter(Boolean);
+      setServices(svcNames.length > 0 ? svcNames : [
+        "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
+        "PPF - Hood & Fenders", "PPF - Full Body",
+        "Window Tinting - Full Car", "Full Interior Detailing",
+        "Nano Ceramic Spray", "Paint Decontamination",
+      ]);
+
+      // Vehicles from customer record
+      const uniqueVehicles = Array.from(
+        new Set(customers.map((c: any) => c.vehicle).filter(Boolean))
+      ) as string[];
+      setVehicles(uniqueVehicles);
+
+    } catch (err) {
+      console.error("CustomerAppointments fetch error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBook = async (data: any) => {
+    // Cast to any so field names match whatever your Appointment service type uses.
+    // If your service uses different field names (e.g. scheduled_date, service_type),
+    // update the keys below to match your actual Omit<Appointment, "id"> shape.
+    const payload: any = {
+      service:  data.service,
+      vehicle:  data.vehicle,
+      date:     `${data.date}T${data.time}`,
+      deposit:  data.deposit,
+      notes:    data.notes,
+      status:   "Pending" as const,
+    };
+    const appt = await createAppointment(payload);
+    const raw  = appt.date || appt.scheduled_date || data.date;
+    const d    = new Date(raw);
+    setAppointments(prev => [...prev, {
+      id:      appt.id,
+      service: appt.service ?? appt.service_type ?? data.service,
+      vehicle: appt.vehicle ?? data.vehicle,
+      date:    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,
+      time:    data.time,
+      deposit: Number(appt.deposit ?? data.deposit),
+      status:  "Pending",
+      notes:   appt.notes ?? data.notes,
+    }]);
+  };
+
+  // Dot map for calendar
   const dotDates = useMemo(() => {
-    const map: Record<string, AppointmentStatus[]> = {};
-    MOCK.forEach(a => {
+    const map: Record<string, string[]> = {};
+    appointments.forEach(a => {
       if (!map[a.date]) map[a.date] = [];
       map[a.date].push(a.status);
     });
     return map;
-  }, []);
+  }, [appointments]);
 
-  // Appointments for selected date
+  // Panel appointments for selected date
   const forSelected = useMemo(
-    () => MOCK.filter(a => a.date === selected),
-    [selected]
+    () => appointments.filter(a => a.date === selected),
+    [appointments, selected]
   );
 
-  // All appointments filtered by search
-  const filtered = useMemo(
-    () =>
-      MOCK.filter(
-        a =>
-          a.service.toLowerCase().includes(search.toLowerCase()) ||
-          a.vehicle.toLowerCase().includes(search.toLowerCase()) ||
-          a.status.toLowerCase().includes(search.toLowerCase())
-      ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [search]
+  // All appointments filtered
+  const filtered = useMemo(() =>
+    appointments
+      .filter(a => filterStatus === "All" || a.status === filterStatus)
+      .filter(a =>
+        a.service.toLowerCase().includes(search.toLowerCase()) ||
+        a.vehicle.toLowerCase().includes(search.toLowerCase()) ||
+        a.status.toLowerCase().includes(search.toLowerCase())
+      )
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [appointments, search, filterStatus]
   );
 
   return (
-    <div className="min-h-full bg-gray-50 p-4 md:p-6 space-y-6">
+    <div className="space-y-6">
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Appointments</h1>
-          <p className="text-gray-400 text-sm mt-1">{todayFull}</p>
+          <h1 className="text-white text-3xl font-bold mb-1">My Appointments</h1>
+          <p className="text-white/60 text-sm">{todayDisplay}</p>
         </div>
-        <button className="self-start sm:self-auto inline-flex items-center gap-2 bg-[#E41E6A] hover:bg-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-colors">
-          <Plus className="w-4 h-4" />
-          New Appointment
+        <button
+          onClick={() => setShowBook(true)}
+          className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
+        >
+          <Plus className="w-4 h-4" />New Appointment
         </button>
       </div>
 
       {/* ── Search + Filter ── */}
       <div className="flex items-center gap-3 max-w-lg">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
           <input
             type="text"
             placeholder="Search appointments..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors placeholder:text-gray-400"
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors"
           />
         </div>
-        <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-gray-300 hover:bg-gray-50 transition-colors">
-          <SlidersHorizontal className="w-4 h-4" />
-          Filter
-        </button>
+        <div className="flex items-center gap-1.5">
+          <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
+          {(["All", "Confirmed", "Pending", "Completed"] as const).map(f => (
+            <button key={f} onClick={() => setFilterStatus(f)}
+              className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${
+                filterStatus === f
+                  ? "bg-[#E41E6A] text-white border-[#E41E6A]"
+                  : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
+              }`}>{f}</button>
+          ))}
+        </div>
       </div>
 
       {/* ── Calendar + Panel ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
-        <CalendarCard
-          selected={selected}
-          onSelect={setSelected}
-          dotDates={dotDates}
-        />
-        <AppointmentsPanel selected={selected} appts={forSelected} />
-      </div>
+      {isLoading ? (
+        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
+          <CardContent className="flex items-center justify-center h-40 text-white/50">Loading appointments...</CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
+          <CalendarCard selected={selected} onSelect={setSelected} dotDates={dotDates} />
+          <AppointmentsPanel selected={selected} appts={forSelected} onView={setViewAppt} />
+        </div>
+      )}
 
-      {/* ── All Appointments ── */}
-      <AppointmentList appts={filtered} />
+      {/* ── All Appointments Table ── */}
+      <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden" style={{ borderRadius: "12px" }}>
+        <CardHeader className="border-b border-white/10 pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white">All Appointments</CardTitle>
+            <span className="text-white/40 text-xs">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Mobile */}
+          <div className="sm:hidden divide-y divide-white/5">
+            {filtered.map(a => (
+              <div key={a.id} className="p-4 hover:bg-white/5 transition-colors">
+                <div className="flex items-start justify-between mb-2">
+                  <p className="text-white text-sm font-semibold max-w-[60%] leading-snug">{a.service}</p>
+                  <StatusBadge status={a.status} />
+                </div>
+                <p className="text-white/50 text-xs flex items-center gap-1 mb-1"><Car className="w-3 h-3" />{a.vehicle}</p>
+                <p className="text-white/50 text-xs flex items-center gap-1 mb-2"><Calendar className="w-3 h-3 text-[#E41E6A]" />{formatShort(a.date)} · {a.time}</p>
+                <div className="flex gap-3">
+                  <button onClick={() => setViewAppt(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
+                    <Eye className="w-3.5 h-3.5" />View
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
 
+          {/* Desktop */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/10">
+                  {["Date","Service","Vehicle","Deposit","Status","Actions"].map(h => (
+                    <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-white/50 uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-12 text-white/40">
+                    <CalendarX className="w-8 h-8 mx-auto mb-2 text-white/20" />No appointments found.
+                  </td></tr>
+                ) : filtered.map(a => (
+                  <tr key={a.id} className="hover:bg-white/5 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <p className="text-white text-xs font-medium">{formatShort(a.date)}</p>
+                      <p className="text-white/40 text-xs">{a.time}</p>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">{serviceIcon(a.service)}</div>
+                        <span className="text-white text-sm font-medium max-w-[180px] truncate">{a.service}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-white/60 text-sm whitespace-nowrap">{a.vehicle}</td>
+                    <td className="px-5 py-3.5 text-green-400 text-sm font-semibold whitespace-nowrap">₱{Number(a.deposit).toLocaleString()}</td>
+                    <td className="px-5 py-3.5"><StatusBadge status={a.status} /></td>
+                    <td className="px-5 py-3.5">
+                      <button onClick={() => setViewAppt(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
+                        <Eye className="w-3.5 h-3.5" />View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Modals ── */}
+      {showBook && <BookModal onClose={() => setShowBook(false)} onSave={handleBook} services={services} vehicles={vehicles} />}
+      {viewAppt  && <ViewModal appt={viewAppt} onClose={() => setViewAppt(null)} />}
     </div>
   );
 }

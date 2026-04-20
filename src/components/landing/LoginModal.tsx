@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"; // ✅ Added React Router naviga
 import { X, Mail, Lock, Loader2 } from "lucide-react";
 import { Button } from "../dashboard-ui/button";
 import { authService } from "../../services/auth";
+import { supabase } from "../../lib/supabase";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -11,8 +12,8 @@ interface LoginModalProps {
 }
 
 export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalProps) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email,     setEmail]     = useState("");
+  const [password,  setPassword]  = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   
@@ -20,6 +21,17 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
 
   if (!isOpen) return null;
 
+  // ── Role → path helper ─────────────────────────────────────────────────────
+  const roleToPath = (role: string) => {
+    switch (role) {
+      case "admin":     return "/admin";
+      case "frontdesk": return "/frontdesk";
+      case "staff":     return "/staff";
+      default:          return "/customer";
+    }
+  };
+
+  // ── Manual login ───────────────────────────────────────────────────────────
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("🚦 1. Button clicked! Starting login...");
@@ -44,7 +56,9 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
     }
   };
 
-  const handleOAuthLogin = async (provider: 'google' | 'facebook') => {
+  // ── OAuth login ────────────────────────────────────────────────────────────
+  // OAuth redirects to /dashboard which AuthRedirector handles automatically
+  const handleOAuthLogin = async (provider: "google" | "facebook") => {
     try {
       await authService.loginWithProvider(provider);
     } catch (err: any) {
@@ -53,13 +67,13 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)', backdropFilter: 'blur(4px)' }}
+      style={{ backgroundColor: "rgba(0, 0, 0, 0.8)", backdropFilter: "blur(4px)" }}
     >
-      <div 
+      <div
         className="border border-white/10 rounded-2xl w-full overflow-hidden shadow-2xl relative"
-        style={{ maxWidth: '400px', backgroundColor: '#0a0a0a' }}
+        style={{ maxWidth: "400px", backgroundColor: "#0a0a0a" }}
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white transition">
           <X className="w-5 h-5" />

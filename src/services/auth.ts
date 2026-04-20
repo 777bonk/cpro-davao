@@ -11,7 +11,7 @@ export const authService = {
       },
     });
     if (error) throw error;
-    return data;
+    return email;
   },
 
   // 2. Email & Password Login
@@ -21,7 +21,7 @@ export const authService = {
       password,
     });
     if (error) throw error;
-    return data;
+    return email;
   },
 
   // 3. Social Login (Google & Facebook)

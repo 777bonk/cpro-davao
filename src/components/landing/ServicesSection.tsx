@@ -60,7 +60,7 @@ export function ServicesSection() {
             Premium Protection Solutions
           </h2>
           <p className="text-[#C0C0C0] text-lg max-w-2xl mx-auto">
-            From ceramic coating to complete detailing, we offer comprehensive solutions 
+            From ceramic coating to complete detailing, we offer comprehensive solutions
             to protect and enhance your vehicle.
           </p>
         </motion.div>
@@ -88,7 +88,7 @@ export function ServicesSection() {
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-[#1A1A1A]/50 to-transparent" />
-                  
+
                   {/* Icon */}
                   <div className="absolute top-6 left-6 w-14 h-14 rounded-full bg-[#E41E6A]/90 backdrop-blur-sm flex items-center justify-center">
                     <service.icon className="text-white" size={28} />
