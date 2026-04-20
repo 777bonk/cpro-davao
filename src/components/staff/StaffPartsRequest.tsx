@@ -13,41 +13,46 @@ import { getInventory, InventoryItem } from "../../services/inventory";
 type RequestStatus = "Pending" | "Approved" | "Rejected";
 
 interface PartRequest {
-  id: number;
-  itemId:    string | number;
-  itemName:  string;
-  category:  string;
-  quantity:  number;
-  unit:      string;
-  reason:    string;
-  jobRef:    string;
-  status:    RequestStatus;
+  id: string;           // ← changed from number to string (UUID from DB)
+  itemId:      string;
+  itemName:    string;
+  category:    string;
+  quantity:    number;
+  unit:        string;
+  reason:      string;
+  jobRef:      string;
+  status:      RequestStatus;
   requestedAt: string;
-  note:      string;
+  note:        string;
 }
 
 // ─── STATUS CONFIG ─────────────────────────────────────────────────────────────
 
 const STATUS_STYLE: Record<RequestStatus, { bg: string; text: string; dot: string; border: string; icon: React.ReactNode }> = {
-  Pending:  { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30", icon: <Clock     className="w-3.5 h-3.5" /> },
+  Pending:  { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30", icon: <Clock      className="w-3.5 h-3.5" /> },
   Approved: { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30",  icon: <CheckCircle className="w-3.5 h-3.5" /> },
-  Rejected: { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30",    icon: <XCircle   className="w-3.5 h-3.5" /> },
+  Rejected: { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30",    icon: <XCircle    className="w-3.5 h-3.5" /> },
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 const inputClass = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 
 function categoryIcon(cat: string) {
-  if (cat === "Coating")  return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
-  if (cat === "PPF")      return <Layers   className="w-4 h-4 text-violet-400" />;
-  if (cat === "Tinting")  return <Sparkles className="w-4 h-4 text-sky-400"    />;
-  if (cat === "Detailing") return <Wrench  className="w-4 h-4 text-emerald-400"/>;
-  return                          <Package className="w-4 h-4 text-white/50"   />;
+  if (cat === "Coating")   return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
+  if (cat === "PPF")       return <Layers   className="w-4 h-4 text-violet-400" />;
+  if (cat === "Tinting")   return <Sparkles className="w-4 h-4 text-sky-400"    />;
+  if (cat === "Detailing") return <Wrench   className="w-4 h-4 text-emerald-400"/>;
+  return                           <Package className="w-4 h-4 text-white/50"   />;
 }
 
 function formatDateTime(raw: string) {
-  return new Date(raw).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(raw).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 }
 
 function StatusBadge({ status }: { status: RequestStatus }) {
@@ -64,26 +69,39 @@ function StatusBadge({ status }: { status: RequestStatus }) {
 function RequestModal({ inventory, onClose, onSubmit }: {
   inventory: InventoryItem[];
   onClose: () => void;
-  onSubmit: (data: Omit<PartRequest, "id" | "status" | "requestedAt" | "itemId" | "itemName" | "category" | "unit"> & { itemId: string | number }) => void;
+  onSubmit: (data: { itemId: string; quantity: number; reason: string; jobRef: string; note: string }) => Promise<void>;
 }) {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
-  const [form, setForm] = useState({ quantity: "1", reason: "", jobRef: "", note: "" });
+  const [form, setForm]   = useState({ quantity: "1", reason: "", jobRef: "", note: "" });
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const handleItemChange = (id: string) => {
-    const found = inventory.find(i => String(i.id) === id);
-    setSelectedItem(found ?? null);
+    setSelectedItem(inventory.find(i => String(i.id) === id) ?? null);
   };
 
-  const handleSubmit = () => {
-    if (!selectedItem)      { setError("Please select an item.");           return; }
+  const handleSubmit = async () => {
+    if (!selectedItem)                          { setError("Please select an item.");           return; }
     if (!form.quantity || parseInt(form.quantity) < 1) { setError("Enter a valid quantity."); return; }
-    if (!form.reason.trim()) { setError("Please provide a reason.");        return; }
+    if (!form.reason.trim())                    { setError("Please provide a reason.");        return; }
     if (parseInt(form.quantity) > selectedItem.stock) {
-      setError(`Only ${selectedItem.stock} ${selectedItem.unit} in stock.`); return;
+      setError(`Only ${selectedItem.stock} ${selectedItem.unit} in stock.`);                   return;
     }
-    onSubmit({ itemId: selectedItem.id, quantity: parseInt(form.quantity), reason: form.reason, jobRef: form.jobRef, note: form.note });
-    onClose();
+    setSaving(true);
+    try {
+      await onSubmit({
+        itemId:   String(selectedItem.id),
+        quantity: parseInt(form.quantity),
+        reason:   form.reason,
+        jobRef:   form.jobRef,
+        note:     form.note,
+      });
+      onClose();
+    } catch (err) {
+      setError("Failed to submit request. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -116,8 +134,6 @@ function RequestModal({ inventory, onClose, onSubmit }: {
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
-
-            {/* Selected item preview */}
             {selectedItem && (
               <div className="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/10 mt-2">
                 <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
@@ -137,59 +153,38 @@ function RequestModal({ inventory, onClose, onSubmit }: {
           {/* Quantity */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-white/70">Quantity <span className="text-red-500">*</span></label>
-            <input
-              type="number"
-              min="1"
-              max={selectedItem?.stock ?? 999}
-              className={inputClass}
-              placeholder="1"
-              value={form.quantity}
-              onChange={e => setForm({ ...form, quantity: e.target.value })}
-            />
+            <input type="number" min="1" max={selectedItem?.stock ?? 999}
+              className={inputClass} placeholder="1" value={form.quantity}
+              onChange={e => setForm({ ...form, quantity: e.target.value })} />
           </div>
 
           {/* Job reference */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-white/70">Job Reference</label>
-            <input
-              className={inputClass}
-              placeholder="e.g. JO-2026-0001 or appointment ID"
-              value={form.jobRef}
-              onChange={e => setForm({ ...form, jobRef: e.target.value })}
-            />
+            <input className={inputClass} placeholder="e.g. JO-2026-0001 or appointment ID"
+              value={form.jobRef} onChange={e => setForm({ ...form, jobRef: e.target.value })} />
           </div>
 
           {/* Reason */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-white/70">Reason <span className="text-red-500">*</span></label>
             <div className="relative">
-              <select
-                className={inputClass + " appearance-none pr-8"}
-                value={form.reason}
-                onChange={e => setForm({ ...form, reason: e.target.value })}
-              >
+              <select className={inputClass + " appearance-none pr-8"}
+                value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })}>
                 <option value="" className="bg-[#0a0a0a]">Select reason...</option>
-                {[
-                  "For current job",
-                  "Running low on supply",
-                  "Replacement for damaged item",
-                  "Preparation for upcoming job",
-                  "Other",
-                ].map(r => <option key={r} value={r} className="bg-[#0a0a0a]">{r}</option>)}
+                {["For current job","Running low on supply","Replacement for damaged item","Preparation for upcoming job","Other"]
+                  .map(r => <option key={r} value={r} className="bg-[#0a0a0a]">{r}</option>)}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </div>
 
-          {/* Additional notes */}
+          {/* Notes */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-white/70">Additional Notes</label>
-            <textarea
-              className={inputClass + " resize-none h-16 py-2.5"}
-              placeholder="Any additional details..."
-              value={form.note}
-              onChange={e => setForm({ ...form, note: e.target.value })}
-            />
+            <textarea className={inputClass + " resize-none h-16 py-2.5"}
+              placeholder="Any additional details..." value={form.note}
+              onChange={e => setForm({ ...form, note: e.target.value })} />
           </div>
 
           {error && (
@@ -200,9 +195,12 @@ function RequestModal({ inventory, onClose, onSubmit }: {
         </div>
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
-          <button onClick={handleSubmit} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg transition-all">
-            Submit Request
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg transition-all disabled:opacity-50">
+            {saving ? "Submitting..." : "Submit Request"}
           </button>
         </div>
       </div>
@@ -213,47 +211,94 @@ function RequestModal({ inventory, onClose, onSubmit }: {
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function StaffPartsRequest() {
-  const { profile }  = useAuth();
-  const [inventory,  setInventory]  = useState<InventoryItem[]>([]);
-  const [requests,   setRequests]   = useState<PartRequest[]>([]);
-  const [isLoading,  setIsLoading]  = useState(true);
-  const [showModal,  setShowModal]  = useState(false);
-  const [search,     setSearch]     = useState("");
+  const { profile }    = useAuth();
+  const [inventory,    setInventory]    = useState<InventoryItem[]>([]);
+  const [requests,     setRequests]     = useState<PartRequest[]>([]);
+  const [isLoading,    setIsLoading]    = useState(true);
+  const [showModal,    setShowModal]    = useState(false);
+  const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState<"All" | RequestStatus>("All");
-  const [nextId,     setNextId]     = useState(1);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [profile]);
 
+  // ── UPDATED: loads both inventory AND saved requests from DB ──
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const inv = await getInventory().catch(() => []);
+      const staffId = profile?.id;
+      const [inv, reqs] = await Promise.all([
+        getInventory().catch(() => []),
+        fetch(`${API_URL}/part-requests${staffId ? `?staffId=${staffId}` : ""}`)
+          .then(r => r.json())
+          .catch(() => []),
+      ]);
+
       setInventory(inv);
+      setRequests(
+        reqs.map((r: any): PartRequest => ({
+          id:          r.id,
+          itemId:      r.item_id,
+          itemName:    r.item_name,
+          category:    r.category,
+          quantity:    r.quantity,
+          unit:        r.unit,
+          reason:      r.reason,
+          jobRef:      r.job_ref  ?? "",
+          status:      r.status   as RequestStatus,
+          requestedAt: r.created_at,
+          note:        r.note     ?? "",
+        }))
+      );
     } catch (err) {
-      console.error(err);
+      console.error("StaffPartsRequest fetch error:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSubmit = (data: any) => {
+  // ── UPDATED: saves to DB, then updates local state ──
+  const handleSubmit = async (data: { itemId: string; quantity: number; reason: string; jobRef: string; note: string }) => {
     const item = inventory.find(i => String(i.id) === String(data.itemId));
     if (!item) return;
-    const newRequest: PartRequest = {
-      id:          nextId,
-      itemId:      data.itemId,
-      itemName:    item.name,
-      category:    item.category,
-      quantity:    data.quantity,
-      unit:        item.unit,
-      reason:      data.reason,
-      jobRef:      data.jobRef,
-      status:      "Pending",
-      requestedAt: new Date().toISOString(),
-      note:        data.note,
-    };
-    setRequests(prev => [newRequest, ...prev]);
-    setNextId(n => n + 1);
+
+    const res = await fetch(`${API_URL}/part-requests`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        staff_id:   profile?.id,
+        staff_name: profile?.full_name,
+        item_id:    item.id,
+        item_name:  item.name,
+        category:   item.category,
+        quantity:   data.quantity,
+        unit:       item.unit,
+        reason:     data.reason,
+        job_ref:    data.jobRef  || undefined,
+        note:       data.note   || undefined,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.message ?? "Failed to submit request");
+    }
+
+    const saved = await res.json();
+
+    // Add to top of list immediately
+    setRequests(prev => [{
+      id:          saved.id,
+      itemId:      saved.item_id,
+      itemName:    saved.item_name,
+      category:    saved.category,
+      quantity:    saved.quantity,
+      unit:        saved.unit,
+      reason:      saved.reason,
+      jobRef:      saved.job_ref  ?? "",
+      status:      saved.status   as RequestStatus,
+      requestedAt: saved.created_at,
+      note:        saved.note     ?? "",
+    }, ...prev]);
   };
 
   // Stats
@@ -266,7 +311,7 @@ export function StaffPartsRequest() {
       .filter(r => filterStatus === "All" || r.status === filterStatus)
       .filter(r =>
         r.itemName.toLowerCase().includes(search.toLowerCase()) ||
-        r.reason.toLowerCase().includes(search.toLowerCase())  ||
+        r.reason.toLowerCase().includes(search.toLowerCase())   ||
         r.jobRef.toLowerCase().includes(search.toLowerCase())
       ),
     [requests, search, filterStatus]
@@ -281,10 +326,8 @@ export function StaffPartsRequest() {
           <h1 className="text-white text-3xl font-bold mb-1">Request Parts</h1>
           <p className="text-white/60 text-sm">Request supplies and materials from inventory</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
-        >
+        <button onClick={() => setShowModal(true)}
+          className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all">
           <Plus className="w-4 h-4" />New Request
         </button>
       </div>
@@ -304,7 +347,7 @@ export function StaffPartsRequest() {
               </div>
             </CardHeader>
             <CardContent style={{ paddingBottom: "20px" }}>
-              <div className="text-white text-2xl font-bold">{s.value}</div>
+              <div className="text-white text-2xl font-bold">{isLoading ? "..." : s.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -329,9 +372,7 @@ export function StaffPartsRequest() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {inventory.slice(0, 6).map(item => (
                 <div key={item.id} className={`p-3 rounded-xl border flex items-center gap-3 ${
-                  item.stock <= item.reorderLevel
-                    ? "bg-orange-500/5 border-orange-500/20"
-                    : "bg-white/5 border-white/10"
+                  item.stock <= item.reorderLevel ? "bg-orange-500/5 border-orange-500/20" : "bg-white/5 border-white/10"
                 }`}>
                   <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
                     {categoryIcon(item.category)}
@@ -342,9 +383,7 @@ export function StaffPartsRequest() {
                       {item.stock} {item.unit} {item.stock <= item.reorderLevel ? "· Low" : "available"}
                     </p>
                   </div>
-                  {item.stock <= item.reorderLevel && (
-                    <AlertTriangle className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
-                  )}
+                  {item.stock <= item.reorderLevel && <AlertTriangle className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />}
                 </div>
               ))}
             </div>
@@ -359,13 +398,9 @@ export function StaffPartsRequest() {
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by item name, reason, or job ref..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors"
-          />
+          <input type="text" placeholder="Search by item name, reason, or job ref..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors" />
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
@@ -392,7 +427,11 @@ export function StaffPartsRequest() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {filtered.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-8 h-8 border-2 border-[#E41E6A]/30 border-t-[#E41E6A] rounded-full animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="py-12 flex flex-col items-center text-center">
               <Package className="w-10 h-10 text-white/20 mb-3" />
               <p className="text-white/50 text-sm">No requests yet</p>
@@ -404,12 +443,9 @@ export function StaffPartsRequest() {
             <div className="divide-y divide-white/5">
               {filtered.map(r => (
                 <div key={r.id} className="flex items-start gap-4 px-5 py-4 hover:bg-white/5 transition-colors">
-                  {/* Icon */}
                   <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                     {categoryIcon(r.category)}
                   </div>
-
-                  {/* Details */}
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-0.5">
                       <p className="text-white text-sm font-semibold">{r.itemName}</p>
@@ -423,8 +459,6 @@ export function StaffPartsRequest() {
                     )}
                     <p className="text-white/30 text-xs mt-1">{formatDateTime(r.requestedAt)}</p>
                   </div>
-
-                  {/* Status */}
                   <div className="flex-shrink-0 mt-0.5">
                     <StatusBadge status={r.status} />
                     {r.note && (

@@ -12,6 +12,40 @@ import { Footer } from "../components/landing/Footer";
 import { Toaster } from "../components/ui/sonner";
 import { LoginModal } from "../components/landing/LoginModal";
 import { RegisterModal } from "../components/landing/RegisterModal";
+import { Button } from "../components/dashboard-ui/button"; // Adjust path if needed
+
+export const BackendTestButton = () => {
+  const [responseMessage, setResponseMessage] = useState("No connection yet.");
+
+  const testConnection = async () => {
+    // Grab the Render URL from your environment variables
+    const backendUrl = import.meta.env.VITE_API_BASE_URL;
+
+    try {
+      setResponseMessage("Pinging Render...");
+      
+      // Ping the backend
+      const res = await fetch(`${backendUrl}/`);
+      
+      if (!res.ok) throw new Error("Backend rejected the request");
+      
+      const text = await res.text();
+      setResponseMessage(`✅ Success! Backend says: "${text}"`);
+    } catch (error: any) {
+      setResponseMessage(`❌ Connection failed: ${error.message}`);
+    }
+  };
+
+  return (
+    <div className="p-6 bg-[#151923] border border-gray-800 rounded-xl text-white w-full max-w-md mx-auto">
+      <h3 className="font-bold mb-4 text-center">Render Connection Test</h3>
+      <Button onClick={testConnection} className="w-full bg-blue-600 hover:bg-blue-700 mb-4">
+        Ping API
+      </Button>
+      <p className="font-mono text-sm text-gray-400 text-center">{responseMessage}</p>
+    </div>
+  );
+};
 
 export default function LandingPage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -29,6 +63,12 @@ export default function LandingPage() {
       <GallerySection />
       <QuoteForm />
       <ContactSection />
+      
+      {/* 👇 HERE IS YOUR NEW TEST BUTTON 👇 */}
+      <div className="py-12 flex justify-center px-4">
+        <BackendTestButton />
+      </div>
+
       <Footer />
       <Toaster />
 

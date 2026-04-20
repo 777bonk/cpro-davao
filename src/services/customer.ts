@@ -1,33 +1,37 @@
-import { supabase } from '../lib/supabase';
+const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 export interface Customer {
   id: string;
   name: string;
-  contact: string;
-  vehicle: string;
-  last_service: string;
-  total_spent: number;
-  status: "Active" | "Inactive";
-  created_at?: string;
+  contact?: string | null;
+  email?: string | null;
+  vehicle?: string | null;
+  last_service?: string | null;
+  total_spent?: number | string | null;
+  status?: string | null;
+  created_at?: string | null;
 }
 
-export const getCustomers = async () => {
-  const { data, error } = await supabase
-    .from('customers')
-    .select('*')
-    .order('name', { ascending: true });
+// GET ALL CUSTOMERS
+export async function getCustomers(): Promise<Customer[]> {
+  try {
+    const res = await fetch(`${API_URL}/customers`);
+    if (!res.ok) throw new Error("Failed to fetch customers");
+    return await res.json();
+  } catch (err) {
+    console.error("getCustomers error:", err);
+    return [];
+  }
+}
 
-  if (error) throw error;
-  return data as Customer[];
-};
+// CREATE CUSTOMER
+export async function createCustomer(data: Omit<Customer, "id" | "created_at">): Promise<Customer> {
+  const res = await fetch(`${API_URL}/customers`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(data),
+  });
 
-export const createCustomer = async (customerData: Omit<Customer, 'id' | 'created_at'>) => {
-  const { data, error } = await supabase
-    .from('customers')
-    .insert([customerData])
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as Customer;
-};
+  if (!res.ok) throw new Error("Failed to create customer");
+  return await res.json();
+}

@@ -1,4 +1,5 @@
-import { supabase } from '../lib/supabase';
+// src/services/settings.ts
+const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 export interface ServicePackage {
   id: string;
@@ -17,39 +18,44 @@ export interface ShopSettings {
   address: string;
 }
 
-// --- SERVICES ---
-export const getServices = async () => {
-  const { data, error } = await supabase.from('services').select('*').order('name');
-  if (error) throw error;
-  return data as ServicePackage[];
-};
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
 
-export const createService = async (serviceData: Omit<ServicePackage, 'id'>) => {
-  const { data, error } = await supabase.from('services').insert([serviceData]).select().single();
-  if (error) throw error;
-  return data as ServicePackage;
-};
+  if (!res.ok) {
+    let message = `Request failed: ${res.status}`;
+    try {
+      const body = await res.json();
+      message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message ?? message;
+    } catch {}
+    throw new Error(message);
+  }
 
-export const updateService = async (id: string, serviceData: Partial<ServicePackage>) => {
-  const { data, error } = await supabase.from('services').update(serviceData).eq('id', id).select().single();
-  if (error) throw error;
-  return data as ServicePackage;
-};
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
 
-// --- SHOP SETTINGS ---
-export const getShopSettings = async () => {
-  const { data, error } = await supabase.from('shop_settings').select('*').limit(1).single();
-  if (error && error.code !== 'PGRST116') throw error; // Ignore "no rows returned" error
-  return data as ShopSettings | null;
-};
+// ─── SERVICES API ───
+export const getServices = (): Promise<ServicePackage[]> => 
+  request<ServicePackage[]>('/services');
 
-export const updateShopSettings = async (settingsData: ShopSettings) => {
-  // If we have an ID, update the existing row. Otherwise, insert a new one.
-  const query = settingsData.id 
-    ? supabase.from('shop_settings').update(settingsData).eq('id', settingsData.id)
-    : supabase.from('shop_settings').insert([settingsData]);
+export const createService = (data: Omit<ServicePackage, 'id'>): Promise<ServicePackage> => 
+  request<ServicePackage>('/services', { method: 'POST', body: JSON.stringify(data) });
 
-  const { error } = await query;
-  if (error) throw error;
-  return true;
-};
+export const updateService = (id: string, data: Partial<ServicePackage>): Promise<ServicePackage> => 
+  request<ServicePackage>(`/services/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
+export const deleteService = (id: string): Promise<void> => 
+  request<void>(`/services/${id}`, { method: 'DELETE' });
+
+// ─── SHOP SETTINGS API ───
+export const getShopSettings = (): Promise<ShopSettings> => 
+  request<ShopSettings>('/shop-settings');
+
+export const updateShopSettings = (data: Partial<ShopSettings>): Promise<ShopSettings> => 
+  request<ShopSettings>('/shop-settings', { 
+    method: 'PATCH', 
+    body: JSON.stringify(data) 
+  });

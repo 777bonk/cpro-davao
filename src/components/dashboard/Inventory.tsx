@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Package, Plus, AlertTriangle, BarChart3, X, Edit,
   Search, SlidersHorizontal, TrendingUp, TrendingDown,
-  RefreshCcw, ChevronDown, Printer,
+  RefreshCcw, ChevronDown, Printer, Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Button } from "../dashboard-ui/button";
@@ -10,7 +10,7 @@ import { Badge } from "../dashboard-ui/badge";
 import { Progress } from "../dashboard-ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../dashboard-ui/table";
 import { Label } from "../dashboard-ui/label";
-import { getInventory, createInventoryItem, updateInventoryStock, InventoryItem } from "../../services/inventory";
+import { getInventory, createInventoryItem, updateInventoryStock, deleteInventoryItem, InventoryItem } from "../../services/inventory";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ const calculateStatus = (stock: number, reorderLevel: number): "Good" | "Low" | 
 };
 
 const STATUS_STYLE = {
-  Good:     { badge: "bg-green-500/20 text-green-400 border-green-500/30",   dot: "bg-green-500"  },
+  Good:     { badge: "bg-green-500/20 text-green-400 border-green-500/30",    dot: "bg-green-500"  },
   Low:      { badge: "bg-orange-500/20 text-orange-400 border-orange-500/30", dot: "bg-orange-400" },
   Critical: { badge: "bg-red-500/20 text-red-400 border-red-500/30",          dot: "bg-red-500"    },
 };
@@ -37,25 +37,50 @@ const CATEGORY_COLORS: Record<string, string> = {
 const categoryColor = (cat: string) =>
   CATEGORY_COLORS[cat] ?? "bg-white/10 text-white/60 border-white/10";
 
-// ─── MODAL WRAPPER ────────────────────────────────────────────────────────────
+// ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
 
 function ModalWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
-      style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
+      style={{ backgroundColor: "rgba(0,0,0,0.8)" }}
+    >
       {children}
     </div>
   );
 }
 
 const inputClass =
-  "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
+  "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white " +
+  "placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] " +
+  "focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
+
+// ✅ Field is defined HERE at the top level — completely outside any modal or Inventory.
+// This means it is never recreated on re-render, so inputs inside it never lose focus.
+function Field({
+  label, required, children,
+}: {
+  label: string; required?: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-white/70 text-sm">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </Label>
+      {children}
+    </div>
+  );
+}
 
 // ─── ADD ITEM MODAL ───────────────────────────────────────────────────────────
 
 function AddItemModal({ onClose, onSave }: {
   onClose: () => void;
-  onSave: (item: { name: string; category: string; stock: number; stockIn: number; stockOut: number; unit: string; reorderLevel: number; price: number }) => Promise<void>;
+  onSave: (item: {
+    name: string; category: string; stock: number; stockIn: number;
+    stockOut: number; unit: string; reorderLevel: number; price: number;
+  }) => Promise<void>;
 }) {
   const [form, setForm] = useState({
     name: "", category: "", stock: "", stockIn: "", stockOut: "",
@@ -65,7 +90,8 @@ function AddItemModal({ onClose, onSave }: {
 
   const handleSave = async () => {
     if (!form.name || !form.category || !form.stock) {
-      alert("Please fill in Name, Category, and Stock."); return;
+      alert("Please fill in Name, Category, and Stock.");
+      return;
     }
     setIsSaving(true);
     try {
@@ -87,13 +113,6 @@ function AddItemModal({ onClose, onSave }: {
     }
   };
 
-  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
-    <div className="space-y-1.5">
-      <Label className="text-white/70 text-sm">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</Label>
-      {children}
-    </div>
-  );
-
   return (
     <ModalWrapper>
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
@@ -102,19 +121,30 @@ function AddItemModal({ onClose, onSave }: {
             <h2 className="text-xl font-bold text-white">Add New Item</h2>
             <p className="text-white/50 text-xs mt-0.5">Fill in the inventory item details</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-6 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Item Name" required>
-              <input className={inputClass} placeholder="e.g. 9H Ceramic Coating" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              <input
+                className={inputClass}
+                placeholder="e.g. 9H Ceramic Coating"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              />
             </Field>
             <Field label="Category" required>
               <div className="relative">
-                <select className={inputClass + " appearance-none pr-8"} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                <select
+                  className={inputClass + " appearance-none pr-8"}
+                  value={form.category}
+                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                >
                   <option value="" className="bg-[#0a0a0a]">Select category...</option>
-                  {["Coating","PPF","Detailing","Tinting","Supplies"].map(c => (
+                  {["Coating", "PPF", "Detailing", "Tinting", "Supplies"].map(c => (
                     <option key={c} value={c} className="bg-[#0a0a0a]">{c}</option>
                   ))}
                 </select>
@@ -122,35 +152,79 @@ function AddItemModal({ onClose, onSave }: {
               </div>
             </Field>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <Field label="Current Stock" required>
-              <input type="number" className={inputClass} placeholder="0" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} />
+              <input
+                type="number"
+                className={inputClass}
+                placeholder="0"
+                value={form.stock}
+                onChange={e => setForm(f => ({ ...f, stock: e.target.value }))}
+              />
             </Field>
             <Field label="Unit">
-              <input className={inputClass} placeholder="pcs, bottles, rolls..." value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} />
+              <input
+                className={inputClass}
+                placeholder="pcs, bottles, rolls..."
+                value={form.unit}
+                onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+              />
             </Field>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <Field label="Stock In">
-              <input type="number" className={inputClass} placeholder="0" value={form.stockIn} onChange={e => setForm({ ...form, stockIn: e.target.value })} />
+              <input
+                type="number"
+                className={inputClass}
+                placeholder="0"
+                value={form.stockIn}
+                onChange={e => setForm(f => ({ ...f, stockIn: e.target.value }))}
+              />
             </Field>
             <Field label="Stock Out">
-              <input type="number" className={inputClass} placeholder="0" value={form.stockOut} onChange={e => setForm({ ...form, stockOut: e.target.value })} />
+              <input
+                type="number"
+                className={inputClass}
+                placeholder="0"
+                value={form.stockOut}
+                onChange={e => setForm(f => ({ ...f, stockOut: e.target.value }))}
+              />
             </Field>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <Field label="Reorder Level">
-              <input type="number" className={inputClass} placeholder="10" value={form.reorderLevel} onChange={e => setForm({ ...form, reorderLevel: e.target.value })} />
+              <input
+                type="number"
+                className={inputClass}
+                placeholder="10"
+                value={form.reorderLevel}
+                onChange={e => setForm(f => ({ ...f, reorderLevel: e.target.value }))}
+              />
             </Field>
             <Field label="Unit Price (₱)">
-              <input type="number" className={inputClass} placeholder="0" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
+              <input
+                type="number"
+                className={inputClass}
+                placeholder="0"
+                value={form.price}
+                onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+              />
             </Field>
           </div>
         </div>
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Cancel</Button>
-          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleSave} disabled={isSaving}>
+          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
             {isSaving ? "Saving..." : "Add Item"}
           </Button>
         </div>
@@ -167,8 +241,8 @@ function EditStockModal({ item, onClose, onSave }: {
   onSave: (adjustment: number, type: "add" | "deduct") => Promise<void>;
 }) {
   const [adjustmentType, setAdjustmentType] = useState<"add" | "deduct">("add");
-  const [quantity, setQuantity]             = useState("");
-  const [isSaving, setIsSaving]             = useState(false);
+  const [quantity,       setQuantity]       = useState("");
+  const [isSaving,       setIsSaving]       = useState(false);
 
   const preview = quantity
     ? adjustmentType === "add"
@@ -201,11 +275,12 @@ function EditStockModal({ item, onClose, onSave }: {
             <h2 className="text-xl font-bold text-white">Edit Stock</h2>
             <p className="text-white/50 text-xs mt-0.5">Adjust stock for {item.name}</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Current stock info */}
           <div className="grid grid-cols-3 gap-3">
             <div className="p-3 bg-white/5 rounded-lg border border-white/10 text-center">
               <p className="text-white/50 text-xs">Current</p>
@@ -222,7 +297,6 @@ function EditStockModal({ item, onClose, onSave }: {
             </div>
           </div>
 
-          {/* Toggle */}
           <div className="flex rounded-lg border border-white/10 overflow-hidden">
             {(["add", "deduct"] as const).map(type => (
               <button
@@ -242,8 +316,7 @@ function EditStockModal({ item, onClose, onSave }: {
             ))}
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-white/70 text-sm">Quantity <span className="text-red-500">*</span></Label>
+          <Field label="Quantity" required>
             <input
               type="number"
               className={inputClass}
@@ -251,25 +324,28 @@ function EditStockModal({ item, onClose, onSave }: {
               value={quantity}
               onChange={e => setQuantity(e.target.value)}
             />
-          </div>
+          </Field>
 
-          {/* Preview */}
           {preview !== null && (
             <div className={`p-3 rounded-lg border flex items-center gap-2 text-sm font-medium ${
               preview < 0
                 ? "bg-red-500/10 border-red-500/30 text-red-400"
                 : "bg-blue-500/10 border-blue-500/30 text-blue-400"
             }`}>
-              {preview < 0
-                ? "⚠ Cannot go below 0"
-                : `New stock will be: ${preview} ${item.unit}`}
+              {preview < 0 ? "⚠ Cannot go below 0" : `New stock will be: ${preview} ${item.unit}`}
             </div>
           )}
         </div>
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Cancel</Button>
-          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none" onClick={handleSave} disabled={isSaving || (preview !== null && preview < 0)}>
+          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none"
+            onClick={handleSave}
+            disabled={isSaving || (preview !== null && preview < 0)}
+          >
             {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
@@ -310,11 +386,12 @@ function ReorderModal({ item, onClose, onSave }: {
             <h2 className="text-xl font-bold text-white">Reorder Item</h2>
             <p className="text-white/50 text-xs mt-0.5">Request new stock for {item.name}</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Item info */}
           <div className="p-4 bg-orange-500/10 rounded-lg border border-orange-500/20 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
               <AlertTriangle className="w-5 h-5 text-orange-400" />
@@ -327,8 +404,7 @@ function ReorderModal({ item, onClose, onSave }: {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-white/70 text-sm">Quantity to Reorder <span className="text-red-500">*</span></Label>
+          <Field label="Quantity to Reorder" required>
             <input
               type="number"
               className={inputClass}
@@ -336,16 +412,16 @@ function ReorderModal({ item, onClose, onSave }: {
               value={quantity}
               onChange={e => setQuantity(e.target.value)}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-white/70 text-sm">Expected Delivery Date</Label>
+          </Field>
+
+          <Field label="Expected Delivery Date">
             <input
               type="date"
               className={inputClass + " [color-scheme:dark]"}
               value={deliveryDate}
               onChange={e => setDeliveryDate(e.target.value)}
             />
-          </div>
+          </Field>
 
           {quantity && (
             <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-sm text-green-400 font-medium">
@@ -355,8 +431,14 @@ function ReorderModal({ item, onClose, onSave }: {
         </div>
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Cancel</Button>
-          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none" onClick={handleSave} disabled={isSaving}>
+          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
             {isSaving ? "Processing..." : "Confirm Reorder"}
           </Button>
         </div>
@@ -367,11 +449,14 @@ function ReorderModal({ item, onClose, onSave }: {
 
 // ─── REPORT MODAL ─────────────────────────────────────────────────────────────
 
-function ReportModal({ inventory, onClose }: { inventory: InventoryItem[]; onClose: () => void }) {
-  const totalValue  = inventory.reduce((s, i) => s + i.stock * i.price, 0);
-  const totalIn     = inventory.reduce((s, i) => s + i.stockIn,  0);
-  const totalOut    = inventory.reduce((s, i) => s + i.stockOut, 0);
-  const lowItems    = inventory.filter(i => i.status !== "Good").length;
+function ReportModal({ inventory, onClose }: {
+  inventory: InventoryItem[];
+  onClose: () => void;
+}) {
+  const totalValue = inventory.reduce((s, i) => s + i.stock * i.price, 0);
+  const totalIn    = inventory.reduce((s, i) => s + i.stockIn,  0);
+  const totalOut   = inventory.reduce((s, i) => s + i.stockOut, 0);
+  const lowItems   = inventory.filter(i => i.status !== "Good").length;
 
   return (
     <ModalWrapper>
@@ -383,17 +468,18 @@ function ReportModal({ inventory, onClose }: { inventory: InventoryItem[]; onClo
               Generated {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
             </p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Summary stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "Total Items",   value: inventory.length, color: "text-white"       },
-              { label: "Total Stock In", value: totalIn,          color: "text-green-400"   },
-              { label: "Total Stock Out",value: totalOut,         color: "text-red-400"     },
-              { label: "Low / Critical", value: lowItems,         color: "text-orange-400"  },
+              { label: "Total Items",    value: inventory.length, color: "text-white"      },
+              { label: "Total Stock In", value: totalIn,          color: "text-green-400"  },
+              { label: "Total Stock Out",value: totalOut,         color: "text-red-400"    },
+              { label: "Low / Critical", value: lowItems,         color: "text-orange-400" },
             ].map(s => (
               <div key={s.label} className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
                 <p className="text-white/50 text-xs">{s.label}</p>
@@ -402,7 +488,6 @@ function ReportModal({ inventory, onClose }: { inventory: InventoryItem[]; onClo
             ))}
           </div>
 
-          {/* Detail table */}
           <div className="rounded-lg border border-white/10 overflow-hidden">
             <Table>
               <TableHeader>
@@ -425,7 +510,9 @@ function ReportModal({ inventory, onClose }: { inventory: InventoryItem[]; onClo
                     <TableCell className="text-white text-sm">{item.stock} {item.unit}</TableCell>
                     <TableCell className="text-green-400 text-sm text-center">{item.stockIn}</TableCell>
                     <TableCell className="text-red-400 text-sm text-center">{item.stockOut}</TableCell>
-                    <TableCell className="text-white text-sm text-right">₱{(item.stock * item.price).toLocaleString()}</TableCell>
+                    <TableCell className="text-white text-sm text-right">
+                      ₱{(item.stock * item.price).toLocaleString()}
+                    </TableCell>
                     <TableCell className="text-center">
                       <Badge className={STATUS_STYLE[item.status as keyof typeof STATUS_STYLE]?.badge ?? ""}>
                         {item.status}
@@ -437,7 +524,6 @@ function ReportModal({ inventory, onClose }: { inventory: InventoryItem[]; onClo
             </Table>
           </div>
 
-          {/* Total value */}
           <div className="p-4 bg-gradient-to-r from-[#E41E6A]/10 to-pink-600/10 rounded-lg border border-[#E41E6A]/30 flex items-center justify-between">
             <p className="text-white/70 text-sm font-medium">Total Inventory Value</p>
             <p className="text-[#E41E6A] text-2xl font-bold">₱{totalValue.toLocaleString()}</p>
@@ -445,8 +531,13 @@ function ReportModal({ inventory, onClose }: { inventory: InventoryItem[]; onClo
         </div>
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Close</Button>
-          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none flex items-center gap-2" onClick={() => window.print()}>
+          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>
+            Close
+          </Button>
+          <Button
+            className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none flex items-center gap-2"
+            onClick={() => window.print()}
+          >
             <Printer className="w-4 h-4" />Print Report
           </Button>
         </div>
@@ -464,11 +555,10 @@ export function Inventory() {
   const [filterStatus, setFilterStatus] = useState<"All" | "Good" | "Low" | "Critical">("All");
   const [filterCat,    setFilterCat]    = useState("All");
 
-  // Modal states
-  const [addOpen,      setAddOpen]      = useState(false);
-  const [editItem,     setEditItem]     = useState<InventoryItem | null>(null);
-  const [reorderItem,  setReorderItem]  = useState<InventoryItem | null>(null);
-  const [reportOpen,   setReportOpen]   = useState(false);
+  const [addOpen,     setAddOpen]     = useState(false);
+  const [editItem,    setEditItem]    = useState<InventoryItem | null>(null);
+  const [reorderItem, setReorderItem] = useState<InventoryItem | null>(null);
+  const [reportOpen,  setReportOpen]  = useState(false);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -484,13 +574,13 @@ export function Inventory() {
     }
   };
 
-  // ── Derived stats ────────────────────────────────────────────────────────────
+  // ── Derived stats ─────────────────────────────────────────────────────────
   const lowStockItems = inventory.filter(i => i.status !== "Good");
   const totalValue    = inventory.reduce((s, i) => s + i.stock * i.price, 0);
   const totalStockOut = inventory.reduce((s, i) => s + i.stockOut, 0);
   const categories    = ["All", ...Array.from(new Set(inventory.map(i => i.category)))];
 
-  // ── Filtered list ─────────────────────────────────────────────────────────────
+  // ── Filtered list ─────────────────────────────────────────────────────────
   const filtered = useMemo(() =>
     inventory
       .filter(i => filterStatus === "All" || i.status === filterStatus)
@@ -502,34 +592,46 @@ export function Inventory() {
     [inventory, filterStatus, filterCat, search]
   );
 
-  // ── Handlers ──────────────────────────────────────────────────────────────────
-  const handleAdd = async (item: Parameters<typeof createInventoryItem>[0]) => {
-    await createInventoryItem(item);
-    fetchData();
-  };
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleAdd = useCallback(async (item: Parameters<typeof createInventoryItem>[0]) => {
+    const created = await createInventoryItem(item);
+    const withStatus = { ...created, status: calculateStatus(created.stock, created.reorderLevel) };
+    setInventory(prev => [...prev, withStatus]);
+  }, []);
 
   const handleEdit = async (adjustment: number, type: "add" | "deduct") => {
     if (!editItem) return;
-    const newStock   = type === "add" ? editItem.stock + adjustment : editItem.stock - adjustment;
-    const newStockIn = type === "add" ? editItem.stockIn + adjustment : editItem.stockIn;
-    const newStockOut= type === "deduct" ? editItem.stockOut + adjustment : editItem.stockOut;
-    await updateInventoryStock(editItem.id, newStock, newStockIn, newStockOut);
+    const newStock    = type === "add"    ? editItem.stock    + adjustment : editItem.stock    - adjustment;
+    const newStockIn  = type === "add"    ? editItem.stockIn  + adjustment : editItem.stockIn;
+    const newStockOut = type === "deduct" ? editItem.stockOut + adjustment : editItem.stockOut;
+    const updated = await updateInventoryStock(editItem.id, newStock, newStockIn, newStockOut);
     setInventory(prev => prev.map(i =>
       i.id === editItem.id
-        ? { ...i, stock: newStock, stockIn: newStockIn, stockOut: newStockOut, status: calculateStatus(newStock, i.reorderLevel) }
+        ? { ...updated, status: calculateStatus(updated.stock, updated.reorderLevel) }
         : i
     ));
     setEditItem(null);
   };
 
-  const handleReorder = async (quantity: number) => {
+  const handleDelete = async (item: InventoryItem) => {
+    const confirmed = window.confirm(`Delete "${item.name}"? This cannot be undone.`);
+    if (!confirmed) return;
+    try {
+      await deleteInventoryItem(item.id);
+      setInventory(prev => prev.filter(i => i.id !== item.id));
+    } catch (err: any) {
+      alert(`Failed to delete item: ${err.message}`);
+    }
+  };
+
+  const handleReorder = async (quantity: number, _deliveryDate: string) => {
     if (!reorderItem) return;
     const newStock   = reorderItem.stock   + quantity;
     const newStockIn = reorderItem.stockIn + quantity;
-    await updateInventoryStock(reorderItem.id, newStock, newStockIn, reorderItem.stockOut);
+    const updated = await updateInventoryStock(reorderItem.id, newStock, newStockIn, reorderItem.stockOut);
     setInventory(prev => prev.map(i =>
       i.id === reorderItem.id
-        ? { ...i, stock: newStock, stockIn: newStockIn, status: calculateStatus(newStock, i.reorderLevel) }
+        ? { ...updated, status: calculateStatus(updated.stock, updated.reorderLevel) }
         : i
     ));
     setReorderItem(null);
@@ -564,10 +666,10 @@ export function Inventory() {
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
-          { label: "Total Items",         value: inventory.length,         sub: "In inventory",      color: "text-white",      icon: <Package    className="w-5 h-5" />, iconBg: "bg-[#E41E6A]/10", iconColor: "text-[#E41E6A]" },
-          { label: "Low Stock Items",     value: lowStockItems.length,     sub: "Needs reorder",      color: "text-orange-400", icon: <AlertTriangle className="w-5 h-5"/>,iconBg:"bg-orange-500/10",iconColor:"text-orange-400"},
-          { label: "Inventory Value",     value: `₱${Math.round(totalValue / 1000)}K`, sub: "Current value", color: "text-white", icon: <TrendingUp className="w-5 h-5"/>,iconBg:"bg-emerald-500/10",iconColor:"text-emerald-400"},
-          { label: "Total Stock Out",     value: totalStockOut,            sub: "Items used",         color: "text-white",      icon: <TrendingDown className="w-5 h-5"/>,iconBg:"bg-sky-500/10",   iconColor:"text-sky-400"    },
+          { label: "Total Items",     value: inventory.length,                        sub: "In inventory",   color: "text-white",      icon: <Package       className="w-5 h-5" />, iconBg: "bg-[#E41E6A]/10",   iconColor: "text-[#E41E6A]"   },
+          { label: "Low Stock Items", value: lowStockItems.length,                    sub: "Needs reorder",  color: "text-orange-400", icon: <AlertTriangle className="w-5 h-5" />, iconBg: "bg-orange-500/10",  iconColor: "text-orange-400"  },
+          { label: "Inventory Value", value: `₱${Math.round(totalValue / 1000)}K`,   sub: "Current value",  color: "text-white",      icon: <TrendingUp    className="w-5 h-5" />, iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400" },
+          { label: "Total Stock Out", value: totalStockOut,                           sub: "Items used",     color: "text-white",      icon: <TrendingDown  className="w-5 h-5" />, iconBg: "bg-sky-500/10",     iconColor: "text-sky-400"     },
         ].map((s, i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
             <CardHeader className="pb-2">
@@ -644,7 +746,6 @@ export function Inventory() {
           />
         </div>
 
-        {/* Status filter */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
           {(["All", "Good", "Low", "Critical"] as const).map(f => (
@@ -662,7 +763,6 @@ export function Inventory() {
           ))}
         </div>
 
-        {/* Category filter */}
         <div className="relative">
           <select
             value={filterCat}
@@ -709,7 +809,6 @@ export function Inventory() {
                 <TableBody>
                   {filtered.map(item => (
                     <TableRow key={item.id} className="border-white/10 hover:bg-white/5 transition-colors">
-                      {/* Item */}
                       <TableCell className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#E41E6A]/30 to-pink-600/30 border border-[#E41E6A]/20 flex items-center justify-center flex-shrink-0">
@@ -721,35 +820,31 @@ export function Inventory() {
                           </div>
                         </div>
                       </TableCell>
-                      {/* Category */}
                       <TableCell>
                         <Badge variant="outline" className={categoryColor(item.category)}>
                           {item.category}
                         </Badge>
                       </TableCell>
-                      {/* Stock */}
                       <TableCell>
                         <div>
-                          <p className="text-white text-sm font-semibold">{item.stock} <span className="text-white/40 text-xs font-normal">{item.unit}</span></p>
+                          <p className="text-white text-sm font-semibold">
+                            {item.stock} <span className="text-white/40 text-xs font-normal">{item.unit}</span>
+                          </p>
                           <Progress
                             value={Math.min((item.stock / Math.max(item.reorderLevel, 1)) * 100, 100)}
                             className="h-1 mt-1 bg-white/10 w-20"
                           />
                         </div>
                       </TableCell>
-                      {/* Stock In */}
                       <TableCell className="text-center">
                         <span className="text-green-400 text-sm font-semibold">{item.stockIn}</span>
                       </TableCell>
-                      {/* Stock Out */}
                       <TableCell className="text-center">
                         <span className="text-red-400 text-sm font-semibold">{item.stockOut}</span>
                       </TableCell>
-                      {/* Price */}
                       <TableCell>
                         <span className="text-white text-sm">₱{item.price.toLocaleString()}</span>
                       </TableCell>
-                      {/* Status */}
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <span className={`w-1.5 h-1.5 rounded-full ${STATUS_STYLE[item.status as keyof typeof STATUS_STYLE]?.dot ?? "bg-gray-400"}`} />
@@ -758,7 +853,6 @@ export function Inventory() {
                           </Badge>
                         </div>
                       </TableCell>
-                      {/* Actions */}
                       <TableCell>
                         <div className="flex gap-2">
                           <Button
@@ -777,6 +871,14 @@ export function Inventory() {
                           >
                             <RefreshCcw className="w-3 h-3" />Reorder
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-500/30 text-red-400 hover:bg-red-500/10 flex items-center gap-1"
+                            onClick={() => handleDelete(item)}
+                          >
+                            <Trash2 className="w-3 h-3" />Delete
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -789,10 +891,10 @@ export function Inventory() {
       </Card>
 
       {/* ── Modals ── */}
-      {addOpen     && <AddItemModal  onClose={() => setAddOpen(false)} onSave={handleAdd} />}
-      {editItem    && <EditStockModal item={editItem} onClose={() => setEditItem(null)} onSave={handleEdit} />}
-      {reorderItem && <ReorderModal  item={reorderItem} onClose={() => setReorderItem(null)} onSave={handleReorder} />}
-      {reportOpen  && <ReportModal   inventory={inventory} onClose={() => setReportOpen(false)} />}
+      {addOpen     && <AddItemModal   onClose={() => setAddOpen(false)}    onSave={handleAdd}    />}
+      {editItem    && <EditStockModal item={editItem}  onClose={() => setEditItem(null)}   onSave={handleEdit}   />}
+      {reorderItem && <ReorderModal   item={reorderItem} onClose={() => setReorderItem(null)} onSave={handleReorder} />}
+      {reportOpen  && <ReportModal    inventory={inventory} onClose={() => setReportOpen(false)} />}
     </div>
   );
 }

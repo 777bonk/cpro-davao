@@ -12,7 +12,7 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { getTransactions, Transaction } from "../../services/finance";
+import { getTransactions, createTransaction, Transaction } from "../../services/finance";
 
 // ─── STATIC CHART DATA ────────────────────────────────────────────────────────
 
@@ -65,6 +65,12 @@ function ModalWrapper({ children }: { children: React.ReactNode }) {
 const inputClass =
   "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 
+  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
+  <div className="space-y-1.5">
+    <Label className="text-white/70 text-sm">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</Label>
+    {children}
+  </div>
+);
 // ─── ADD TRANSACTION MODAL ────────────────────────────────────────────────────
 
 function AddTransactionModal({ onClose, onSave }: {
@@ -86,7 +92,7 @@ function AddTransactionModal({ onClose, onSave }: {
     }
     setIsSaving(true);
     try {
-      await onSave({ ...form, amount: parseFloat(form.amount), created_at: new Date().toISOString() });
+      await onSave({ ...form, amount: parseFloat(form.amount) });
       onClose();
     } catch (error: any) {
       alert(`Database Error: ${error?.message || "Failed to save transaction."}`);
@@ -94,13 +100,6 @@ function AddTransactionModal({ onClose, onSave }: {
       setIsSaving(false);
     }
   };
-
-  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
-    <div className="space-y-1.5">
-      <Label className="text-white/70 text-sm">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</Label>
-      {children}
-    </div>
-  );
 
   return (
     <ModalWrapper>
@@ -217,14 +216,17 @@ export function Finance() {
   };
 
   const handleAdd = async (t: Omit<Transaction, "id">) => {
-    // TODO: wire to createTransaction service when available
-    const mock = { ...t, id: Date.now().toString(), created_at: t.created_at ?? new Date().toISOString() } as Transaction;
-    setTransactions(prev => [mock, ...prev]);
-    setStats(prev => ({
-      totalIncome:  t.type === "income"  ? prev.totalIncome  + t.amount : prev.totalIncome,
-      totalExpense: t.type === "expense" ? prev.totalExpense + t.amount : prev.totalExpense,
-      netProfit:    t.type === "income"  ? prev.netProfit + t.amount    : prev.netProfit - t.amount,
-    }));
+    try {
+      // 1. Send it to NestJS!
+      await createTransaction(t);
+      
+      // 2. Simply re-fetch the data from the database to update the tables and stats instantly!
+      await fetchData();
+      
+      setAddOpen(false);
+    } catch (error: any) {
+      alert(`Error saving transaction: ${error.message}`);
+    }
   };
 
   const profitMargin = stats.totalIncome > 0
@@ -241,6 +243,37 @@ export function Finance() {
       ),
     [transactions, search, filterType]
   );
+
+  const dynamicMonthlyData = useMemo(() => {
+    const grouped = transactions.reduce((acc, t) => {
+      const date = new Date(t.date);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = date.toLocaleString('default', { month: 'short' }); 
+
+      if (!acc[key]) acc[key] = { month: monthLabel, income: 0, expenses: 0, profit: 0, timestamp: date.getTime() };
+      
+      if (t.type === "income") acc[key].income += Number(t.amount);
+      if (t.type === "expense") acc[key].expenses += Number(t.amount);
+      acc[key].profit = acc[key].income - acc[key].expenses;
+      
+      return acc;
+    }, {} as Record<string, any>);
+
+    return Object.values(grouped).sort((a, b) => a.timestamp - b.timestamp);
+  }, [transactions]);
+
+  const dynamicExpenseBreakdown = useMemo(() => {
+    const expenses = transactions.filter(t => t.type === 'expense');
+    const grouped = expenses.reduce((acc, t) => {
+      acc[t.category] = (acc[t.category] || 0) + Number(t.amount);
+      return acc;
+    }, {} as Record<string, number>);
+
+    const colors = ['#E41E6A', '#8884d8', '#82ca9d', '#ffc658', '#a4de6c'];
+    return Object.entries(grouped)
+      .map(([name, value], i) => ({ name, value, color: colors[i % colors.length] }))
+      .sort((a, b) => b.value - a.value);
+  }, [transactions]);
 
   return (
     <div className="space-y-6 w-full">
@@ -262,10 +295,10 @@ export function Finance() {
       {/* ── Static KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
-          { label: "Monthly Income",   value: "₱798K",  change: "+22%",  up: true,  icon: <TrendingUp   className="w-5 h-5" />, iconBg: "bg-green-500/10",   iconColor: "text-green-400"   },
-          { label: "Monthly Expenses", value: "₱312K",  change: "+13%",  up: false, icon: <TrendingDown className="w-5 h-5" />, iconBg: "bg-red-500/10",     iconColor: "text-red-400"     },
-          { label: "Net Profit",       value: "₱486K",  change: "+29%",  up: true,  icon: <Wallet       className="w-5 h-5" />, iconBg: "bg-[#E41E6A]/10",   iconColor: "text-[#E41E6A]"   },
-          { label: "Profit Margin",    value: "60.9%",  change: "+4.2%", up: true,  icon: <DollarSign   className="w-5 h-5" />, iconBg: "bg-violet-500/10",  iconColor: "text-violet-400"  },
+          { label: "Total Income",   value: formatK(stats.totalIncome),  change: "Actual Total",  up: true,  icon: <TrendingUp   className="w-5 h-5" />, iconBg: "bg-green-500/10",   iconColor: "text-green-400"   },
+          { label: "Total Expenses", value: formatK(stats.totalExpense), change: "Actual Total",  up: false, icon: <TrendingDown className="w-5 h-5" />, iconBg: "bg-red-500/10",     iconColor: "text-red-400"     },
+          { label: "Net Profit",     value: formatK(stats.netProfit),    change: "Actual Total",  up: stats.netProfit >= 0,  icon: <Wallet       className="w-5 h-5" />, iconBg: "bg-[#E41E6A]/10",   iconColor: "text-[#E41E6A]"   },
+          { label: "Profit Margin",  value: `${profitMargin}%`,          change: "Overall", up: Number(profitMargin) > 0,  icon: <DollarSign   className="w-5 h-5" />, iconBg: "bg-violet-500/10",  iconColor: "text-violet-400"  },
         ].map((s, i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
             <CardHeader className="pb-2">
@@ -297,7 +330,7 @@ export function Finance() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={monthlyData}>
+              <LineChart data={dynamicMonthlyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
                 <XAxis dataKey="month" stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} />
                 <YAxis stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} tickFormatter={v => `₱${v/1000}K`} />
@@ -321,8 +354,8 @@ export function Finance() {
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="55%" height={220}>
                 <PieChart>
-                  <Pie data={expenseBreakdown} cx="50%" cy="50%" innerRadius={55} outerRadius={90} dataKey="value" paddingAngle={3}>
-                    {expenseBreakdown.map((entry, i) => (
+                  <Pie data={dynamicExpenseBreakdown} cx="50%" cy="50%" innerRadius={55} outerRadius={90} dataKey="value" paddingAngle={3}>
+                    {dynamicExpenseBreakdown.map((entry, i) => (
                       <Cell key={i} fill={entry.color} stroke="transparent" />
                     ))}
                   </Pie>
@@ -331,7 +364,7 @@ export function Finance() {
               </ResponsiveContainer>
               {/* Custom legend */}
               <div className="flex-1 space-y-2">
-                {expenseBreakdown.map(e => (
+                {dynamicExpenseBreakdown.map(e => (
                   <div key={e.name} className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: e.color }} />
@@ -354,7 +387,7 @@ export function Finance() {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthlyData} barCategoryGap="30%">
+            <BarChart data={dynamicMonthlyData} barCategoryGap="30%">
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
               <XAxis dataKey="month" stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} />
               <YAxis stroke="rgba(255,255,255,0.4)" tick={{ fontSize: 11 }} tickFormatter={v => `₱${v/1000}K`} />
