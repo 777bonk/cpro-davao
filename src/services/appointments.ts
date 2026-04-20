@@ -10,7 +10,7 @@ export interface Appointment {
   customerId: string;
   vehicle: string;
   service: string;
-  status: "Pending" | "In Progress" | "Completed" | "Cancelled";
+  status: "Pending" | "In Progress" | "Completed" | "Cancelled" | "Confirmed";
   totalAmount: number;
 }
 
@@ -119,7 +119,7 @@ export async function createAppointment(data: {
 
 export async function updateAppointmentStatus(
   id: string,
-  status: Appointment["status"],
+  status: Appointment["status"], // now includes Confirmed automatically
 ): Promise<Appointment> {
   const res = await fetch(`${API_URL}/appointments/${id}/status`, {
     method:  "PATCH",

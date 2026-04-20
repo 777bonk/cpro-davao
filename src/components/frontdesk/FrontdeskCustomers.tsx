@@ -1,3 +1,4 @@
+import { getCustomers, createCustomer } from "../../services/customer";
 import { useState, useEffect, useMemo } from "react";
 import {
   Search, Plus, X, User, Phone, Car, Clock,
@@ -264,16 +265,25 @@ export function FrontDeskCustomers() {
     fetchCustomers();
   }, []);
 
-  const fetchCustomers = async () => {
+    const fetchCustomers = async () => {
     setIsLoading(true);
     try {
-      // Replace with actual API call:
-      // const data = await getCustomers();
-      // setCustomers(data);
-      
-      // Simulate network request
-      await new Promise(res => setTimeout(res, 500));
-      setCustomers([]);
+      const data = await getCustomers();
+      const mapped: Customer[] = data.map((c) => ({
+        id:           c.id,
+        name:         c.name,
+        contact:      c.contact      ?? "",
+        email:        c.email        ?? "",
+        vehicle:      c.vehicle      ?? "",
+        lastService:  c.last_service ?? "N/A",
+        totalSpent:   Number(c.total_spent) || 0,
+        totalVisits:  0,
+        status:       (c.status ?? "Active") as CustomerStatus,
+        registeredAt: c.created_at
+          ? c.created_at.split("T")[0]
+          : new Date().toISOString().split("T")[0],
+      }));
+      setCustomers(mapped);
     } catch (err) {
       console.error("Failed to load customers:", err);
     } finally {
@@ -305,13 +315,31 @@ export function FrontDeskCustomers() {
   );
 
   const handleAdd = async (c: Omit<Customer, "id">) => {
-    // try {
-    //   const newCust = await createCustomer(c);
-    //   setCustomers(prev => [newCust, ...prev]);
-    // } catch (err) { ... }
-    
-    const newId = Date.now().toString(); // Temporary ID generation
-    setCustomers(prev => [{ ...c, id: newId }, ...prev]);
+    try {
+      const created = await createCustomer({
+        name:    c.name,
+        contact: c.contact,
+        email:   c.email,
+        vehicle: c.vehicle,
+        status:  c.status,
+      });
+      setCustomers(prev => [{
+        id:           created.id,
+        name:         created.name,
+        contact:      created.contact      ?? "",
+        email:        created.email        ?? "",
+        vehicle:      created.vehicle      ?? "",
+        lastService:  created.last_service ?? "N/A",
+        totalSpent:   Number(created.total_spent) || 0,
+        totalVisits:  0,
+        status:       (created.status ?? "Active") as CustomerStatus,
+        registeredAt: created.created_at
+          ? created.created_at.split("T")[0]
+          : new Date().toISOString().split("T")[0],
+      }, ...prev]);
+    } catch (err) {
+      console.error("Failed to create customer:", err);
+    }
   };
 
   return (

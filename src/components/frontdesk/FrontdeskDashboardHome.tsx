@@ -1,3 +1,6 @@
+import { getAppointments }  from "../../services/appointments";
+import { getCustomers }     from "../../services/customer";
+import { getInventory }     from "../../services/inventory";
 import { useState, useEffect } from "react";
 import { 
   Calendar, Users, ClipboardList, Package, Plus, UserPlus, 
@@ -219,28 +222,78 @@ export function FrontDeskDashboardHome() {
     fetchDashboardData();
   }, []);
 
-  const fetchDashboardData = async () => {
-    setIsLoading(true);
-    try {
-      // Replace with your actual API calls:
-      // const [statsData, apptData, customerData, stockData] = await Promise.all([
-      //   getDashboardStats(), getTodaysAppointments(), getRecentCustomers(), getLowStockAlerts()
-      // ]);
-      // setStats(statsData); setAppointments(apptData); ...
+const fetchDashboardData = async () => {
+  setIsLoading(true);
+  try {
+    const today = new Date().toISOString().split("T")[0];
 
-      // Simulating network delay
-      await new Promise(res => setTimeout(res, 500));
-      
-      setStats({ todaysAppointments: 0, totalCustomers: 0, pendingJobs: 0, lowStockItems: 0 });
-      setAppointments([]);
-      setCustomers([]);
-      setLowStock([]);
-    } catch (err) {
-      console.error("Failed to load dashboard data:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const [apptData, customerData, inventoryData] = await Promise.all([
+      getAppointments().catch(() => []),
+      getCustomers().catch(()     => []),
+      getInventory().catch(()     => []),
+    ]);
+
+    // Today's appointments
+    const todaysAppts = apptData.filter((a) => a.date === today);
+
+    // Pending jobs
+    const pendingJobs = apptData.filter(
+      (a) => a.status === "Pending" || a.status === "In Progress"
+    ).length;
+
+    // Low stock
+    const lowStock = inventoryData.filter(
+      (i: any) => i.stock <= i.reorderLevel
+    );
+
+    setStats({
+      todaysAppointments: todaysAppts.length,
+      totalCustomers:     customerData.length,
+      pendingJobs,
+      lowStockItems:      lowStock.length,
+    });
+
+    // Today's schedule — map to component shape
+    setAppointments(
+      todaysAppts.slice(0, 5).map((a) => ({
+        id:       a.id,
+        customer: a.customerName,
+        vehicle:  a.vehicle,
+        service:  a.service,
+        time:     a.time,
+        status:   a.status as AppointmentStatus,
+      }))
+    );
+
+    // Recent customers — last 5
+    setCustomers(
+      customerData.slice(0, 5).map((c: any) => ({
+        id:           c.id,
+        name:         c.name,
+        email:        c.email        ?? "",
+        vehicle:      c.vehicle      ?? "",
+        registeredAt: c.created_at
+          ? c.created_at.split("T")[0]
+          : "",
+      }))
+    );
+
+    // Low stock alerts
+    setLowStock(
+      lowStock.slice(0, 5).map((i: any) => ({
+        id:       i.id,
+        name:     i.name,
+        category: i.category,
+        quantity: i.stock,
+        minimum:  i.reorderLevel,
+      }))
+    );
+  } catch (err) {
+    console.error("Failed to load dashboard data:", err);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="space-y-6">
