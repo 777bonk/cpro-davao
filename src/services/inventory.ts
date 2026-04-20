@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 export interface InventoryItem {
   id: string;
@@ -13,55 +13,75 @@ export interface InventoryItem {
   status?: "Good" | "Low" | "Critical";
 }
 
-export const getInventory = async () => {
-  const { data, error } = await supabase.from('inventory_items').select('*').order('name');
-  if (error) throw error;
-  
-  return data.map((d: any) => ({
-    id: d.id,
-    name: d.name,
-    category: d.category || "General",
-    stock: Number(d.quantity || 0),
-    stockIn: Number(d.stock_in || 0),
-    stockOut: Number(d.stock_out || 0),
-    unit: d.unit || "pcs",
-    reorderLevel: Number(d.low_stock_threshold || 10),
-    // Map unit_price from the database back to price for the UI
-    price: Number(d.unit_price || d.price || 0), 
-  })) as InventoryItem[];
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-export const createInventoryItem = async (item: Omit<InventoryItem, 'id' | 'status'>) => {
-  const { data, error } = await supabase
-    .from('inventory_items')
-    .insert([{
-      name: item.name,
-      category: item.category,
-      quantity: item.stock,
-      stock_in: item.stockIn,
-      stock_out: item.stockOut,
-      unit: item.unit,
-      low_stock_threshold: item.reorderLevel,
-      // Map the UI's price to the database's unit_price column
-      unit_price: item.price 
-    }])
-    .select()
-    .single();
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message ?? `Request failed: ${res.status}`);
+  }
+  return res.json();
+}
 
-  if (error) throw error;
-  return data;
-};
+// The backend already maps DB columns to these camelCase field names,
+// so no additional transformation is needed on the frontend.
 
-export const updateInventoryStock = async (id: string, stock: number, stockIn: number, stockOut: number) => {
-  const { error } = await supabase
-    .from('inventory_items')
-    .update({ 
-      quantity: stock,
-      stock_in: stockIn,
-      stock_out: stockOut
-    })
-    .eq('id', id);
+// ── 1. GET ALL ────────────────────────────────────────────────────────────────
 
-  if (error) throw error;
-  return true;
-};
+export async function getInventory(): Promise<InventoryItem[]> {
+  const res = await fetch(`${API_URL}/inventory`);
+  return handleResponse<InventoryItem[]>(res);
+}
+
+// ── 2. CREATE ─────────────────────────────────────────────────────────────────
+
+export async function createInventoryItem(
+  item: Omit<InventoryItem, 'id' | 'status'>,
+): Promise<InventoryItem> {
+  const res = await fetch(`${API_URL}/inventory`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(item),   // field names match the DTO directly
+  });
+  return handleResponse<InventoryItem>(res);
+}
+
+// ── 3. UPDATE STOCK (add / deduct, reorder) ───────────────────────────────────
+// Calls the dedicated PATCH /inventory/:id/stock endpoint.
+
+export async function updateInventoryStock(
+  id: string,
+  stock: number,
+  stockIn: number,
+  stockOut: number,
+): Promise<InventoryItem> {
+  const res = await fetch(`${API_URL}/inventory/${id}/stock`, {
+    method:  'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ stock, stockIn, stockOut }),
+  });
+  return handleResponse<InventoryItem>(res);
+}
+
+// ── 4. FULL UPDATE ────────────────────────────────────────────────────────────
+
+export async function updateInventoryItem(
+  id: string,
+  item: Partial<Omit<InventoryItem, 'id' | 'status'>>,
+): Promise<InventoryItem> {
+  const res = await fetch(`${API_URL}/inventory/${id}`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(item),
+  });
+  return handleResponse<InventoryItem>(res);
+}
+
+// ── 5. DELETE ─────────────────────────────────────────────────────────────────
+
+export async function deleteInventoryItem(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/inventory/${id}`, {
+    method: 'DELETE',
+  });
+  await handleResponse<void>(res);
+}

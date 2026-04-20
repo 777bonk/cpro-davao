@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Button } from "../dashboard-ui/button";
 import { Badge } from "../dashboard-ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../dashboard-ui/table";
-import { getEmployees, createEmployee, updateEmployee, updateEmployeeAssignment, Employee } from "../../services/employees";
+import { getEmployees, createEmployee, updateEmployee, updateEmployeeAssignment, deleteEmployee, Employee } from "../../services/employees";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -55,6 +55,15 @@ function ModalWrapper({ children }: { children: React.ReactNode }) {
 const inputClass =
   "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 
+
+  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium text-white/70">
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  );
 // ─── ADD EMPLOYEE MODAL ───────────────────────────────────────────────────────
 
 function AddEmployeeModal({ onClose, onSave }: {
@@ -83,14 +92,6 @@ function AddEmployeeModal({ onClose, onSave }: {
     }
   };
 
-  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium text-white/70">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
 
   return (
     <ModalWrapper>
@@ -393,15 +394,6 @@ function EditEmployeeModal({ employee, onClose, onSave }: {
     }
   };
 
-  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium text-white/70">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-
   return (
     <ModalWrapper>
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
@@ -544,11 +536,11 @@ export function Employees() {
 
   // ── Derived stats ─────────────────────────────────────────────────────────
   const activeEmployees = employees.filter(e => e.status === "Active").length;
-  const busyEmployees   = employees.filter(e => e.availability === "Busy").length;
-  const availableCount  = employees.filter(e => e.availability === "Available").length;
+  // Add && e.status === "Active" to these two lines:
+  const busyEmployees   = employees.filter(e => e.availability === "Busy" && e.status === "Active").length;
+  const availableCount  = employees.filter(e => e.availability === "Available" && e.status === "Active").length;
   const totalPayroll    = employees.reduce((s, e) => s + Number(e.salary), 0);
   const departments     = ["All", ...Array.from(new Set(employees.map(e => e.department)))];
-
   // ── Filtered list ─────────────────────────────────────────────────────────
   const filtered = useMemo(() =>
     employees
@@ -587,9 +579,16 @@ export function Employees() {
 
   const handleEdit = async (updated: Employee) => {
     try {
+      // 1. Separate the read-only DB fields from the editable payload
+      // (We cast to `any` here so TypeScript doesn't complain about created_at)
+      const { id, created_at, updated_at, ...cleanPayload } = updated as any;
+
+      // 2. Send ONLY the clean payload to the backend
       if (typeof updateEmployee === "function") {
-        await updateEmployee(updated.id, updated);
+        await updateEmployee(id, cleanPayload);
       }
+      
+      // 3. Update the UI
       setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
     } catch (error: any) {
       alert(`Database Error: ${error?.message || "Failed to update employee."}`);
@@ -598,12 +597,14 @@ export function Employees() {
 
   const handleArchive = async (id: string) => {
     try {
-      await updateEmployeeAssignment(id, "Available", "None");
-      setEmployees(prev => prev.map(e =>
-        e.id === id ? { ...e, status: "On Leave" as const } : e
-      ));
+      // 1. Tell the backend to permanently delete the employee
+      await deleteEmployee(id);
+
+      // 2. Remove them from the UI
+      setEmployees(prev => prev.filter(e => e.id !== id));
     } catch (error: any) {
       console.error("Failed to archive employee", error);
+      alert(`Database Error: ${error.message}`);
     } finally {
       setArchiveEmp(null);
     }
@@ -631,7 +632,7 @@ export function Employees() {
         {[
           { label: "Total Employees",  value: employees.length, sub: `${activeEmployees} active`,      icon: <Users      className="w-5 h-5" />, iconBg: "bg-[#E41E6A]/10", iconColor: "text-[#E41E6A]"  },
           { label: "Currently Busy",   value: busyEmployees,    sub: "Assigned to work",               icon: <Clock      className="w-5 h-5" />, iconBg: "bg-orange-500/10", iconColor: "text-orange-400" },
-          { label: "Monthly Payroll",  value: `₱${Math.round(totalPayroll / 1000)}K`, sub: "Total salaries", icon: <DollarSign className="w-5 h-5" />, iconBg: "bg-emerald-500/10",iconColor: "text-emerald-400"},
+          { label: "Monthly Payroll",  value: `₱${totalPayroll.toLocaleString()}`, sub: "Total salaries", icon: <DollarSign className="w-5 h-5" />, iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400"},
           { label: "Available Now",    value: availableCount,   sub: "Ready for assignment",           icon: <UserCheck  className="w-5 h-5" />, iconBg: "bg-sky-500/10",    iconColor: "text-sky-400"    },
         ].map((s, i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
@@ -665,7 +666,7 @@ export function Employees() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {employees.filter(e => e.availability === "Busy").map(emp => (
+              {employees.filter(e => e.availability === "Busy" && e.status === "Active").map(emp => (
                 <div key={emp.id} className="p-4 bg-white/5 rounded-xl border border-[#E41E6A]/20 hover:border-[#E41E6A]/40 transition-colors">
                   <div className="flex items-center gap-3 mb-3">
                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${avatarColor(emp.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
@@ -675,7 +676,15 @@ export function Employees() {
                       <p className="text-white text-sm font-semibold truncate">{emp.name}</p>
                       <p className="text-white/50 text-xs truncate">{emp.position}</p>
                     </div>
-                    <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 flex-shrink-0">Busy</Badge>
+                    {emp.status === "Active" ? (
+                    <Badge className={emp.availability === "Available" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-orange-500/20 text-orange-400 border-orange-500/30"}>
+                     {emp.availability}
+                   </Badge>
+                    ) : (
+                    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                       On Leave
+                     </Badge>
+                    )}
                   </div>
 
                   <div className="p-2.5 bg-white/5 rounded-lg border border-white/10 mb-3">
@@ -820,18 +829,21 @@ export function Employees() {
                           </td>
                           {/* Status — combines availability + status */}
                           <td className="px-3 py-3">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${emp.availability === "Available" ? "bg-green-500" : "bg-orange-400"}`} />
-                                <span className={`text-xs font-medium ${emp.availability === "Available" ? "text-green-400" : "text-orange-400"}`}>
-                                  {emp.availability}
-                                </span>
-                              </div>
-                              <Badge className={`w-fit ${emp.status === "Active" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-orange-500/20 text-orange-400 border-orange-500/30"}`}>
-                                {emp.status}
-                              </Badge>
-                            </div>
-                          </td>
+    <div className="flex flex-col gap-1">
+      {/* ONLY show availability dot if Active */}
+      {emp.status === "Active" && (
+        <div className="flex items-center gap-1.5">
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${emp.availability === "Available" ? "bg-green-500" : "bg-orange-400"}`} />
+          <span className={`text-xs font-medium ${emp.availability === "Available" ? "text-green-400" : "text-orange-400"}`}>
+            {emp.availability}
+          </span>
+        </div>
+      )}
+      <Badge className={`w-fit ${emp.status === "Active" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30"}`}>
+        {emp.status}
+      </Badge>
+    </div>
+  </td>
                           {/* Performance */}
                           <td className="px-3 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">

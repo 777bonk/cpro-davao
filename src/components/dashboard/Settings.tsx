@@ -13,7 +13,7 @@ import { Separator } from "../dashboard-ui/separator";
 import { Badge } from "../dashboard-ui/badge";
 import {
   getServices, createService, updateService,
-  getShopSettings, updateShopSettings,
+  getShopSettings, updateShopSettings, deleteService,
   ServicePackage, ShopSettings,
 } from "../../services/settings";
 
@@ -302,8 +302,7 @@ export function Settings() {
   // Services
   const [services,       setServices]       = useState<ServicePackage[]>([]);
   const [serviceModal,   setServiceModal]   = useState<{ mode: "add" | "edit"; item?: ServicePackage } | null>(null);
-  const [deleteService,  setDeleteService]  = useState<ServicePackage | null>(null);
-
+  const [serviceToDelete, setServiceToDelete] = useState<ServicePackage | null>(null);
   // Roles
   const [roles,       setRoles]       = useState<Role[]>(INITIAL_ROLES);
   const [roleModal,   setRoleModal]   = useState<{ mode: "add" | "edit"; item?: Role } | null>(null);
@@ -355,12 +354,18 @@ export function Settings() {
     }
   };
 
-  const handleDeleteService = (s: ServicePackage) => {
-    // Wire to deleteService service when available
+  const handleDeleteService = async (s: ServicePackage) => {
+  try {
+    // Now 'deleteService' refers to your API import!
+    await deleteService(s.id); 
     setServices(prev => prev.filter(x => x.id !== s.id));
-    setDeleteService(null);
     showSuccess(`"${s.name}" removed.`);
-  };
+  } catch (error: any) {
+    alert(`Failed to delete service: ${error.message}`);
+  } finally {
+    setServiceToDelete(null); // Change this
+  }
+};
 
   // ── Role handlers ─────────────────────────────────────────────────────────
   const handleSaveRole = (form: Omit<Role, "id" | "users">) => {
@@ -384,7 +389,12 @@ export function Settings() {
   const handleSaveBusinessInfo = async () => {
     setIsSavingInfo(true);
     try {
-      await updateShopSettings(businessInfo);
+      // 1. Strip out the read-only database fields
+      const { id, updated_at, ...cleanInfo } = businessInfo as any;
+
+      // 2. Send only the editable business data to the backend
+      await updateShopSettings(cleanInfo);
+      
       showSuccess("Business information saved.");
     } catch (error: any) {
       alert(`Failed to save: ${error.message}`);
@@ -506,12 +516,11 @@ export function Settings() {
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => setDeleteService(s)}
-                              className="w-7 h-7 flex items-center justify-center rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+  onClick={() => setServiceToDelete(s)} // Change this
+  className="..."
+>
+  <Trash2 className="w-3.5 h-3.5" />
+</button>
                           </div>
                         </td>
                       </tr>
@@ -771,12 +780,12 @@ export function Settings() {
           onSave={handleSaveRole}
         />
       )}
-      {deleteService && (
-        <ConfirmDeleteModal
-          label={deleteService.name}
-          onClose={() => setDeleteService(null)}
-          onConfirm={() => handleDeleteService(deleteService)}
-        />
+      {serviceToDelete && (
+  <ConfirmDeleteModal
+    label={serviceToDelete.name}
+    onClose={() => setServiceToDelete(null)}
+    onConfirm={() => handleDeleteService(serviceToDelete)}
+      />
       )}
       {deleteRole && (
         <ConfirmDeleteModal

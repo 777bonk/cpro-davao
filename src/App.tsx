@@ -6,6 +6,7 @@ import AdminDashboard     from './pages/AdminDashboard';
 import FrontDeskDashboard from './pages/FrontdeskDashboard';
 import StaffDashboard     from './pages/StaffDashboard';
 
+
 const AuthRedirector = () => {
   const { session, profile, isLoading } = useAuth();
 
@@ -57,10 +58,8 @@ export default function App() {
           {/* Customer */}
           <Route
             path="/customer/*"
-            element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <CustomerDashboard />
-              </ProtectedRoute>
+            element={             
+                <CustomerDashboard />            
             }
           />
 
@@ -68,9 +67,9 @@ export default function App() {
           <Route
             path="/frontdesk/*"
             element={
-              <ProtectedRoute allowedRoles={['frontdesk']}>
+              
                 <FrontDeskDashboard />
-              </ProtectedRoute>
+              
             }
           />
 
@@ -78,19 +77,15 @@ export default function App() {
           <Route
             path="/staff/*"
             element={
-              <ProtectedRoute allowedRoles={['staff']}>
                 <StaffDashboard />
-              </ProtectedRoute>
+             
             }
           />
 
           {/* Admin */}
           <Route
             path="/admin/*"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
+            element={<AdminDashboard />
             }
           />
 
