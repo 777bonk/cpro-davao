@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, Mail, Lock, User, Loader2 } from "lucide-react";
 import { Button } from "../dashboard-ui/button"; // Adjust path if needed
 import { authService } from "../../services/auth";
+import { supabase } from "../../lib/supabase";
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -20,18 +21,39 @@ export function RegisterModal({ isOpen, onClose, onSwitchToLogin }: RegisterModa
   if (!isOpen) return null;
 
   const handleManualSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
-    try {
-      await authService.register(email, password, name);
-      setSuccessMsg("Registration successful! You can now log in.");
-    } catch (err: any) {
-      setError(err.message || "Failed to create account.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  e.preventDefault();
+  setIsLoading(true);
+  setError("");
+  try {
+    console.log("Step 1: starting auth signup...");
+    
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    
+    console.log("Step 2: auth done", { data, error });
+    
+    if (error) throw error;
+
+    console.log("Step 3: inserting into customers...");
+    
+    const { error: customerError } = await supabase
+      .from('customers')
+      .insert({
+        name:   name.trim(),
+        email:  email.trim().toLowerCase(),
+        status: 'Active',
+      });
+
+    console.log("Step 4: customer insert done", { customerError });
+
+    setSuccessMsg("Registration successful! You can now log in.");
+  } catch (err: any) {
+    console.error("Caught error:", err);
+    setError(err.message || "Failed to create account.");
+  } finally {
+    console.log("Step 5: finally block reached");
+    setIsLoading(false);
+  }
+};
 
   const handleOAuthLogin = async (provider: 'google' | 'facebook') => {
     try {

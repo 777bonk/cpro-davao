@@ -33,28 +33,38 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
 
   // ── Manual login ───────────────────────────────────────────────────────────
   const handleManualLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("🚦 1. Button clicked! Starting login...");
-    setIsLoading(true);
-    setError("");
-    
-    try {
-      console.log(`📡 2. Sending request to Supabase for: ${email}`);
-      const data = await authService.login(email, password);
-      
-      console.log("✅ 3. Login successful!", data);
-      onClose(); 
-      navigate("/dashboard"); 
-      
-    } catch (err: any) {
-      console.error("🔴 4. Error caught by React:", err);
-      setError(err.message || "Invalid email or password.");
-      
-    } finally {
-      console.log("🏁 5. Finally block reached. Stopping spinner.");
-      setIsLoading(false);
-    }
-  };
+  e.preventDefault();
+  setIsLoading(true);
+  setError("");
+
+  try {
+    // Step 1: sign in
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+
+    // Step 2: check employees table for position-based role
+    const { data: employeeData } = await supabase
+      .from('employees')
+      .select('position')
+      .eq('email', email)
+      .maybeSingle();
+
+    // Step 3: map position → route
+    const position = employeeData?.position?.toLowerCase() ?? '';
+    let role = 'customer';
+    if (position.includes('admin'))      role = 'admin';
+    else if (position.includes('front')) role = 'frontdesk';
+    else if (position.includes('staff') || position.includes('technician')) role = 'staff';
+
+    onClose();
+    navigate(roleToPath(role));
+
+  } catch (err: any) {
+    setError(err.message || "Invalid email or password.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ── OAuth login ────────────────────────────────────────────────────────────
   // OAuth redirects to /dashboard which AuthRedirector handles automatically
