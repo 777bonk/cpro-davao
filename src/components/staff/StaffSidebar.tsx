@@ -1,4 +1,4 @@
-import { LayoutDashboard, ClipboardList, Package, Settings, LogOut, Car, HardHat } from "lucide-react";
+import { LayoutDashboard, ClipboardList, Package, Settings, LogOut, Car, HardHat, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../hooks/useAuth";
@@ -89,7 +89,15 @@ export function StaffSidebar({ activeSection, onSectionChange }: StaffSidebarPro
           );
         })}
       </nav>
-
+      <div className="px-3 pb-1">
+  <button
+    onClick={() => navigate('/')}
+    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+  >
+    <Globe className="w-4 h-4 flex-shrink-0" />
+      <span>View Website</span>
+      </button>
+      </div>
       {/* Logout */}
       <div className="p-3 border-t border-white/10">
         <button

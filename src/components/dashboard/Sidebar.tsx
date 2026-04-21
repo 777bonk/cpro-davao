@@ -9,7 +9,8 @@ import {
   Settings, 
   LogOut,
   ChevronDown,
-  Car
+  Car,
+  Globe
 } from "lucide-react";
 import { Button } from "../dashboard-ui/button";
 import { ScrollArea } from "../dashboard-ui/scroll-area";
@@ -157,6 +158,16 @@ export function Sidebar({ activeSection, onSectionChange, expandedMenus, onToggl
           ))}
         </div>
       </ScrollArea>
+
+      <div className="px-3 pb-1">
+  <button
+    onClick={() => navigate('/')}
+    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+  >
+            <Globe className="w-4 h-4 flex-shrink-0" />
+          <span>View Website</span>
+           </button>
+          </div>
 
       {/* Logout */}
       <div className="p-3 border-t border-white/10">

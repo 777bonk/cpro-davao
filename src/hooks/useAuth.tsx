@@ -3,12 +3,14 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 type Profile = {
-  id: string;
-  full_name: string;
-  role: string;
+  id:         string;
+  customerId: string;
+  full_name:  string;
+  name:       string;   // ← add this, used in CustomerSettings
+  role:       string;
   avatar_url: string | null;
-  email: string;
-  provider: string;
+  email:      string;
+  provider:   string;
   created_at: string;
 };
 
@@ -27,32 +29,55 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [session, setSession]   = useState<Session | null>(null);
+  const [user,    setUser]      = useState<User | null>(null);
+  const [profile, setProfile]   = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+ const fetchProfile = async (supabaseUser: User) => {
+  try {
+    const API = import.meta.env.VITE_API_BASE_URL;
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      setProfile(null);
-    } else {
-      setProfile(data);
-    }
-  };
+    // Use NestJS to fetch profile — bypasses RLS
+    const res = await fetch(`${API}/customers/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
+    const customerData = res.ok ? await res.json() : null;
 
+    // Also get role from profiles table via NestJS
+    const profileRes = await fetch(`${API}/profiles/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
+    const profileData = profileRes.ok ? await profileRes.json() : null;
+
+    setProfile({
+      id:         supabaseUser.id,
+      customerId: customerData?.id ?? supabaseUser.id,
+      full_name:  profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
+      name:       profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
+      role:       profileData?.role ?? 'customer',
+      avatar_url: profileData?.avatar_url ?? null,
+      email:      supabaseUser.email ?? '',
+      provider:   supabaseUser.app_metadata?.provider ?? '',
+      created_at: supabaseUser.created_at,
+    });
+  } catch (err) {
+    console.error('fetchProfile threw:', err);
+    setProfile({
+      id:         supabaseUser.id,
+      customerId: supabaseUser.id,
+      full_name:  supabaseUser.user_metadata?.full_name ?? '',
+      name:       supabaseUser.user_metadata?.full_name ?? '',
+      role:       'customer',
+      avatar_url: null,
+      email:      supabaseUser.email ?? '',
+      provider:   supabaseUser.app_metadata?.provider ?? '',
+      created_at: supabaseUser.created_at,
+    });
+  }
+};
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        await fetchProfile(session.user.id);
+        await fetchProfile(session.user);
       }
       setIsLoading(false);
     });
@@ -62,7 +87,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await fetchProfile(session.user.id);
+          await fetchProfile(session.user);
         } else {
           setProfile(null);
         }
@@ -80,6 +105,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+export const useAuth = () => useContext(AuthContext);

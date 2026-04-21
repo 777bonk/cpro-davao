@@ -6,9 +6,9 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Badge } from "../dashboard-ui/badge";
-import { getAppointments } from "../../services/appointments";
-import { getTransactions } from "../../services/finance";
 import { useAuth } from "../../hooks/useAuth";
+import { getCustomerAppointments } from "../../services/appointments";
+
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -41,54 +41,63 @@ export function CustomerDashboardHome({ onNavigate }: { onNavigate?: (section: s
   const [upcomingAppts,  setUpcomingAppts]  = useState<any[]>([]);
   const [recentServices, setRecentServices] = useState<any[]>([]);
 
-  useEffect(() => { fetchData(); }, []);
+  
 
   const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      const [appts, transactions] = await Promise.all([
-        getAppointments().catch(() => []),
-        getTransactions().catch(() => []),
-      ]);
+  setIsLoading(true);
+  try {
+    // Get the customer ID from your profiles table
+    // profile.id comes from useAuth() which reads from Supabase profiles table
+    if (!profile?.customerId) return;
+    const appts = await getCustomerAppointments(profile.customerId);
 
-      const now = new Date();
+    const now = new Date();
 
-      // Upcoming appointments
-      const upcoming = appts
-        .filter((a: any) => {
-          const d = new Date(a.date || a.scheduled_date);
-          return d >= now && a.status !== "Completed" && a.status !== "Cancelled";
-        })
-        .sort((a: any, b: any) =>
-          new Date(a.date || a.scheduled_date).getTime() -
-          new Date(b.date || b.scheduled_date).getTime()
-        )
-        .slice(0, 3);
-      setUpcomingAppts(upcoming);
+    // Upcoming appointments
+    const upcoming = appts
+      .filter((a: any) => {
+        const d = new Date(a.scheduled_date);
+        return d >= now &&
+          a.status !== "Completed" &&
+          a.status !== "Cancelled";
+      })
+      .sort((a: any, b: any) =>
+        new Date(a.scheduled_date).getTime() -
+        new Date(b.scheduled_date).getTime()
+      )
+      .slice(0, 3);
+    setUpcomingAppts(upcoming);
 
-      // Completed services
-      const completed = appts.filter((a: any) => a.status === "Completed");
-      setServicesDone(completed.length);
-      const recent = [...completed]
-        .sort((a: any, b: any) =>
-          new Date(b.date || b.scheduled_date).getTime() -
-          new Date(a.date || a.scheduled_date).getTime()
-        )
-        .slice(0, 3);
-      setRecentServices(recent);
+    // Completed services
+    const completed = appts.filter((a: any) => a.status === "Completed");
+    setServicesDone(completed.length);
 
-      // Total spent + loyalty
-      let spent = 0;
-      transactions.forEach((t: any) => { if (t.type === "income") spent += Number(t.amount); });
-      setTotalSpent(spent);
-      setLoyaltyPts(Math.floor(spent / 100));
+    const recent = [...completed]
+      .sort((a: any, b: any) =>
+        new Date(b.scheduled_date).getTime() -
+        new Date(a.scheduled_date).getTime()
+      )
+      .slice(0, 3);
+    setRecentServices(recent);
 
-    } catch (err) {
-      console.error("CustomerDashboardHome fetch error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // Total spent from appointments
+    const spent = appts
+      .filter((a: any) => a.status === "Completed")
+      .reduce((sum: number, a: any) => sum + Number(a.total_cost ?? 0), 0);
+    setTotalSpent(spent);
+    setLoyaltyPts(Math.floor(spent / 100));
+
+  } catch (err) {
+    console.error("CustomerDashboardHome fetch error:", err);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+// Also update useEffect to re-fetch when profile loads
+useEffect(() => {
+  if (profile?.customerId) fetchData();
+}, [profile?.customerId]);
 
   // Use profile full_name from useAuth — falls back gracefully while loading
   const fullName    = profile?.full_name ?? "Customer";

@@ -33,28 +33,36 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
 
   // ── Manual login ───────────────────────────────────────────────────────────
   const handleManualLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("🚦 1. Button clicked! Starting login...");
-    setIsLoading(true);
-    setError("");
-    
-    try {
-      console.log(`📡 2. Sending request to Supabase for: ${email}`);
-      const data = await authService.login(email, password);
-      
-      console.log("✅ 3. Login successful!", data);
-      onClose(); 
-      navigate("/dashboard"); 
-      
-    } catch (err: any) {
-      console.error("🔴 4. Error caught by React:", err);
-      setError(err.message || "Invalid email or password.");
-      
-    } finally {
-      console.log("🏁 5. Finally block reached. Stopping spinner.");
-      setIsLoading(false);
-    }
-  };
+  e.preventDefault();
+  setIsLoading(true);
+  setError("");
+
+  const timeout = setTimeout(() => {
+    setIsLoading(false);
+    setError("Request timed out. Please try again.");
+  }, 10000);
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    clearTimeout(timeout);
+    if (error) throw error;
+
+    // Fetch role from profiles via NestJS
+    const API = import.meta.env.VITE_API_BASE_URL;
+    const res = await fetch(`${API}/profiles/by-email/${encodeURIComponent(email)}`);
+    const profileData = res.ok ? await res.json() : null;
+
+    const role = profileData?.role ?? 'customer';
+    onClose();
+    navigate(roleToPath(role));
+
+  } catch (err: any) {
+    clearTimeout(timeout);
+    setError(err.message || "Invalid email or password.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ── OAuth login ────────────────────────────────────────────────────────────
   // OAuth redirects to /dashboard which AuthRedirector handles automatically

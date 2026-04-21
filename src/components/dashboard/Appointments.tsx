@@ -397,19 +397,6 @@ export function Appointments() {
     setEditAppointmentOpen(true);
   };
 
-  const handleMarkComplete = async (id: string) => {
-    try {
-      await updateAppointmentStatus(id, "Completed");
-      setAppointments(prev =>
-        prev.map(a => a.id === id ? { ...a, status: "Completed" } : a)
-      );
-      if (selectedAppointment?.id === id)
-        setSelectedAppointment(prev => prev ? { ...prev, status: "Completed" } : prev);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to update status.");
-    }
-  };
 
   const handleArchive = async (id: string) => {
     try {
@@ -450,29 +437,40 @@ export function Appointments() {
   }
 };
   // SAVE EDIT
-  const handleSaveEdit = async () => {
-    if (!editForm.customerId || !editForm.date || !editForm.time || !editForm.totalAmount) {
-      alert("Please fill in all required fields.");
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      await updateAppointment(editForm.id, {
-        customerId:  editForm.customerId,
-        service:     editForm.service,
-        date:        editForm.date,
-        time:        editForm.time,
-        totalAmount: parseFloat(editForm.totalAmount),
-        status:      editForm.status,
-      });
-      await fetchData();
-      setEditAppointmentOpen(false);
-    } catch (err: any) {
-      alert(`Failed to save changes: ${err.message}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const handleMarkComplete = async (id: string) => {
+  try {
+    const updated = await updateAppointmentStatus(id, "Completed"); // now returns Appointment
+    setAppointments(prev => prev.map(a => a.id === id ? updated : a));
+    if (selectedAppointment?.id === id) setSelectedAppointment(updated);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to update status.");
+  }
+};
+
+const handleSaveEdit = async () => {
+  if (!editForm.customerId || !editForm.date || !editForm.time || !editForm.totalAmount) {
+    alert("Please fill in all required fields.");
+    return;
+  }
+  setIsSubmitting(true);
+  try {
+    const updated = await updateAppointment(editForm.id, {   // now returns Appointment
+      customerId:  editForm.customerId,
+      service:     editForm.service,
+      date:        editForm.date,
+      time:        editForm.time,
+      totalAmount: parseFloat(editForm.totalAmount),
+      status:      editForm.status,
+    });
+    setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
+    setEditAppointmentOpen(false);
+  } catch (err: any) {
+    alert(`Failed to save changes: ${err.message}`);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   // ── Derived data ──────────────────────────────────────────────────────────
 

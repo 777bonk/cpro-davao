@@ -1,5 +1,6 @@
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
+
 export interface Appointment {
   id: string;
   /** Raw "YYYY-MM-DD" — used for calendar filtering and date inputs */
@@ -12,6 +13,21 @@ export interface Appointment {
   service: string;
   status: "Pending" | "In Progress" | "Completed" | "Cancelled" | "Confirmed";
   totalAmount: number;
+}
+
+export async function getCustomerAppointments(
+  customerId: string
+): Promise<any[]> {
+  try {
+    const res = await fetch(
+      `${API_URL}/appointments/customer/${customerId}`
+    );
+    if (!res.ok) throw new Error("Failed to fetch");
+    return await res.json();
+  } catch (err) {
+    console.error("getCustomerAppointments error:", err);
+    return [];
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

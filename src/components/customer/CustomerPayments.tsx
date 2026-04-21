@@ -1,39 +1,40 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Banknote, CreditCard, Clock, CheckCircle,
-  AlertCircle, Download, Search, ChevronDown,
+  AlertCircle, Download, Search,
   SlidersHorizontal, X, FileText, TrendingUp,
   Calendar, Car, Receipt,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
-import { Badge } from "../dashboard-ui/badge";
-import { getTransactions, Transaction } from "../../services/finance";
-import { getAppointments } from "../../services/appointments";
+import { getCustomerAppointments } from "../../services/appointments";
+import { useAuth } from "../../hooks/useAuth";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 type PaymentStatus = "Paid" | "Pending" | "Partial" | "Refunded";
 
 interface PaymentRecord {
-  id: string | number;
-  service: string;
-  vehicle: string;
-  date: string;
-  total: number;
-  deposit: number;
-  balance: number;
-  status: PaymentStatus;
-  method: string;
+  id:        string | number;
+  service:   string;
+  vehicle:   string;
+  date:      string;
+  total:     number;
+  deposit:   number;
+  balance:   number;
+  status:    PaymentStatus;
+  method:    string;
   receiptNo: string;
 }
 
-// ─── STATUS CONFIG ─────────────────────────────────────────────────────────────
+// ─── STATUS CONFIG ────────────────────────────────────────────────────────────
 
-const STATUS_STYLE: Record<PaymentStatus, { bg: string; text: string; dot: string; border: string; icon: React.ReactNode }> = {
-  Paid:      { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30",  icon: <CheckCircle className="w-3.5 h-3.5" /> },
-  Pending:   { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30", icon: <Clock       className="w-3.5 h-3.5" /> },
-  Partial:   { bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30",   icon: <AlertCircle className="w-3.5 h-3.5" /> },
-  Refunded:  { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10",      icon: <TrendingUp  className="w-3.5 h-3.5" /> },
+const STATUS_STYLE: Record<PaymentStatus, {
+  bg: string; text: string; dot: string; border: string; icon: React.ReactNode;
+}> = {
+  Paid:     { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30",  icon: <CheckCircle className="w-3.5 h-3.5" /> },
+  Pending:  { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30", icon: <Clock       className="w-3.5 h-3.5" /> },
+  Partial:  { bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30",   icon: <AlertCircle className="w-3.5 h-3.5" /> },
+  Refunded: { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10",      icon: <TrendingUp  className="w-3.5 h-3.5" /> },
 };
 
 const METHOD_ICON: Record<string, React.ReactNode> = {
@@ -43,10 +44,12 @@ const METHOD_ICON: Record<string, React.ReactNode> = {
   "—":             <Clock      className="w-4 h-4 text-white/40"   />,
 };
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 function formatDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
 }
 
 function derivePaymentStatus(apptStatus: string, balance: number): PaymentStatus {
@@ -71,8 +74,6 @@ function ReceiptModal({ payment, onClose }: { payment: PaymentRecord; onClose: (
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
-
-        {/* Header */}
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Receipt className="w-5 h-5 text-[#E41E6A]" />
@@ -83,9 +84,7 @@ function ReceiptModal({ payment, onClose }: { payment: PaymentRecord; onClose: (
           </button>
         </div>
 
-        {/* Receipt body */}
         <div className="p-6 space-y-4">
-          {/* Shop name */}
           <div className="text-center pb-4 border-b border-white/10 border-dashed">
             <p className="text-white text-lg font-bold">Ceramic Pro Davao</p>
             <p className="text-white/50 text-xs mt-0.5">Official Receipt</p>
@@ -93,10 +92,10 @@ function ReceiptModal({ payment, onClose }: { payment: PaymentRecord; onClose: (
           </div>
 
           {[
-            { label: "Service", value: payment.service   },
-            { label: "Vehicle", value: payment.vehicle   },
+            { label: "Service", value: payment.service        },
+            { label: "Vehicle", value: payment.vehicle        },
             { label: "Date",    value: formatDate(payment.date) },
-            { label: "Method",  value: payment.method    },
+            { label: "Method",  value: payment.method         },
           ].map(r => (
             <div key={r.label} className="flex justify-between items-start gap-3">
               <p className="text-white/50 text-xs font-medium">{r.label}</p>
@@ -126,14 +125,13 @@ function ReceiptModal({ payment, onClose }: { payment: PaymentRecord; onClose: (
           </div>
         </div>
 
-        {/* Footer */}
         <div className="p-6 border-t border-white/10 bg-white/5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
             Close
           </button>
           <button
             onClick={() => window.print()}
-            className="flex-1 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg flex items-center justify-center gap-2 transition-colors"
+            className="flex-1 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg flex items-center justify-center gap-2"
           >
             <Download className="w-4 h-4" />Download
           </button>
@@ -146,44 +144,37 @@ function ReceiptModal({ payment, onClose }: { payment: PaymentRecord; onClose: (
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function CustomerPayments() {
+  // ── Get logged-in customer ────────────────────────────────────────────────
+  const { profile, isLoading: profileLoading } = useAuth();
+
   const [payments,     setPayments]     = useState<PaymentRecord[]>([]);
   const [isLoading,    setIsLoading]    = useState(true);
   const [search,       setSearch]       = useState("");
   const [filterStatus, setFilterStatus] = useState<"All" | PaymentStatus>("All");
   const [viewReceipt,  setViewReceipt]  = useState<PaymentRecord | null>(null);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+  if (profile?.customerId) fetchData();
+  }, [profile?.customerId]);
 
   const fetchData = async () => {
+    if (!profile?.customerId) return;
     setIsLoading(true);
     try {
-      const [appts, transactions] = await Promise.all([
-        getAppointments().catch(() => []),
-        getTransactions().catch(() => []),
-      ]);
+      // ✅ Only fetch THIS customer's appointments
+      const appts = await getCustomerAppointments(profile.customerId).catch(() => []);
 
-      // Build a lookup of income transactions by description/service
-      const txByService: Record<string, Transaction[]> = {};
-      transactions.forEach((t: Transaction) => {
-        if (t.type !== "income") return;
-        const key = (t.description ?? "").split(" - ")[0].toLowerCase().trim();
-        if (!txByService[key]) txByService[key] = [];
-        txByService[key].push(t);
-      });
-
-      // Build payment records from appointments
       const records: PaymentRecord[] = appts.map((a: any, i: number) => {
-        const raw      = a.date || a.scheduled_date;
-        const d        = new Date(raw);
-        const dateStr  = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-        const service  = a.service_type ?? a.service ?? "Service";
-        const vehicle  = a.customers?.vehicle ?? a.vehicle ?? "Vehicle";
-        const total    = Number(a.total_cost   ?? a.amount   ?? 0);
-        const deposit  = Number(a.deposit      ?? a.deposit_amount ?? 0);
-        const balance  = Math.max(total - deposit, 0);
-        const status   = derivePaymentStatus(a.status ?? "Pending", balance);
-        const method   = a.payment_method ?? (status === "Paid" ? "Cash" : "—");
-        const receiptNo = `RCP-${d.getFullYear()}-${String(i + 1).padStart(3, "0")}`;
+        const raw     = a.scheduled_date || a.date;
+        const d       = new Date(raw);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+        const service = a.service_type ?? a.service ?? "Service";
+        const vehicle = a.customer?.vehicle ?? a.customers?.vehicle ?? a.vehicle ?? "Vehicle";
+        const total   = Number(a.total_cost  ?? a.amount  ?? 0);
+        const deposit = Number(a.deposit     ?? a.deposit_amount ?? 0);
+        const balance = Math.max(total - deposit, 0);
+        const status  = derivePaymentStatus(a.status ?? "Pending", balance);
+        const method  = a.payment_method ?? (status === "Paid" ? "Cash" : "—");
 
         return {
           id:        a.id,
@@ -195,7 +186,7 @@ export function CustomerPayments() {
           balance,
           status,
           method,
-          receiptNo,
+          receiptNo: `RCP-${d.getFullYear()}-${String(i + 1).padStart(3, "0")}`,
         };
       }).sort((a: PaymentRecord, b: PaymentRecord) =>
         new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -220,29 +211,37 @@ export function CustomerPayments() {
     payments
       .filter(p => filterStatus === "All" || p.status === filterStatus)
       .filter(p =>
-        p.service.toLowerCase().includes(search.toLowerCase())   ||
-        p.vehicle.toLowerCase().includes(search.toLowerCase())   ||
+        p.service.toLowerCase().includes(search.toLowerCase())    ||
+        p.vehicle.toLowerCase().includes(search.toLowerCase())    ||
         p.receiptNo.toLowerCase().includes(search.toLowerCase())
       ),
     [payments, search, filterStatus]
   );
 
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center h-40 text-white/50">
+        Loading profile...
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div>
         <h1 className="text-white text-3xl font-bold mb-1">Payments</h1>
         <p className="text-white/60 text-sm">Your payment history, deposits, and balances</p>
       </div>
 
-      {/* ── Summary Cards ── */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: <CheckCircle className="w-4 h-4" />, label: "Total Paid",      value: isLoading ? "..." : `₱${Math.round(totalPaid/1000)}K`,            iconBg: "bg-green-500/10",  iconColor: "text-green-400"  },
-          { icon: <Banknote    className="w-4 h-4" />, label: "Total Deposits",  value: isLoading ? "..." : `₱${totalDeposits.toLocaleString()}`,          iconBg: "bg-sky-500/10",    iconColor: "text-sky-400"    },
-          { icon: <AlertCircle className="w-4 h-4" />, label: "Outstanding",     value: isLoading ? "..." : `₱${outstanding.toLocaleString()}`,            iconBg: outstanding > 0 ? "bg-yellow-500/10" : "bg-white/5", iconColor: outstanding > 0 ? "text-yellow-400" : "text-white/40" },
-          { icon: <Clock       className="w-4 h-4" />, label: "Pending",         value: isLoading ? "..." : `${pendingCount} item${pendingCount !== 1 ? "s" : ""}`, iconBg: "bg-[#E41E6A]/10", iconColor: "text-[#E41E6A]" },
+          { icon: <CheckCircle className="w-4 h-4" />, label: "Total Paid",     value: isLoading ? "..." : `₱${Math.round(totalPaid/1000)}K`,                    iconBg: "bg-green-500/10",                                          iconColor: "text-green-400"   },
+          { icon: <Banknote    className="w-4 h-4" />, label: "Total Deposits", value: isLoading ? "..." : `₱${totalDeposits.toLocaleString()}`,                  iconBg: "bg-sky-500/10",                                            iconColor: "text-sky-400"     },
+          { icon: <AlertCircle className="w-4 h-4" />, label: "Outstanding",    value: isLoading ? "..." : `₱${outstanding.toLocaleString()}`,                    iconBg: outstanding > 0 ? "bg-yellow-500/10" : "bg-white/5",        iconColor: outstanding > 0 ? "text-yellow-400" : "text-white/40" },
+          { icon: <Clock       className="w-4 h-4" />, label: "Pending",        value: isLoading ? "..." : `${pendingCount} item${pendingCount !== 1 ? "s" : ""}`, iconBg: "bg-[#E41E6A]/10",                                         iconColor: "text-[#E41E6A]"   },
         ].map((s, i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -258,18 +257,22 @@ export function CustomerPayments() {
         ))}
       </div>
 
-      {/* ── Outstanding Banner ── */}
+      {/* Outstanding Banner */}
       {outstanding > 0 && !isLoading && (
         <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-yellow-400 text-sm font-semibold">Outstanding balance of ₱{outstanding.toLocaleString()}</p>
-            <p className="text-yellow-400/70 text-xs mt-0.5">Please settle your balance before or on the day of your appointment.</p>
+            <p className="text-yellow-400 text-sm font-semibold">
+              Outstanding balance of ₱{outstanding.toLocaleString()}
+            </p>
+            <p className="text-yellow-400/70 text-xs mt-0.5">
+              Please settle your balance before or on the day of your appointment.
+            </p>
           </div>
         </div>
       )}
 
-      {/* ── Search + Filters ── */}
+      {/* Search + Filters */}
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -289,22 +292,23 @@ export function CustomerPayments() {
                 filterStatus === f
                   ? "bg-[#E41E6A] text-white border-[#E41E6A]"
                   : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
-              }`}>{f}
-            </button>
+              }`}
+            >{f}</button>
           ))}
         </div>
       </div>
 
-      {/* ── Payment Records ── */}
+      {/* Payment Records */}
       <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden" style={{ borderRadius: "12px" }}>
         <CardHeader className="border-b border-white/10 pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-white">Payment Records</CardTitle>
-            <span className="text-white/40 text-xs">{isLoading ? "..." : `${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}</span>
+            <span className="text-white/40 text-xs">
+              {isLoading ? "..." : `${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}
+            </span>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="w-8 h-8 border-2 border-[#E41E6A]/30 border-t-[#E41E6A] rounded-full animate-spin mb-3" />
@@ -317,20 +321,26 @@ export function CustomerPayments() {
             </div>
           ) : (
             <>
-              {/* Mobile cards */}
+              {/* Mobile */}
               <div className="sm:hidden divide-y divide-white/5">
                 {filtered.map(p => (
                   <div key={p.id} className="p-4 hover:bg-white/5 transition-colors space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-white text-sm font-semibold leading-snug">{p.service}</p>
-                        <p className="text-white/50 text-xs flex items-center gap-1 mt-0.5"><Car className="w-3 h-3" />{p.vehicle}</p>
+                        <p className="text-white/50 text-xs flex items-center gap-1 mt-0.5">
+                          <Car className="w-3 h-3" />{p.vehicle}
+                        </p>
                       </div>
                       <StatusBadge status={p.status} />
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/50">
-                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-[#E41E6A]" />{formatDate(p.date)}</span>
-                      <span className="flex items-center gap-1.5">{METHOD_ICON[p.method]}<span className="ml-0.5">{p.method}</span></span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-[#E41E6A]" />{formatDate(p.date)}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        {METHOD_ICON[p.method]}<span className="ml-0.5">{p.method}</span>
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="text-xs space-y-0.5">
@@ -349,7 +359,7 @@ export function CustomerPayments() {
                 ))}
               </div>
 
-              {/* Desktop table */}
+              {/* Desktop */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -369,15 +379,9 @@ export function CustomerPayments() {
                         <td className="px-4 py-3.5">
                           <p className="text-white text-sm font-medium max-w-[160px] truncate">{p.service}</p>
                         </td>
-                        <td className="px-4 py-3.5 text-white/60 text-sm whitespace-nowrap">
-                          {p.vehicle.split(" ").slice(1).join(" ")}
-                        </td>
-                        <td className="px-4 py-3.5 text-white font-bold whitespace-nowrap">
-                          ₱{p.total.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3.5 text-green-400 font-semibold whitespace-nowrap">
-                          ₱{p.deposit.toLocaleString()}
-                        </td>
+                        <td className="px-4 py-3.5 text-white/60 text-sm whitespace-nowrap">{p.vehicle}</td>
+                        <td className="px-4 py-3.5 text-white font-bold whitespace-nowrap">₱{p.total.toLocaleString()}</td>
+                        <td className="px-4 py-3.5 text-green-400 font-semibold whitespace-nowrap">₱{p.deposit.toLocaleString()}</td>
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           {p.balance > 0
                             ? <span className="text-yellow-400 font-bold">₱{p.balance.toLocaleString()}</span>
@@ -389,9 +393,7 @@ export function CustomerPayments() {
                             {METHOD_ICON[p.method] ?? METHOD_ICON["—"]}{p.method}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5">
-                          <StatusBadge status={p.status} />
-                        </td>
+                        <td className="px-4 py-3.5"><StatusBadge status={p.status} /></td>
                         <td className="px-4 py-3.5">
                           <button
                             onClick={() => setViewReceipt(p)}

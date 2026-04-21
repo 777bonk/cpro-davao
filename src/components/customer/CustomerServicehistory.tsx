@@ -5,23 +5,23 @@ import {
   SlidersHorizontal, FileText, X, CheckCircle, Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
-import { Badge } from "../dashboard-ui/badge";
-import { getAppointments } from "../../services/appointments";
+import { getCustomerAppointments } from "../../services/appointments";  // ✅ scoped fetch
+import { useAuth } from "../../hooks/useAuth";                           // ✅ added
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 interface ServiceRecord {
-  id: string | number;
-  service: string;
-  category: string;
-  vehicle: string;
-  plate: string;
-  date: string;
-  amount: number;
+  id:         string | number;
+  service:    string;
+  category:   string;
+  vehicle:    string;
+  plate:      string;
+  date:       string;
+  amount:     number;
   technician: string;
-  status: "Completed" | "Cancelled";
-  notes: string;
-  duration: string;
+  status:     "Completed" | "Cancelled";
+  notes:      string;
+  duration:   string;
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -29,7 +29,9 @@ interface ServiceRecord {
 const CATEGORIES = ["All", "Coating", "PPF", "Detailing", "Tinting"];
 
 function formatDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
+    month: "long", day: "numeric", year: "numeric",
+  });
 }
 
 function guessCategory(service: string): string {
@@ -41,9 +43,9 @@ function guessCategory(service: string): string {
 }
 
 function serviceIcon(category: string) {
-  if (category === "Coating")  return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
-  if (category === "PPF")      return <Layers   className="w-4 h-4 text-violet-400" />;
-  if (category === "Tinting")  return <Sparkles className="w-4 h-4 text-sky-400"    />;
+  if (category === "Coating")  return <Shield   className="w-4 h-4 text-[#E41E6A]"   />;
+  if (category === "PPF")      return <Layers   className="w-4 h-4 text-violet-400"  />;
+  if (category === "Tinting")  return <Sparkles className="w-4 h-4 text-sky-400"     />;
   return                              <Wrench   className="w-4 h-4 text-emerald-400" />;
 }
 
@@ -71,7 +73,6 @@ function DetailModal({ record, onClose }: { record: ServiceRecord; onClose: () =
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
 
-        {/* Header */}
         <div className="p-6 border-b border-white/10 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
@@ -87,7 +88,6 @@ function DetailModal({ record, onClose }: { record: ServiceRecord; onClose: () =
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-6 space-y-3">
           <Row icon={<Car      className="w-4 h-4" />} label="Vehicle"     value={record.plate ? `${record.vehicle} (${record.plate})` : record.vehicle} />
           <Row icon={<User     className="w-4 h-4" />} label="Technician"  value={record.technician || "N/A"} />
@@ -116,7 +116,6 @@ function DetailModal({ record, onClose }: { record: ServiceRecord; onClose: () =
           </div>
         </div>
 
-        {/* Footer */}
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
             Close
@@ -130,6 +129,9 @@ function DetailModal({ record, onClose }: { record: ServiceRecord; onClose: () =
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function CustomerServiceHistory() {
+  // ✅ useAuth added — required for customer scoping
+  const { profile, isLoading: profileLoading } = useAuth();
+
   const [records,    setRecords]    = useState<ServiceRecord[]>([]);
   const [isLoading,  setIsLoading]  = useState(true);
   const [search,     setSearch]     = useState("");
@@ -137,33 +139,39 @@ export function CustomerServiceHistory() {
   const [filterVeh,  setFilterVeh]  = useState("All");
   const [viewRecord, setViewRecord] = useState<ServiceRecord | null>(null);
 
-  useEffect(() => { fetchData(); }, []);
+  // ✅ Wait for customerId before fetching
+  useEffect(() => {
+    if (profile?.customerId) fetchData();
+  }, [profile?.customerId]);
 
   const fetchData = async () => {
+    if (!profile?.customerId) return;
     setIsLoading(true);
     try {
-      const appts = await getAppointments().catch(() => []);
+      // ✅ Only fetches THIS customer's appointments — not all appointments
+      const appts = await getCustomerAppointments(profile.customerId).catch(() => []);
 
-      // Only show completed or cancelled
       const history: ServiceRecord[] = appts
         .filter((a: any) => a.status === "Completed" || a.status === "Cancelled")
         .map((a: any) => {
-          const raw  = a.date || a.scheduled_date;
-          const d    = new Date(raw);
-          const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-          const svc  = a.service_type ?? a.service ?? "Service";
-          const cat  = guessCategory(svc);
+          const raw = a.scheduled_date || a.date;
+          const d   = new Date(raw);
+          // ✅ UTC getters — consistent with all other components
+          const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+          const svc = a.service_type ?? a.service ?? "Service";
+          const cat = guessCategory(svc);
           return {
             id:         a.id,
             service:    svc,
             category:   cat,
-            vehicle:    a.customers?.vehicle ?? a.vehicle ?? "Vehicle",
-            plate:      a.customers?.plate   ?? a.plate   ?? "",
+            // NestJS returns relation as a.customer (singular) via include: { customer: true }
+            vehicle:    a.customer?.vehicle ?? a.customers?.vehicle ?? a.vehicle ?? "Vehicle",
+            plate:      a.customer?.plate   ?? a.customers?.plate   ?? a.plate   ?? "",
             date:       dateStr,
-            amount:     Number(a.total_cost  ?? a.amount  ?? 0),
-            technician: a.employees?.name    ?? a.technician ?? "Staff",
+            amount:     Number(a.total_cost ?? a.amount ?? 0),
+            technician: a.employees?.name   ?? a.technician ?? "Staff",
             status:     (a.status === "Completed" ? "Completed" : "Cancelled") as "Completed" | "Cancelled",
-            notes:      a.notes ?? "",
+            notes:      a.notes    ?? "",
             duration:   a.duration ?? "—",
           };
         })
@@ -180,10 +188,10 @@ export function CustomerServiceHistory() {
   };
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  const totalSpent      = records.filter(r => r.status === "Completed").reduce((s, r) => s + r.amount, 0);
-  const completedCount  = records.filter(r => r.status === "Completed").length;
+  const totalSpent       = records.filter(r => r.status === "Completed").reduce((s, r) => s + r.amount, 0);
+  const completedCount   = records.filter(r => r.status === "Completed").length;
   const vehiclesServiced = Array.from(new Set(records.filter(r => r.status === "Completed").map(r => r.vehicle))).length;
-  const vehicles = ["All", ...Array.from(new Set(records.map(r => r.vehicle)))];
+  const vehicles         = ["All", ...Array.from(new Set(records.map(r => r.vehicle)))];
 
   // ── Filtered list ─────────────────────────────────────────────────────────
   const filtered = useMemo(() =>
@@ -198,6 +206,14 @@ export function CustomerServiceHistory() {
     [records, search, filterCat, filterVeh]
   );
 
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center h-40 text-white/50">
+        Loading profile...
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 
@@ -210,9 +226,9 @@ export function CustomerServiceHistory() {
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { icon: <CheckCircle className="w-4 h-4" />, label: "Services Done",      value: isLoading ? "..." : completedCount,              iconBg: "bg-green-500/10",  iconColor: "text-green-400"  },
-          { icon: <Banknote    className="w-4 h-4" />, label: "Total Spent",        value: isLoading ? "..." : `₱${Math.round(totalSpent/1000)}K`, iconBg: "bg-[#E41E6A]/10", iconColor: "text-[#E41E6A]"  },
-          { icon: <Car         className="w-4 h-4" />, label: "Vehicles Serviced",  value: isLoading ? "..." : vehiclesServiced,              iconBg: "bg-sky-500/10",    iconColor: "text-sky-400"    },
+          { icon: <CheckCircle className="w-4 h-4" />, label: "Services Done",     value: isLoading ? "..." : completedCount,                    iconBg: "bg-green-500/10",  iconColor: "text-green-400"  },
+          { icon: <Banknote    className="w-4 h-4" />, label: "Total Spent",       value: isLoading ? "..." : `₱${Math.round(totalSpent/1000)}K`, iconBg: "bg-[#E41E6A]/10",  iconColor: "text-[#E41E6A]"  },
+          { icon: <Car         className="w-4 h-4" />, label: "Vehicles Serviced", value: isLoading ? "..." : vehiclesServiced,                   iconBg: "bg-sky-500/10",    iconColor: "text-sky-400"    },
         ].map((s, i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -259,7 +275,7 @@ export function CustomerServiceHistory() {
             className="pl-3 pr-8 py-2.5 text-xs font-semibold bg-white/5 border border-white/10 rounded-xl text-white/70 focus:outline-none focus:border-[#E41E6A] appearance-none">
             {vehicles.map(v => (
               <option key={v} value={v} className="bg-[#0a0a0a]">
-                {v === "All" ? "All Vehicles" : v.split(" ").slice(1).join(" ")}
+                {v === "All" ? "All Vehicles" : v}
               </option>
             ))}
           </select>
@@ -272,7 +288,9 @@ export function CustomerServiceHistory() {
         <CardHeader className="border-b border-white/10 pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-white">Service Records</CardTitle>
-            <span className="text-white/40 text-xs">{isLoading ? "..." : `${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}</span>
+            <span className="text-white/40 text-xs">
+              {isLoading ? "..." : `${filtered.length} record${filtered.length !== 1 ? "s" : ""}`}
+            </span>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -294,12 +312,10 @@ export function CustomerServiceHistory() {
                   onClick={() => setViewRecord(r)}
                   className="flex items-center gap-4 px-5 py-4 hover:bg-white/5 transition-colors cursor-pointer"
                 >
-                  {/* Icon */}
                   <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
                     {serviceIcon(r.category)}
                   </div>
 
-                  {/* Details */}
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm font-semibold truncate">{r.service}</p>
                     <div className="flex flex-wrap items-center gap-2 mt-0.5">
@@ -309,7 +325,6 @@ export function CustomerServiceHistory() {
                     </div>
                   </div>
 
-                  {/* Right side */}
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <p className="text-white text-sm font-bold">₱{r.amount.toLocaleString()}</p>
                     <div className="flex items-center gap-2">
