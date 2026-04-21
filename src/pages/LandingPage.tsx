@@ -64,11 +64,6 @@ export default function LandingPage() {
       <QuoteForm />
       <ContactSection />
       
-      {/* 👇 HERE IS YOUR NEW TEST BUTTON 👇 */}
-      <div className="py-12 flex justify-center px-4">
-        <BackendTestButton />
-      </div>
-
       <Footer />
       <Toaster />
 

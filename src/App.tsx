@@ -58,8 +58,10 @@ export default function App() {
           {/* Customer */}
           <Route
             path="/customer/*"
-            element={             
-                <CustomerDashboard />            
+            element={
+              <ProtectedRoute allowedRoles={['customer']}>
+                <CustomerDashboard />
+              </ProtectedRoute>
             }
           />
 
@@ -67,9 +69,9 @@ export default function App() {
           <Route
             path="/frontdesk/*"
             element={
-              
+              <ProtectedRoute allowedRoles={['frontdesk']}>
                 <FrontDeskDashboard />
-              
+              </ProtectedRoute>
             }
           />
 
@@ -77,15 +79,19 @@ export default function App() {
           <Route
             path="/staff/*"
             element={
+              <ProtectedRoute allowedRoles={['staff']}>
                 <StaffDashboard />
-             
+              </ProtectedRoute>
             }
           />
 
-          {/* Admin */}
+         {/* Admin */}
           <Route
             path="/admin/*"
-            element={<AdminDashboard />
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
             }
           />
 
