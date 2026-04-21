@@ -507,6 +507,14 @@ export function CustomerAppointments() {
       totalAmount: data.deposit || 0,
     });
 
+    if (data.vehicle) {
+  await fetch(`${import.meta.env.VITE_API_BASE_URL}/customers/${profile.customerId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vehicle: data.vehicle }),
+  });
+}
+
     await fetchData();
   };
 

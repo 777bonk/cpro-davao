@@ -1,4 +1,4 @@
-import { LayoutDashboard, Calendar, History, CreditCard, Settings, LogOut, Car } from "lucide-react";
+import { LayoutDashboard, Calendar, History, CreditCard, Globe, Settings, LogOut, Car } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 
@@ -63,7 +63,15 @@ export function CustomerSidebar({ activeSection, onSectionChange }: CustomerSide
           );
         })}
       </nav>
-
+        <div className="px-3 pb-1">
+  <button
+    onClick={() => navigate('/')}
+    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+  >
+    <Globe className="w-4 h-4 flex-shrink-0" />
+    <span>View Website</span>
+  </button>
+</div>
       <div className="p-3 border-t border-white/10">
         <button onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/70 hover:text-white hover:bg-red-500/20 transition-colors">
