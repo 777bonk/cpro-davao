@@ -525,10 +525,16 @@ export function Employees() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const data = await getEmployees();
-      setEmployees(data);
+      // Cast to any temporarily so TypeScript doesn't panic when we look for .data
+      const rawData: any = await getEmployees(); 
+      
+      // If the backend sends an array, use it. If it sends a pagination object, grab the .data property!
+      const employeeList = Array.isArray(rawData) ? rawData : (rawData?.data || []);
+      
+      setEmployees(employeeList);
     } catch (error: any) {
       console.error("Failed to fetch employees", error);
+      setEmployees([]); // Safety net
     } finally {
       setIsLoading(false);
     }
