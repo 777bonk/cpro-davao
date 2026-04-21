@@ -25,6 +25,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
+    // 🛑 ADDED THIS SPECIFIC 429 CHECK HERE
+    if (res.status === 429) {
+      throw new Error("You are submitting requests too quickly. Please wait a few minutes and try again.");
+    }
+
     let message = `Request failed: ${res.status}`;
     try {
       const body = await res.json();
