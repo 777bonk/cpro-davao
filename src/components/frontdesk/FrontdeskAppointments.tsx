@@ -25,30 +25,29 @@ type AppointmentStatus =
   | "Rejected";
 
 interface Appointment {
-  id:          number | string;
-  customerId?: string;
-  customer:    string;
-  contact:     string;
-  vehicle:     string;
-  service:     string;
-  date:        string;
-  time:        string;
-  deposit:     number;
-  notes:       string;
-  status:      AppointmentStatus;
-  // Extra fields from new booking flow
-  fullName?:         string;
-  mobileNumber?:     string;
-  paymentMethod?:    string;
-  paymentType?:      string;
-  totalAmount?:      number;
-  remainingBalance?: number;
-  proofUrl?:         string;
-  rejectionReason?:  string;
-  addons?:           string;
+  id:               number | string;
+  customerId?:      string;
+  customer:         string;
+  contact:          string;
+  vehicle:          string;
+  service:          string;
+  date:             string;
+  time:             string;
+  deposit:          number;
+  notes:            string;
+  status:           AppointmentStatus;
+  fullName?:        string;
+  mobileNumber?:    string;
+  paymentMethod?:   string;
+  paymentType?:     string;
+  totalAmount?:     number;
+  remainingBalance?:number;
+  proofUrl?:        string;
+  rejectionReason?: string;
+  addons?:          string;
 }
 
-// ─── STATUS CONFIG ────────────────────────────────────────────────────────────
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
 const SERVICE_OPTIONS = [
   "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
@@ -68,17 +67,16 @@ const ALL_STATUSES: AppointmentStatus[] = [
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string; border: string }> = {
   "Pending Verification": { bg: "bg-orange-500/20", text: "text-orange-300", dot: "bg-orange-400", border: "border-orange-500/30" },
-  Confirmed:    { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30"  },
-  Pending:      { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30" },
-  "In Progress":{ bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30"   },
-  Completed:    { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10"      },
-  Cancelled:    { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
-  Rejected:     { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
+  Confirmed:     { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30"  },
+  Pending:       { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30" },
+  "In Progress": { bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30"   },
+  Completed:     { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10"      },
+  Cancelled:     { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
+  Rejected:      { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
 };
 
 const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 const cardCls  = "bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur rounded-xl border";
-
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
@@ -107,28 +105,27 @@ function mapRawAppointment(a: any): Appointment {
   const raw = a.scheduled_date || a.date || "";
   const d   = raw ? new Date(raw) : new Date();
   const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
-
   return {
-    id:              a.id,
-    customerId:      a.customer_id ?? a.customerId,
-    customer:        a.customer?.name ?? a.customerName ?? a.full_name ?? "Unknown",
-    contact:         a.customer?.contact ?? a.mobile_number ?? a.contact ?? "",
-    vehicle:         a.customer?.vehicle ?? [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") || a.vehicle || "N/A",
-    service:         a.service_type ?? a.service ?? "Service",
-    date:            dateStr,
-    time:            d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    deposit:         Number(a.deposit ?? a.total_cost ?? 0),
-    notes:           a.notes ?? "",
-    status:          (a.status ?? "Pending") as AppointmentStatus,
-    fullName:        a.full_name,
-    mobileNumber:    a.mobile_number,
-    paymentMethod:   a.payment_method,
-    paymentType:     a.payment_type,
-    totalAmount:     Number(a.total_cost ?? 0),
-    remainingBalance:Number(a.remaining_balance ?? 0),
-    proofUrl:        a.proof_url,
-    rejectionReason: a.rejection_reason,
-    addons:          a.addons,
+    id:               a.id,
+    customerId:       a.customer_id ?? a.customerId,
+    customer:         a.customer?.name ?? a.customerName ?? a.full_name ?? "Unknown",
+    contact:          a.customer?.contact ?? a.mobile_number ?? a.contact ?? "",
+    vehicle:          a.customer?.vehicle || [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") || a.vehicle || "N/A",
+    service:          a.service_type ?? a.service ?? "Service",
+    date:             dateStr,
+    time:             d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    deposit:          Number(a.deposit ?? a.total_cost ?? 0),
+    notes:            a.notes ?? "",
+    status:           (a.status ?? "Pending") as AppointmentStatus,
+    fullName:         a.full_name,
+    mobileNumber:     a.mobile_number,
+    paymentMethod:    a.payment_method,
+    paymentType:      a.payment_type,
+    totalAmount:      Number(a.total_cost ?? 0),
+    remainingBalance: Number(a.remaining_balance ?? 0),
+    proofUrl:         a.proof_url,
+    rejectionReason:  a.rejection_reason,
+    addons:           a.addons,
   };
 }
 
@@ -145,9 +142,7 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── PENDING REQUESTS PANEL ───────────────────────────────────────────────────
 
-function PendingRequestsPanel({
-  requests, onApprove, onReject, isProcessing,
-}: {
+function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
   requests:     Appointment[];
   onApprove:    (id: string | number) => void;
   onReject:     (id: string | number) => void;
@@ -168,11 +163,7 @@ function PendingRequestsPanel({
   return (
     <div className="space-y-3">
       {requests.map(a => (
-        <div
-          key={a.id}
-          className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 hover:border-orange-500/40 transition-all"
-        >
-          {/* Top row */}
+        <div key={a.id} className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 hover:border-orange-500/40 transition-all">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0">
@@ -180,15 +171,12 @@ function PendingRequestsPanel({
               </div>
               <div>
                 <p className="text-white text-sm font-semibold">{a.service}</p>
-                <p className="text-white/50 text-xs mt-0.5">
-                  {a.fullName || a.customer} · {a.vehicle}
-                </p>
+                <p className="text-white/50 text-xs mt-0.5">{a.fullName || a.customer} · {a.vehicle}</p>
               </div>
             </div>
             <StatusBadge status={a.status} />
           </div>
 
-          {/* Details grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
             <div className="bg-white/5 rounded-lg p-2.5">
               <p className="text-white/40 text-[10px] uppercase tracking-wide">Date</p>
@@ -208,29 +196,22 @@ function PendingRequestsPanel({
             </div>
           </div>
 
-          {/* Contact + method */}
           <div className="flex flex-wrap gap-3 mb-3 text-xs text-white/50">
             {a.mobileNumber && (
-              <span className="flex items-center gap-1">
-                <Phone className="w-3.5 h-3.5" />{a.mobileNumber}
-              </span>
+              <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{a.mobileNumber}</span>
             )}
             {a.paymentMethod && (
-              <span className="flex items-center gap-1">
-                <Banknote className="w-3.5 h-3.5 text-sky-400" />{a.paymentMethod}
+              <span className="flex items-center gap-1"><Banknote className="w-3.5 h-3.5 text-sky-400" />{a.paymentMethod}</span>
+            )}
+            {!!a.remainingBalance && (
+              <span className="flex items-center gap-1 text-yellow-400">
+                <AlertTriangle className="w-3.5 h-3.5" />Balance: ₱{Number(a.remainingBalance).toLocaleString()}
               </span>
             )}
-            {a.remainingBalance ? (
-              <span className="flex items-center gap-1 text-yellow-400">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Balance: ₱{Number(a.remainingBalance).toLocaleString()}
-              </span>
-            ) : null}
           </div>
 
-          {/* Proof of payment */}
           {a.proofUrl && (
-          <div className="mb-3">
+            <div className="mb-3">
               <a
                 href={`${import.meta.env.VITE_API_BASE_URL}${a.proofUrl}`}
                 target="_blank"
@@ -242,11 +223,8 @@ function PendingRequestsPanel({
             </div>
           )}
 
-          {a.notes && (
-            <p className="text-white/40 text-xs italic mb-3">"{a.notes}"</p>
-          )}
+          {a.notes && <p className="text-white/40 text-xs italic mb-3">"{a.notes}"</p>}
 
-          {/* Action buttons */}
           <div className="flex items-center gap-2 pt-2 border-t border-white/10">
             <button
               onClick={() => onApprove(a.id)}
@@ -273,34 +251,25 @@ function PendingRequestsPanel({
 
 // ─── REJECT REASON MODAL ──────────────────────────────────────────────────────
 
-function RejectReasonModal({
-  onClose, onConfirm,
-}: {
+function RejectReasonModal({ onClose, onConfirm }: {
   onClose:   () => void;
   onConfirm: (reason: string) => void;
 }) {
   const [reason, setReason] = useState("");
-
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
-      style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col">
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-white">Reject Appointment</h2>
             <p className="text-xs text-white/50 mt-0.5">Provide a reason for rejection</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
-
         <div className="p-6">
           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg mb-4 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-red-400 text-xs">
-              The customer will be notified that their appointment was rejected. This action cannot be undone.
-            </p>
+            <p className="text-red-400 text-xs">This action cannot be undone. The customer will see the rejection reason.</p>
           </div>
           <label className="text-sm font-medium text-white/70 block mb-1.5">
             Rejection Reason <span className="text-white/30">(optional)</span>
@@ -312,12 +281,8 @@ function RejectReasonModal({
             onChange={e => setReason(e.target.value)}
           />
         </div>
-
         <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <button onClick={onClose}
-            className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
-            Cancel
-          </button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
           <button
             onClick={() => { onConfirm(reason); onClose(); }}
             className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
@@ -367,7 +332,7 @@ function CalendarCard({ selected, onSelect, dotDates }: {
     <div className={`${cardCls} p-5`}>
       <div className="mb-4">
         <h2 className="text-sm font-bold text-white">Calendar</h2>
-        <p className="text-xs text-white/50 mt-0.5">Select a date to filter appointments</p>
+        <p className="text-xs text-white/50 mt-0.5">Select a date to filter</p>
       </div>
       <div className="flex items-center justify-between mb-4">
         <button onClick={prev} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors">
@@ -385,8 +350,8 @@ function CalendarCard({ selected, onSelect, dotDates }: {
         {cells.map((day, i) => {
           if (!day) return <div key={`e-${i}`} />;
           const key     = cellKey(day);
-          const isToday = key === today;
           const isSel   = key === selected;
+          const isToday = key === today;
           const dots    = dotDates[key];
           return (
             <button key={key} onClick={() => onSelect(key)}
@@ -459,8 +424,12 @@ function AppointmentsPanel({ selected, appts, onViewDetail }: {
                 <StatusBadge status={a.status} />
               </div>
               <div className="flex flex-wrap gap-3 pt-2 border-t border-white/10">
-                <span className="flex items-center gap-1 text-xs text-white/50"><Clock className="w-3.5 h-3.5 text-[#E41E6A]" />{a.time}</span>
-                <span className="flex items-center gap-1 text-xs text-white/50"><Banknote className="w-3.5 h-3.5 text-green-400" />₱{a.deposit.toLocaleString()}</span>
+                <span className="flex items-center gap-1 text-xs text-white/50">
+                  <Clock className="w-3.5 h-3.5 text-[#E41E6A]" />{a.time}
+                </span>
+                <span className="flex items-center gap-1 text-xs text-white/50">
+                  <Banknote className="w-3.5 h-3.5 text-green-400" />₱{a.deposit.toLocaleString()}
+                </span>
                 <button onClick={() => onViewDetail(a)} className="ml-auto flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
                   <Eye className="w-3.5 h-3.5" />View
                 </button>
@@ -487,7 +456,12 @@ function AppointmentTable({ appts, onViewDetail, onCancel }: {
         <span className="text-xs text-white/40">{appts.length} total records</span>
       </div>
       <div className="sm:hidden divide-y divide-white/5">
-        {appts.map(a => (
+        {appts.length === 0 ? (
+          <div className="py-12 flex flex-col items-center">
+            <CalendarX className="w-8 h-8 text-white/20 mb-2" />
+            <p className="text-white/50 text-sm">No appointments found.</p>
+          </div>
+        ) : appts.map(a => (
           <div key={a.id} className="p-4 flex flex-col gap-2 hover:bg-white/5 transition-colors">
             <div className="flex items-start justify-between">
               <p className="text-sm font-semibold text-white max-w-[65%] leading-snug">{a.service}</p>
@@ -606,7 +580,6 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
           </div>
           <button onClick={onClose} className="text-white/50 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
-
         <div className="p-6 overflow-y-auto space-y-4">
           <div>
             {field("Customer", true)}
@@ -620,7 +593,6 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {field("Contact Number")}
@@ -631,7 +603,6 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
               <input className={inputCls} placeholder="Year Make Model" value={form.vehicle} onChange={e => setForm({...form, vehicle: e.target.value})} />
             </div>
           </div>
-
           <div>
             {field("Service", true)}
             <div className="relative">
@@ -642,7 +613,6 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {field("Date", true)}
@@ -658,7 +628,6 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
               </div>
             </div>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {field("Deposit (₱)")}
@@ -674,19 +643,16 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
               </div>
             </div>
           </div>
-
           <div>
             {field("Notes")}
             <textarea className={`${inputCls} resize-none h-20 py-2.5`} placeholder="Optional notes..." value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
           </div>
-
           {error && (
             <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
               <X className="w-4 h-4 flex-shrink-0" />{error}
             </div>
           )}
         </div>
-
         <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
           <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">
@@ -707,8 +673,6 @@ function DetailModal({ appt, onClose, onStatusChange }: {
 }) {
   const [status, setStatus] = useState<AppointmentStatus>(appt.status);
 
-  const handleUpdate = () => { onStatusChange(appt.id, status); onClose(); };
-
   const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
     <div className="flex items-start gap-3 py-3 border-b border-white/10 last:border-0">
       <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5 border border-white/5">{icon}</div>
@@ -725,20 +689,26 @@ function DetailModal({ appt, onClose, onStatusChange }: {
         <div className="px-6 py-4 border-b border-white/10 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-bold text-white">Appointment Details</h2>
-            <p className="text-xs text-white/50 mt-0.5">#{appt.id} · {formatShort(appt.date)}</p>
+            <p className="text-xs text-white/50 mt-0.5">#{String(appt.id).slice(0,8)} · {formatShort(appt.date)}</p>
           </div>
           <button onClick={onClose} className="text-white/50 hover:text-white flex-shrink-0"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 overflow-y-auto">
-          <Row icon={<User     className="w-4 h-4 text-white/50" />} label="Customer" value={appt.fullName || appt.customer} />
-          <Row icon={<Phone    className="w-4 h-4 text-white/50" />} label="Contact"  value={appt.mobileNumber || appt.contact || "N/A"} />
-          <Row icon={<Car      className="w-4 h-4 text-white/50" />} label="Vehicle"  value={appt.vehicle} />
-          <Row icon={<Shield   className="w-4 h-4 text-[#E41E6A]"/>} label="Service"  value={appt.service} />
-          <Row icon={<Clock    className="w-4 h-4 text-[#E41E6A]"/>} label="Schedule" value={`${formatShort(appt.date)} · ${appt.time}`} />
-          <Row icon={<Banknote className="w-4 h-4 text-green-400"/>} label="Deposit"  value={`₱${appt.deposit.toLocaleString()}`} />
-          {appt.paymentMethod && <Row icon={<Banknote className="w-4 h-4 text-sky-400"/>} label="Payment Method" value={`${appt.paymentMethod} · ${appt.paymentType || ""}`} />}
-          {appt.remainingBalance ? <Row icon={<AlertTriangle className="w-4 h-4 text-yellow-400"/>} label="Balance Due" value={`₱${Number(appt.remainingBalance).toLocaleString()}`} /> : null}
-          {appt.notes && <Row icon={<FileText className="w-4 h-4 text-white/50" />} label="Notes" value={appt.notes} />}
+          <Row icon={<User     className="w-4 h-4 text-white/50" />} label="Customer"       value={appt.fullName || appt.customer} />
+          <Row icon={<Phone    className="w-4 h-4 text-white/50" />} label="Contact"        value={appt.mobileNumber || appt.contact || "N/A"} />
+          <Row icon={<Car      className="w-4 h-4 text-white/50" />} label="Vehicle"        value={appt.vehicle} />
+          <Row icon={<Shield   className="w-4 h-4 text-[#E41E6A]"/>} label="Service"        value={appt.service} />
+          <Row icon={<Clock    className="w-4 h-4 text-[#E41E6A]"/>} label="Schedule"       value={`${formatShort(appt.date)} · ${appt.time}`} />
+          <Row icon={<Banknote className="w-4 h-4 text-green-400"/>} label="Deposit"        value={`₱${appt.deposit.toLocaleString()}`} />
+          {appt.paymentMethod && (
+            <Row icon={<Banknote className="w-4 h-4 text-sky-400"/>} label="Payment Method" value={`${appt.paymentMethod} · ${appt.paymentType || ""}`} />
+          )}
+          {!!appt.remainingBalance && (
+            <Row icon={<AlertTriangle className="w-4 h-4 text-yellow-400"/>} label="Balance Due" value={`₱${Number(appt.remainingBalance).toLocaleString()}`} />
+          )}
+          {appt.notes && (
+            <Row icon={<FileText className="w-4 h-4 text-white/50" />} label="Notes" value={appt.notes} />
+          )}
           {appt.rejectionReason && (
             <div className="mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-red-400 text-xs font-medium">Rejection Reason:</p>
@@ -765,7 +735,10 @@ function DetailModal({ appt, onClose, onStatusChange }: {
         </div>
         <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Close</button>
-          <button onClick={handleUpdate} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">
+          <button
+            onClick={() => { onStatusChange(appt.id, status); onClose(); }}
+            className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md"
+          >
             Update Status
           </button>
         </div>
@@ -806,7 +779,6 @@ export function FrontDeskAppointments() {
         getAppointments().catch(() => []),
         getPendingVerificationAppointments().catch(() => []),
       ]);
-
       setCustomers(cust);
       setAppointments(
         (Array.isArray(allData) ? allData : allData?.data ?? [])
@@ -822,8 +794,6 @@ export function FrontDeskAppointments() {
       setIsLoading(false);
     }
   };
-
-  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleApprove = async (id: string | number) => {
     setIsProcessing(id);
@@ -862,29 +832,27 @@ export function FrontDeskAppointments() {
       if (meridiem === "PM" && hours !== 12) hours += 12;
       if (meridiem === "AM" && hours === 12) hours = 0;
       const time24 = `${String(hours).padStart(2,"0")}:${String(minutes).padStart(2,"0")}`;
-
       await createAppointment({
-        customerId:        appt.customerId!,
-        fullName:          appt.customer,
-        mobileNumber:      appt.contact,
-        service:           appt.service,
-        addons:            [],
-        vehicleMake:       "",
-        vehicleModel:      appt.vehicle,
-        vehicleYear:       "",
-        vehicleClass:      "",
-        vehiclePlateNumber:"",
-        date:              appt.date,
-        time:              time24,
-        paymentMethod:     "Cash",
-        paymentType:       "Full Payment",
-        totalAmount:       appt.deposit,
-        deposit:           appt.deposit,
-        remainingBalance:  0,
-        notes:             appt.notes,
-        proofFile:         new File([], "frontdesk-booking.txt"),
+        customerId:         appt.customerId!,
+        fullName:           appt.customer,
+        mobileNumber:       appt.contact,
+        service:            appt.service,
+        addons:             [],
+        vehicleMake:        "",
+        vehicleModel:       appt.vehicle,
+        vehicleYear:        "",
+        vehicleClass:       "",
+        vehiclePlateNumber: "",
+        date:               appt.date,
+        time:               time24,
+        paymentMethod:      "Cash",
+        paymentType:        "Full Payment",
+        totalAmount:        appt.deposit,
+        deposit:            appt.deposit,
+        remainingBalance:   0,
+        notes:              appt.notes,
+        proofFile:          new File([], "frontdesk-booking.txt"),
       });
-
       await fetchData();
     } catch (err) {
       console.error("Failed to create appointment:", err);
@@ -908,8 +876,6 @@ export function FrontDeskAppointments() {
       console.error("Failed to update status:", err);
     }
   };
-
-  // ── Derived data ──────────────────────────────────────────────────────────
 
   const dotDates = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -939,24 +905,21 @@ export function FrontDeskAppointments() {
 
   return (
     <div className="space-y-6">
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-white text-3xl font-bold mb-1">Manage Appointments</h1>
           <p className="text-white/60 text-sm">{todayDisplay}</p>
         </div>
-        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
-          <button
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center gap-1.5 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
-          >
-            <Plus className="w-3.5 h-3.5" />New Appointment
-          </button>
-        </div>
+        <button
+          onClick={() => setShowAdd(true)}
+          className="self-start sm:self-auto inline-flex items-center gap-1.5 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
+        >
+          <Plus className="w-3.5 h-3.5" />New Appointment
+        </button>
       </div>
 
-      {/* Tab switcher */}
+      {/* Tabs */}
       <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10 w-fit">
         <button
           onClick={() => setActiveTab("pending")}
@@ -987,18 +950,15 @@ export function FrontDeskAppointments() {
         </button>
       </div>
 
-      {/* ── PENDING REQUESTS TAB ── */}
+      {/* Pending Tab */}
       {activeTab === "pending" && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-white font-semibold">Booking Requests</h2>
-              <p className="text-white/50 text-xs mt-0.5">
-                {pendingRequests.length} request{pendingRequests.length !== 1 ? "s" : ""} awaiting review
-              </p>
-            </div>
+          <div className="mb-4">
+            <h2 className="text-white font-semibold">Booking Requests</h2>
+            <p className="text-white/50 text-xs mt-0.5">
+              {pendingRequests.length} request{pendingRequests.length !== 1 ? "s" : ""} awaiting review
+            </p>
           </div>
-
           {isLoading ? (
             <div className={`${cardCls} flex items-center justify-center h-40 text-white/50`}>
               Loading requests...
@@ -1014,21 +974,24 @@ export function FrontDeskAppointments() {
         </div>
       )}
 
-      {/* ── ALL APPOINTMENTS TAB ── */}
+      {/* All Appointments Tab */}
       {activeTab === "all" && (
         <>
           <div className="flex items-center gap-3 max-w-lg">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-              <input type="text" placeholder="Search by customer, service, vehicle..."
-                value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors" />
+              <input
+                type="text"
+                placeholder="Search by customer, service, vehicle..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors"
+              />
             </div>
             <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white/60 bg-white/5 border border-white/10 rounded-xl hover:border-white/20 hover:text-white hover:bg-white/10 transition-colors">
               <SlidersHorizontal className="w-4 h-4" />Filter
             </button>
           </div>
-
           {isLoading ? (
             <div className={`${cardCls} flex items-center justify-center h-40 text-white/50`}>
               Loading appointments...
@@ -1046,13 +1009,14 @@ export function FrontDeskAppointments() {
       )}
 
       {/* Modals */}
-      {showAdd    && <AddAppointmentModal onClose={() => setShowAdd(false)} onSave={handleAdd} customers={customers} />}
-      {detailAppt && <DetailModal appt={detailAppt} onClose={() => setDetailAppt(null)} onStatusChange={handleStatusChange} />}
+      {showAdd && (
+        <AddAppointmentModal onClose={() => setShowAdd(false)} onSave={handleAdd} customers={customers} />
+      )}
+      {detailAppt && (
+        <DetailModal appt={detailAppt} onClose={() => setDetailAppt(null)} onStatusChange={handleStatusChange} />
+      )}
       {rejectTarget !== null && (
-        <RejectReasonModal
-          onClose={() => setRejectTarget(null)}
-          onConfirm={handleRejectConfirm}
-        />
+        <RejectReasonModal onClose={() => setRejectTarget(null)} onConfirm={handleRejectConfirm} />
       )}
     </div>
   );
