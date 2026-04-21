@@ -1,3 +1,4 @@
+import { jobOrdersService } from "../../services/joborders";
 import { useState, useEffect, useMemo } from "react";
 import {
   Plus, Search, X, ChevronDown, SlidersHorizontal,
@@ -16,7 +17,7 @@ import { getServices }             from "../../services/settings";
 type JobStatus = "Pending" | "In Progress" | "Completed" | "Cancelled";
 
 interface JobOrder {
-  id: number;
+  id: string;        // ← UUID from backend
   orderNo: string;
   customer: string;
   vehicle: string;
@@ -286,7 +287,7 @@ function ViewModal({ job, onClose, onEdit, onStatusChange }: {
   job: JobOrder;
   onClose: () => void;
   onEdit: () => void;
-  onStatusChange: (id: number, status: JobStatus) => void;
+  onStatusChange: (id: string, status: JobStatus) => void; // ← string not number
 }) {
   const [status, setStatus] = useState<JobStatus>(job.status);
   const s = STATUS_STYLE[job.status];
@@ -391,27 +392,44 @@ export function FrontDeskJobOrders() {
   const [showCreate, setShowCreate] = useState(false);
   const [editJob,    setEditJob]    = useState<JobOrder | null>(null);
   const [viewJob,    setViewJob]    = useState<JobOrder | null>(null);
-  const [nextId,     setNextId]     = useState(1);
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      const [emps, custs, svcs] = await Promise.all([
-        getEmployees().catch(() => []),
-        getCustomers().catch(() => []),
-        getServices().catch(() => []),
-      ]);
-      setEmployees(emps);
-      setCustomers(custs);
-      setServices(svcs.map((s: any) => s.name).filter(Boolean));
-    } catch (err) {
-      console.error("FrontDeskJobOrders fetch error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  setIsLoading(true);
+  try {
+    const [result, emps, custs, svcs] = await Promise.all([
+      jobOrdersService.getAll().catch(() => ({ data: [] })),
+      getEmployees().catch(() => []),
+      getCustomers().catch(() => []),
+      getServices().catch(() => []),
+    ]);
+
+    setJobOrders(
+      result.data.map((j: any) => ({
+        id:            j.id,
+        orderNo:       j.order_no,
+        customer:      j.customer,
+        vehicle:       j.vehicle,
+        service:       j.service,
+        assignedStaff: j.assigned_staff,
+        staffId:       j.staff_id ?? "",
+        date:          j.scheduled_date.split("T")[0],
+        estimatedTime: j.estimated_time,
+        status:        j.status        as JobStatus,
+        priority:      j.priority      as "Normal" | "Urgent",
+        notes:         j.notes         ?? "",
+      }))
+    );
+    setEmployees(emps);
+    setCustomers(custs);
+    setServices(svcs.map((s: any) => s.name).filter(Boolean));
+  } catch (err) {
+    console.error("FrontDeskJobOrders fetch error:", err);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const pending    = jobOrders.filter(j => j.status === "Pending").length;
@@ -439,21 +457,86 @@ export function FrontDeskJobOrders() {
   );
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleCreate = (data: Omit<JobOrder, "id" | "orderNo">) => {
-    const id = nextId;
-    setJobOrders(prev => [...prev, { ...data, id, orderNo: genOrderNo(id) }]);
-    setNextId(n => n + 1);
-  };
+const handleCreate = async (data: Omit<JobOrder, "id" | "orderNo">) => {
+  try {
+    const saved = await jobOrdersService.create({
+      customer:       data.customer,
+      vehicle:        data.vehicle,
+      service:        data.service,
+      assigned_staff: data.assignedStaff,
+      staff_id:       data.staffId || undefined,
+      scheduled_date: data.date,
+      estimated_time: data.estimatedTime,
+      priority:       data.priority,
+      notes:          data.notes,
+    });
 
-  const handleEdit = (data: Omit<JobOrder, "id" | "orderNo">) => {
-    if (!editJob) return;
-    setJobOrders(prev => prev.map(j => j.id === editJob.id ? { ...j, ...data } : j));
+    setJobOrders(prev => [{
+      id:            saved.id,
+      orderNo:       saved.order_no,
+      customer:      saved.customer,
+      vehicle:       saved.vehicle,
+      service:       saved.service,
+      assignedStaff: saved.assigned_staff,
+      staffId:       saved.staff_id ?? "",
+      date:          saved.scheduled_date.split("T")[0],
+      estimatedTime: saved.estimated_time,
+      status:        saved.status   as JobStatus,
+      priority:      saved.priority as "Normal" | "Urgent",
+      notes:         saved.notes    ?? "",
+    }, ...prev]);
+  } catch (err) {
+    console.error("Failed to create job order:", err);
+  }
+};
+
+
+const handleEdit = async (data: Omit<JobOrder, "id" | "orderNo">) => {
+  if (!editJob) return;
+  try {
+    const saved = await jobOrdersService.update(editJob.id as string, {
+      customer:       data.customer,
+      vehicle:        data.vehicle,
+      service:        data.service,
+      assigned_staff: data.assignedStaff,
+      staff_id:       data.staffId || undefined,
+      scheduled_date: data.date,
+      estimated_time: data.estimatedTime,
+      priority:       data.priority,
+      status:         data.status,
+      notes:          data.notes,
+    });
+
+    setJobOrders(prev => prev.map(j =>
+      j.id === editJob.id ? {
+        ...j,
+        customer:      saved.customer,
+        vehicle:       saved.vehicle,
+        service:       saved.service,
+        assignedStaff: saved.assigned_staff,
+        date:          saved.scheduled_date.split("T")[0],
+        estimatedTime: saved.estimated_time,
+        status:        saved.status   as JobStatus,
+        priority:      saved.priority as "Normal" | "Urgent",
+        notes:         saved.notes    ?? "",
+      } : j
+    ));
     setEditJob(null);
-  };
+  } catch (err) {
+    console.error("Failed to update job order:", err);
+  }
+};
 
-  const handleStatusChange = (id: number, status: JobStatus) => {
-    setJobOrders(prev => prev.map(j => j.id === id ? { ...j, status } : j));
-  };
+  const handleStatusChange = async (id: number | string, status: JobStatus) => {
+  try {
+    await jobOrdersService.update(String(id), { status });
+    setJobOrders(prev =>
+      prev.map(j => j.id === id ? { ...j, status } : j)
+    );
+  } catch (err) {
+    console.error("Failed to update status:", err);
+  }
+};
 
   return (
     <div className="space-y-6 w-full">

@@ -1,3 +1,8 @@
+import {
+  getAppointments,
+  createAppointment,
+  updateAppointmentStatus,
+} from "../../services/appointments";
 import { useState, useEffect, useMemo } from "react";
 import {
   ChevronLeft, ChevronRight, Search, SlidersHorizontal, Plus,
@@ -549,56 +554,86 @@ export function FrontDeskAppointments() {
   });
 
   // ─── DATA FETCHING (Simulated) ───
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Replace this block with your actual API call:
-      // const data = await getAdminAppointments();
-      // setAppointments(data);
-      
-      // Simulating a fast network request for demonstration
-      await new Promise(res => setTimeout(res, 500));
-      setAppointments([]); 
+      const data = await getAppointments();
+      // Map Appointment service shape → component shape
+      const mapped: Appointment[] = data.map((a) => ({
+        id:       a.id,
+        customer: a.customerName,
+        contact:  "",
+        vehicle:  a.vehicle,
+        service:  a.service,
+        date:     a.date,
+        time:     a.time,
+        deposit:  a.totalAmount,
+        notes:    "",
+        status:   a.status as AppointmentStatus,
+      }));
+      setAppointments(mapped);
     } catch (err) {
       console.error("Failed to fetch appointments:", err);
     } finally {
       setIsLoading(false);
     }
   };
-
   // ─── HANDLERS ───
   const handleAdd = async (appt: Omit<Appointment, "id">) => {
-    // try {
-    //   const newAppt = await createAdminAppointment(appt);
-    //   setAppointments(prev => [...prev, newAppt]);
-    // } catch(err) { ... }
-    
-    const newId = Date.now().toString(); // Temporary ID generation
-    setAppointments(prev => [...prev, { ...appt, id: newId }]);
+    try {
+      // Convert "9:00 AM" → "09:00" for the service layer
+      const [timePart, meridiem] = appt.time.split(" ");
+      let [hours, minutes]       = timePart.split(":").map(Number);
+      if (meridiem === "PM" && hours !== 12) hours += 12;
+      if (meridiem === "AM" && hours === 12) hours  = 0;
+      const time24 = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+      const created = await createAppointment({
+        customerId:  appt.customer, // adjust if you have a real ID
+        service:     appt.service,
+        date:        appt.date,
+        time:        time24,
+        totalAmount: appt.deposit,
+      });
+
+      setAppointments(prev => [...prev, {
+        id:       created.id,
+        customer: created.customerName,
+        contact:  appt.contact,
+        vehicle:  created.vehicle,
+        service:  created.service,
+        date:     created.date,
+        time:     appt.time,
+        deposit:  created.totalAmount,
+        notes:    appt.notes,
+        status:   created.status as AppointmentStatus,
+      }]);
+    } catch (err) {
+      console.error("Failed to create appointment:", err);
+    }
   };
 
   const handleCancel = async (id: number | string) => {
-    // try {
-    //   await updateAppointmentStatus(id, "Cancelled");
-    //   ... update state
-    // } catch(err) { ... }
-    
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a));
+    try {
+      await updateAppointmentStatus(String(id), "Cancelled");
+      setAppointments(prev =>
+        prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a)
+      );
+    } catch (err) {
+      console.error("Failed to cancel appointment:", err);
+    }
   };
-
+  
   const handleStatusChange = async (id: number | string, status: AppointmentStatus) => {
-    // try {
-    //   await updateAppointmentStatus(id, status);
-    //   ... update state
-    // } catch(err) { ... }
-    
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+    try {
+      await updateAppointmentStatus(String(id), status);
+      setAppointments(prev =>
+        prev.map(a => a.id === id ? { ...a, status } : a)
+      );
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
   };
-
   // ─── COMPUTED DATA ───
   const dotDates = useMemo(() => {
     const map: Record<string, AppointmentStatus[]> = {};
