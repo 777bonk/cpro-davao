@@ -47,16 +47,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const profileData = profileRes.ok ? await profileRes.json() : null;
 
     setProfile({
-      id:         supabaseUser.id,
-      customerId: customerData?.id ?? supabaseUser.id,
-      full_name:  profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
-      name:       profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
-      role:       profileData?.role ?? 'customer',
-      avatar_url: profileData?.avatar_url ?? null,
-      email:      supabaseUser.email ?? '',
-      provider:   supabaseUser.app_metadata?.provider ?? '',
-      created_at: supabaseUser.created_at,
-    });
+  id:         supabaseUser.id,
+  customerId: customerData?.id ?? supabaseUser.id,
+  full_name:  profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
+  name:       profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
+  role:       profileData?.role ?? 'customer',
+  avatar_url: profileData?.avatar_url ?? null,
+  email:      supabaseUser.email ?? '',
+  provider:   supabaseUser.app_metadata?.provider ?? '',
+  created_at: supabaseUser.created_at,
+});
+
+// ← ADD THIS LINE — saves role so employees.ts can read it
+localStorage.setItem("supabase_profile_role", profileData?.role ?? 'customer');
   } catch (err) {
     console.error('fetchProfile threw:', err);
     setProfile({
@@ -89,8 +92,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (session?.user) {
           await fetchProfile(session.user);
         } else {
-          setProfile(null);
-        }
+  setProfile(null);
+  localStorage.removeItem("supabase_profile_role"); // ← ADD THIS
+}
         setIsLoading(false);
       }
     );
