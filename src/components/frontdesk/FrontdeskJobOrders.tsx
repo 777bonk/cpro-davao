@@ -119,7 +119,18 @@ function JobOrderModal({ mode, initial, employees, customers, services, onClose,
   // When customer is picked, try to autofill vehicle
   const handleCustomerChange = (name: string) => {
     const found = customers.find(c => c.name === name);
-    setForm(f => ({ ...f, customer: name, vehicle: found?.vehicle ?? f.vehicle }));
+    const lastService = found?.last_service ?? "";
+    // Only auto-fill if last_service matches one of the available services
+    const matchedService = services.find(s =>
+      s.toLowerCase().includes(lastService.toLowerCase()) ||
+      lastService.toLowerCase().includes(s.toLowerCase())
+    );
+    setForm(f => ({
+      ...f,
+      customer: name,
+      vehicle:  found?.vehicle ?? f.vehicle,
+      service:  matchedService ?? f.service, // auto-fill if match found
+    }));
   };
 
   // When staff is picked, autofill staffId
@@ -396,40 +407,46 @@ export function FrontDeskJobOrders() {
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-  setIsLoading(true);
-  try {
-    const [result, emps, custs, svcs] = await Promise.all([
-      jobOrdersService.getAll().catch(() => ({ data: [] })),
-      getEmployees().catch(() => []),
-      getCustomers().catch(() => []),
-      getServices().catch(() => []),
-    ]);
+    setIsLoading(true);
+    try {
+      const [result, empsResult, custs, svcs] = await Promise.all([
+        jobOrdersService.getAll().catch(() => ({ data: [] })),
+        getEmployees().catch(() => ({ data: [] })),
+        getCustomers().catch(() => []),
+        getServices().catch(() => []),
+      ]);
 
-    setJobOrders(
-      result.data.map((j: any) => ({
-        id:            j.id,
-        orderNo:       j.order_no,
-        customer:      j.customer,
-        vehicle:       j.vehicle,
-        service:       j.service,
-        assignedStaff: j.assigned_staff,
-        staffId:       j.staff_id ?? "",
-        date:          j.scheduled_date.split("T")[0],
-        estimatedTime: j.estimated_time,
-        status:        j.status        as JobStatus,
-        priority:      j.priority      as "Normal" | "Urgent",
-        notes:         j.notes         ?? "",
-      }))
-    );
-    setEmployees(emps);
-    setCustomers(custs);
-    setServices(svcs.map((s: any) => s.name).filter(Boolean));
-  } catch (err) {
-    console.error("FrontDeskJobOrders fetch error:", err);
-  } finally {
-    setIsLoading(false);
-  }
-};
+      // getEmployees returns { data: [], total, page... } not a plain array
+      const emps = Array.isArray(empsResult)
+        ? empsResult
+        : (empsResult as any).data ?? [];
+
+      setJobOrders(
+        result.data.map((j: any) => ({
+          id:            j.id,
+          orderNo:       j.order_no,
+          customer:      j.customer,
+          vehicle:       j.vehicle,
+          service:       j.service,
+          assignedStaff: j.assigned_staff,
+          staffId:       j.staff_id ?? "",
+          date:          j.scheduled_date.split("T")[0],
+          estimatedTime: j.estimated_time,
+          status:        j.status   as JobStatus,
+          priority:      j.priority as "Normal" | "Urgent",
+          notes:         j.notes    ?? "",
+        }))
+      );
+
+      setEmployees(emps);
+      setCustomers(custs);
+      setServices(svcs.map((s: any) => s.name).filter(Boolean));
+    } catch (err) {
+      console.error("FrontDeskJobOrders fetch error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const pending    = jobOrders.filter(j => j.status === "Pending").length;

@@ -9,6 +9,7 @@ import { Button } from "../dashboard-ui/button";
 import { Badge } from "../dashboard-ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../dashboard-ui/table";
 import { getEmployees, createEmployee, updateEmployee, updateEmployeeAssignment, deleteEmployee, Employee } from "../../services/employees";
+import { createEmployeeWithAccount } from "../../services/employees";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -55,27 +56,32 @@ function ModalWrapper({ children }: { children: React.ReactNode }) {
 const inputClass =
   "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 
+const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
+  <div className="space-y-1.5">
+    <label className="text-sm font-medium text-white/70">
+      {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+    </label>
+    {children}
+  </div>
+);
 
-  const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium text-white/70">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
 // ─── ADD EMPLOYEE MODAL ───────────────────────────────────────────────────────
 
 function AddEmployeeModal({ onClose, onSave }: {
   onClose: () => void;
-  onSave: (emp: { name: string; position: string; department: string; salary: number; status: "Active" | "On Leave"; performance: "Excellent" | "Good" | "Average" }) => Promise<void>;
+  onSave: (emp: {
+    name: string; position: string; department: string;
+    salary: number; status: "Active" | "On Leave";
+    performance: "Excellent" | "Good" | "Average";
+  }) => Promise<{ email: string; password: string; role: string }>;
 }) {
   const [form, setForm] = useState({
     name: "", position: "", department: "", salary: "",
-    status: "Active" as "Active" | "On Leave",
-    performance: "Good" as "Excellent" | "Good" | "Average",
+    status:      "Active"  as "Active" | "On Leave",
+    performance: "Good"    as "Excellent" | "Good" | "Average",
   });
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving,    setIsSaving]    = useState(false);
+  const [credentials, setCredentials] = useState<{ email: string; password: string; role: string } | null>(null);
 
   const handleSave = async () => {
     if (!form.name || !form.position || !form.department) {
@@ -83,40 +89,107 @@ function AddEmployeeModal({ onClose, onSave }: {
     }
     setIsSaving(true);
     try {
-      await onSave({ ...form, salary: parseFloat(form.salary) || 0 });
-      onClose();
+      const creds = await onSave({ ...form, salary: parseFloat(form.salary) || 0 });
+      setCredentials(creds);
     } catch (error: any) {
-      alert(`Database Error: ${error?.message || "Failed to add employee."}`);
+      alert(`Error: ${error?.message || "Failed to add employee."}`);
     } finally {
       setIsSaving(false);
     }
   };
 
+  // ── Credentials screen ─────────────────────────────────────────────────
+  if (credentials) {
+    return (
+      <ModalWrapper>
+        <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col">
+          <div className="p-6 border-b border-white/10 flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold text-white">Account Created ✓</h2>
+              <p className="text-white/50 text-xs mt-0.5">Share these credentials with the employee</p>
+            </div>
+            <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
+          <div className="p-6 space-y-4">
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
+                <p className="text-emerald-400 font-semibold text-sm">Employee account successfully created</p>
+              </div>
+              <p className="text-white/50 text-xs">The employee can now log in and access their dashboard.</p>
+            </div>
+
+            {[
+              { label: "Email Address",      value: credentials.email    },
+              { label: "Temporary Password", value: credentials.password },
+              { label: "Role Assigned",      value: credentials.role     },
+            ].map(item => (
+              <div key={item.label} className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <p className="text-white/50 text-xs mb-1">{item.label}</p>
+                <p className="text-white font-mono font-semibold text-sm break-all">{item.value}</p>
+              </div>
+            ))}
+
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <p className="text-amber-400 text-xs">
+                ⚠️ Save these credentials now — the password will not be shown again.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end">
+            <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none" onClick={onClose}>
+              Done
+            </Button>
+          </div>
+        </div>
+      </ModalWrapper>
+    );
+  }
+
+  // ── Normal form ────────────────────────────────────────────────────────
   return (
     <ModalWrapper>
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
         <div className="p-6 border-b border-white/10 flex justify-between items-center">
           <div>
             <h2 className="text-xl font-bold text-white">Add New Employee</h2>
-            <p className="text-white/50 text-xs mt-0.5">Fill in the employee details below</p>
+            <p className="text-white/50 text-xs mt-0.5">An account will be created automatically</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-6 space-y-4 overflow-y-auto">
+          {form.name && (
+            <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+              <p className="text-white/50 text-xs mb-1">Auto-generated email</p>
+              <p className="text-[#E41E6A] font-mono text-sm">
+                {form.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@cprodavao.com
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Full Name" required>
-              <input className={inputClass} placeholder="Full name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              <input className={inputClass} placeholder="Full name" value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })} />
             </Field>
             <Field label="Position" required>
-              <input className={inputClass} placeholder="e.g. Lead Technician" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} />
+              <input className={inputClass} placeholder="e.g. Lead Technician" value={form.position}
+                onChange={e => setForm({ ...form, position: e.target.value })} />
             </Field>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Department" required>
               <div className="relative">
-                <select className={inputClass + " appearance-none pr-8"} value={form.department} onChange={e => setForm({ ...form, department: e.target.value })}>
+                <select className={inputClass + " appearance-none pr-8"} value={form.department}
+                  onChange={e => setForm({ ...form, department: e.target.value })}>
                   <option value="" className="bg-[#0a0a0a]">Select department...</option>
                   {["Technical", "Operations", "Admin", "Sales"].map(d => (
                     <option key={d} value={d} className="bg-[#0a0a0a]">{d}</option>
@@ -126,13 +199,16 @@ function AddEmployeeModal({ onClose, onSave }: {
               </div>
             </Field>
             <Field label="Monthly Salary (₱)">
-              <input type="number" className={inputClass} placeholder="0" value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })} />
+              <input type="number" className={inputClass} placeholder="0" value={form.salary}
+                onChange={e => setForm({ ...form, salary: e.target.value })} />
             </Field>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Status">
               <div className="relative">
-                <select className={inputClass + " appearance-none pr-8"} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as any })}>
+                <select className={inputClass + " appearance-none pr-8"} value={form.status}
+                  onChange={e => setForm({ ...form, status: e.target.value as any })}>
                   <option value="Active"   className="bg-[#0a0a0a]">Active</option>
                   <option value="On Leave" className="bg-[#0a0a0a]">On Leave</option>
                 </select>
@@ -141,7 +217,8 @@ function AddEmployeeModal({ onClose, onSave }: {
             </Field>
             <Field label="Performance">
               <div className="relative">
-                <select className={inputClass + " appearance-none pr-8"} value={form.performance} onChange={e => setForm({ ...form, performance: e.target.value as any })}>
+                <select className={inputClass + " appearance-none pr-8"} value={form.performance}
+                  onChange={e => setForm({ ...form, performance: e.target.value as any })}>
                   <option value="Excellent" className="bg-[#0a0a0a]">Excellent</option>
                   <option value="Good"      className="bg-[#0a0a0a]">Good</option>
                   <option value="Average"   className="bg-[#0a0a0a]">Average</option>
@@ -150,12 +227,29 @@ function AddEmployeeModal({ onClose, onSave }: {
               </div>
             </Field>
           </div>
+
+          {form.department && (
+            <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+              <p className="text-white/50 text-xs mb-1">Role that will be assigned</p>
+              <p className="text-sky-400 font-semibold text-sm capitalize">
+                {({
+                  Technical:  'technician',
+                  Operations: 'staff',
+                  Admin:      'admin',
+                  Sales:      'frontdesk',
+                } as Record<string, string>)[form.department] ?? 'staff'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Cancel</Button>
-          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Add Employee"}
+          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90"
+            onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Creating..." : "Add Employee"}
           </Button>
         </div>
       </div>
@@ -192,7 +286,6 @@ function ProfileModal({ employee, onClose, onAssign, onEdit }: {
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Hero */}
           <div className="flex items-center gap-4 p-4 bg-gradient-to-br from-[#E41E6A]/10 to-pink-600/5 rounded-xl border border-[#E41E6A]/20">
             <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${avatarColor(employee.id)} flex items-center justify-center text-white text-lg font-bold flex-shrink-0`}>
               {initials(employee.name)}
@@ -246,10 +339,8 @@ function ProfileModal({ employee, onClose, onAssign, onEdit }: {
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
           <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Close</Button>
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-sky-500/30 text-sky-400 hover:bg-sky-500/10 rounded-lg transition-colors"
-          >
+          <button onClick={onEdit}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-sky-500/30 text-sky-400 hover:bg-sky-500/10 rounded-lg transition-colors">
             <Edit2 className="w-4 h-4" />Edit
           </button>
           {employee.status !== "On Leave" && (
@@ -300,7 +391,6 @@ function AssignWorkModal({ employee, onClose, onSave }: {
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Employee card */}
           <div className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/10">
             <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarColor(employee.id)} flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}>
               {initials(employee.name)}
@@ -316,7 +406,6 @@ function AssignWorkModal({ employee, onClose, onSave }: {
             </Badge>
           </div>
 
-          {/* Current assignment warning */}
           {employee.current_assignment && employee.current_assignment !== "None" && (
             <div className="p-3 bg-orange-500/10 rounded-lg border border-orange-500/20 flex items-start gap-2">
               <Clock className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" />
@@ -331,12 +420,8 @@ function AssignWorkModal({ employee, onClose, onSave }: {
             <label className="text-sm font-medium text-white/70">
               Assignment Details <span className="text-red-500">*</span>
             </label>
-            <input
-              className={inputClass}
-              placeholder="Enter work assignment (type 'None' to clear)"
-              value={assignment}
-              onChange={e => setAssignment(e.target.value)}
-            />
+            <input className={inputClass} placeholder="Enter work assignment (type 'None' to clear)"
+              value={assignment} onChange={e => setAssignment(e.target.value)} />
             {isClear && (
               <p className="text-emerald-400 text-xs flex items-center gap-1 mt-1">
                 <CheckCircle className="w-3.5 h-3.5" />This will mark the employee as Available
@@ -349,9 +434,7 @@ function AssignWorkModal({ employee, onClose, onSave }: {
           <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Cancel</Button>
           <Button
             className={`text-white border-none flex items-center gap-2 ${isClear ? "bg-emerald-600 hover:bg-emerald-700" : "bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:opacity-90"}`}
-            onClick={handleSave}
-            disabled={isSaving}
-          >
+            onClick={handleSave} disabled={isSaving}>
             <Briefcase className="w-4 h-4" />
             {isSaving ? "Saving..." : isClear ? "Mark Available" : "Assign Work"}
           </Button>
@@ -360,7 +443,6 @@ function AssignWorkModal({ employee, onClose, onSave }: {
     </ModalWrapper>
   );
 }
-
 
 // ─── EDIT EMPLOYEE MODAL ──────────────────────────────────────────────────────
 
@@ -417,7 +499,8 @@ function EditEmployeeModal({ employee, onClose, onSave }: {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Department" required>
               <div className="relative">
-                <select className={inputClass + " appearance-none pr-8"} value={form.department} onChange={e => setForm({ ...form, department: e.target.value })}>
+                <select className={inputClass + " appearance-none pr-8"} value={form.department}
+                  onChange={e => setForm({ ...form, department: e.target.value })}>
                   {["Technical", "Operations", "Admin", "Sales"].map(d => (
                     <option key={d} value={d} className="bg-[#0a0a0a]">{d}</option>
                   ))}
@@ -426,13 +509,15 @@ function EditEmployeeModal({ employee, onClose, onSave }: {
               </div>
             </Field>
             <Field label="Monthly Salary (₱)">
-              <input type="number" className={inputClass} value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })} />
+              <input type="number" className={inputClass} value={form.salary}
+                onChange={e => setForm({ ...form, salary: e.target.value })} />
             </Field>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Status">
               <div className="relative">
-                <select className={inputClass + " appearance-none pr-8"} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as any })}>
+                <select className={inputClass + " appearance-none pr-8"} value={form.status}
+                  onChange={e => setForm({ ...form, status: e.target.value as any })}>
                   <option value="Active"   className="bg-[#0a0a0a]">Active</option>
                   <option value="On Leave" className="bg-[#0a0a0a]">On Leave</option>
                 </select>
@@ -441,7 +526,8 @@ function EditEmployeeModal({ employee, onClose, onSave }: {
             </Field>
             <Field label="Performance">
               <div className="relative">
-                <select className={inputClass + " appearance-none pr-8"} value={form.performance} onChange={e => setForm({ ...form, performance: e.target.value as any })}>
+                <select className={inputClass + " appearance-none pr-8"} value={form.performance}
+                  onChange={e => setForm({ ...form, performance: e.target.value as any })}>
                   <option value="Excellent" className="bg-[#0a0a0a]">Excellent</option>
                   <option value="Good"      className="bg-[#0a0a0a]">Good</option>
                   <option value="Average"   className="bg-[#0a0a0a]">Average</option>
@@ -454,7 +540,8 @@ function EditEmployeeModal({ employee, onClose, onSave }: {
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
           <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Cancel</Button>
-          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleSave} disabled={isSaving}>
+          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90"
+            onClick={handleSave} disabled={isSaving}>
             {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
@@ -484,17 +571,13 @@ function ArchiveEmployeeModal({ employee, onClose, onConfirm }: {
             <Archive className="w-6 h-6 text-amber-400" />
           </div>
           <p className="text-white text-center text-sm leading-relaxed">
-            Archive{" "}<span className="font-bold text-[#E41E6A]">{employee.name}</span>?
-            They will be marked as{" "}<span className="font-semibold text-amber-400">On Leave</span>{" "}
-            and hidden from active assignment lists. You can restore them anytime by editing their status.
+            Archive <span className="font-bold text-[#E41E6A]">{employee.name}</span>?
+            They will be removed from the system.
           </p>
         </div>
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
           <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Cancel</Button>
-          <Button
-            className="bg-amber-500 hover:bg-amber-600 text-white border-none flex items-center gap-2"
-            onClick={onConfirm}
-          >
+          <Button className="bg-amber-500 hover:bg-amber-600 text-white border-none flex items-center gap-2" onClick={onConfirm}>
             <Archive className="w-4 h-4" />Archive
           </Button>
         </div>
@@ -503,22 +586,20 @@ function ArchiveEmployeeModal({ employee, onClose, onConfirm }: {
   );
 }
 
-
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function Employees() {
-  const [employees,  setEmployees]  = useState<Employee[]>([]);
-  const [isLoading,  setIsLoading]  = useState(true);
-  const [search,     setSearch]     = useState("");
-  const [filterDept, setFilterDept] = useState("All");
-  const [filterAvail,setFilterAvail]= useState<"All" | "Available" | "Busy">("All");
+  const [employees,   setEmployees]   = useState<Employee[]>([]);
+  const [isLoading,   setIsLoading]   = useState(true);
+  const [search,      setSearch]      = useState("");
+  const [filterDept,  setFilterDept]  = useState("All");
+  const [filterAvail, setFilterAvail] = useState<"All" | "Available" | "Busy">("All");
 
-  // Modal states
-  const [addOpen,     setAddOpen]     = useState(false);
-  const [viewEmp,     setViewEmp]     = useState<Employee | null>(null);
-  const [assignEmp,   setAssignEmp]   = useState<Employee | null>(null);
-  const [editEmp,     setEditEmp]     = useState<Employee | null>(null);
-  const [archiveEmp,  setArchiveEmp]  = useState<Employee | null>(null);
+  const [addOpen,    setAddOpen]    = useState(false);
+  const [viewEmp,    setViewEmp]    = useState<Employee | null>(null);
+  const [assignEmp,  setAssignEmp]  = useState<Employee | null>(null);
+  const [editEmp,    setEditEmp]    = useState<Employee | null>(null);
+  const [archiveEmp, setArchiveEmp] = useState<Employee | null>(null);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -534,14 +615,12 @@ export function Employees() {
     }
   };
 
-  // ── Derived stats ─────────────────────────────────────────────────────────
   const activeEmployees = employees.filter(e => e.status === "Active").length;
-  // Add && e.status === "Active" to these two lines:
   const busyEmployees   = employees.filter(e => e.availability === "Busy" && e.status === "Active").length;
   const availableCount  = employees.filter(e => e.availability === "Available" && e.status === "Active").length;
   const totalPayroll    = employees.reduce((s, e) => s + Number(e.salary), 0);
   const departments     = ["All", ...Array.from(new Set(employees.map(e => e.department)))];
-  // ── Filtered list ─────────────────────────────────────────────────────────
+
   const filtered = useMemo(() =>
     employees
       .filter(e => filterDept  === "All" || e.department   === filterDept)
@@ -554,10 +633,10 @@ export function Employees() {
     [employees, search, filterDept, filterAvail]
   );
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAdd = async (emp: Parameters<typeof createEmployee>[0]) => {
-    const added = await createEmployee(emp);
-    setEmployees(prev => [...prev, added]);
+    const result = await createEmployeeWithAccount(emp);
+    setEmployees(prev => [...prev, result.employee]);
+    return result.credentials;
   };
 
   const handleAssign = async (assignment: string) => {
@@ -579,16 +658,10 @@ export function Employees() {
 
   const handleEdit = async (updated: Employee) => {
     try {
-      // 1. Separate the read-only DB fields from the editable payload
-      // (We cast to `any` here so TypeScript doesn't complain about created_at)
       const { id, created_at, updated_at, ...cleanPayload } = updated as any;
-
-      // 2. Send ONLY the clean payload to the backend
       if (typeof updateEmployee === "function") {
         await updateEmployee(id, cleanPayload);
       }
-      
-      // 3. Update the UI
       setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
     } catch (error: any) {
       alert(`Database Error: ${error?.message || "Failed to update employee."}`);
@@ -597,10 +670,7 @@ export function Employees() {
 
   const handleArchive = async (id: string) => {
     try {
-      // 1. Tell the backend to permanently delete the employee
       await deleteEmployee(id);
-
-      // 2. Remove them from the UI
       setEmployees(prev => prev.filter(e => e.id !== id));
     } catch (error: any) {
       console.error("Failed to archive employee", error);
@@ -630,10 +700,10 @@ export function Employees() {
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
-          { label: "Total Employees",  value: employees.length, sub: `${activeEmployees} active`,      icon: <Users      className="w-5 h-5" />, iconBg: "bg-[#E41E6A]/10", iconColor: "text-[#E41E6A]"  },
-          { label: "Currently Busy",   value: busyEmployees,    sub: "Assigned to work",               icon: <Clock      className="w-5 h-5" />, iconBg: "bg-orange-500/10", iconColor: "text-orange-400" },
-          { label: "Monthly Payroll",  value: `₱${totalPayroll.toLocaleString()}`, sub: "Total salaries", icon: <DollarSign className="w-5 h-5" />, iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400"},
-          { label: "Available Now",    value: availableCount,   sub: "Ready for assignment",           icon: <UserCheck  className="w-5 h-5" />, iconBg: "bg-sky-500/10",    iconColor: "text-sky-400"    },
+          { label: "Total Employees",  value: employees.length,                    sub: `${activeEmployees} active`,    icon: <Users      className="w-5 h-5" />, iconBg: "bg-[#E41E6A]/10",  iconColor: "text-[#E41E6A]"   },
+          { label: "Currently Busy",   value: busyEmployees,                       sub: "Assigned to work",             icon: <Clock      className="w-5 h-5" />, iconBg: "bg-orange-500/10", iconColor: "text-orange-400"  },
+          { label: "Monthly Payroll",  value: `₱${totalPayroll.toLocaleString()}`, sub: "Total salaries",               icon: <DollarSign className="w-5 h-5" />, iconBg: "bg-emerald-500/10",iconColor: "text-emerald-400" },
+          { label: "Available Now",    value: availableCount,                      sub: "Ready for assignment",         icon: <UserCheck  className="w-5 h-5" />, iconBg: "bg-sky-500/10",    iconColor: "text-sky-400"     },
         ].map((s, i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
             <CardHeader className="pb-2">
@@ -676,33 +746,23 @@ export function Employees() {
                       <p className="text-white text-sm font-semibold truncate">{emp.name}</p>
                       <p className="text-white/50 text-xs truncate">{emp.position}</p>
                     </div>
-                    {emp.status === "Active" ? (
-                    <Badge className={emp.availability === "Available" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-orange-500/20 text-orange-400 border-orange-500/30"}>
-                     {emp.availability}
-                   </Badge>
-                    ) : (
-                    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                       On Leave
-                     </Badge>
-                    )}
+                    <Badge className={emp.availability === "Available"
+                      ? "bg-green-500/20 text-green-400 border-green-500/30"
+                      : "bg-orange-500/20 text-orange-400 border-orange-500/30"}>
+                      {emp.availability}
+                    </Badge>
                   </div>
-
                   <div className="p-2.5 bg-white/5 rounded-lg border border-white/10 mb-3">
                     <p className="text-white/50 text-xs mb-0.5">Assignment</p>
                     <p className="text-white text-xs font-medium truncate">{emp.current_assignment}</p>
                   </div>
-
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => handleMarkAvailable(emp.id)}
-                      className="flex-1 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-                    >
+                    <button onClick={() => handleMarkAvailable(emp.id)}
+                      className="flex-1 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5">
                       <CheckCircle className="w-3.5 h-3.5" />Mark Available
                     </button>
-                    <button
-                      onClick={() => setAssignEmp(emp)}
-                      className="flex-1 py-1.5 text-xs font-semibold text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-                    >
+                    <button onClick={() => setAssignEmp(emp)}
+                      className="flex-1 py-1.5 text-xs font-semibold text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5">
                       <Edit2 className="w-3.5 h-3.5" />Reassign
                     </button>
                   </div>
@@ -717,15 +777,10 @@ export function Employees() {
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by name, position, or department..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors"
-          />
+          <input type="text" placeholder="Search by name, position, or department..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors" />
         </div>
-
         <div className="flex items-center gap-1.5 flex-wrap">
           <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
           {(["All", "Available", "Busy"] as const).map(f => (
@@ -737,13 +792,9 @@ export function Employees() {
               }`}>{f}</button>
           ))}
         </div>
-
         <div className="relative">
-          <select
-            value={filterDept}
-            onChange={e => setFilterDept(e.target.value)}
-            className="pl-3 pr-8 py-2.5 text-xs font-semibold bg-white/5 border border-white/10 rounded-xl text-white/70 focus:outline-none focus:border-[#E41E6A] appearance-none"
-          >
+          <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
+            className="pl-3 pr-8 py-2.5 text-xs font-semibold bg-white/5 border border-white/10 rounded-xl text-white/70 focus:outline-none focus:border-[#E41E6A] appearance-none">
             {departments.map(d => <option key={d} value={d} className="bg-[#0a0a0a]">{d}</option>)}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none" />
@@ -768,7 +819,7 @@ export function Employees() {
             </div>
           ) : (
             <>
-              {/* Mobile cards */}
+              {/* Mobile */}
               <div className="sm:hidden divide-y divide-white/5">
                 {filtered.map(emp => (
                   <div key={emp.id} className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
@@ -789,17 +840,14 @@ export function Employees() {
                 ))}
               </div>
 
-              {/* Desktop table */}
+              {/* Desktop */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/10">
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-4 py-3.5 whitespace-nowrap">Employee</th>
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-3 py-3.5 whitespace-nowrap">Department</th>
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-3 py-3.5 whitespace-nowrap">Salary</th>
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-3 py-3.5 whitespace-nowrap">Status</th>
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-3 py-3.5 whitespace-nowrap">Performance</th>
-                      <th className="text-right text-xs font-semibold text-white/50 uppercase tracking-wide px-4 py-3.5 whitespace-nowrap">Actions</th>
+                      {["Employee","Department","Salary","Status","Performance","Actions"].map(h => (
+                        <th key={h} className={`text-xs font-semibold text-white/50 uppercase tracking-wide py-3.5 whitespace-nowrap ${h === "Actions" ? "text-right px-4" : "text-left px-3"}`}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -807,8 +855,7 @@ export function Employees() {
                       const perf = PERFORMANCE_STYLE[emp.performance as keyof typeof PERFORMANCE_STYLE] ?? PERFORMANCE_STYLE.Good;
                       return (
                         <tr key={emp.id} className="hover:bg-white/5 transition-colors">
-                          {/* Employee */}
-                          <td className="px-4 py-3">
+                          <td className="px-3 py-3">
                             <div className="flex items-center gap-3">
                               <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarColor(emp.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
                                 {initials(emp.name)}
@@ -819,32 +866,27 @@ export function Employees() {
                               </div>
                             </div>
                           </td>
-                          {/* Department */}
                           <td className="px-3 py-3 whitespace-nowrap">
                             <Badge variant="outline" className={deptColor(emp.department)}>{emp.department}</Badge>
                           </td>
-                          {/* Salary */}
                           <td className="px-3 py-3 whitespace-nowrap">
                             <span className="text-white text-sm font-semibold">₱{Number(emp.salary).toLocaleString()}</span>
                           </td>
-                          {/* Status — combines availability + status */}
                           <td className="px-3 py-3">
-    <div className="flex flex-col gap-1">
-      {/* ONLY show availability dot if Active */}
-      {emp.status === "Active" && (
-        <div className="flex items-center gap-1.5">
-          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${emp.availability === "Available" ? "bg-green-500" : "bg-orange-400"}`} />
-          <span className={`text-xs font-medium ${emp.availability === "Available" ? "text-green-400" : "text-orange-400"}`}>
-            {emp.availability}
-          </span>
-        </div>
-      )}
-      <Badge className={`w-fit ${emp.status === "Active" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30"}`}>
-        {emp.status}
-      </Badge>
-    </div>
-  </td>
-                          {/* Performance */}
+                            <div className="flex flex-col gap-1">
+                              {emp.status === "Active" && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${emp.availability === "Available" ? "bg-green-500" : "bg-orange-400"}`} />
+                                  <span className={`text-xs font-medium ${emp.availability === "Available" ? "text-green-400" : "text-orange-400"}`}>
+                                    {emp.availability}
+                                  </span>
+                                </div>
+                              )}
+                              <Badge className={`w-fit ${emp.status === "Active" ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30"}`}>
+                                {emp.status}
+                              </Badge>
+                            </div>
+                          </td>
                           <td className="px-3 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <Badge className={perf.badge}>{emp.performance}</Badge>
@@ -855,36 +897,22 @@ export function Employees() {
                               </div>
                             </div>
                           </td>
-                          {/* Actions — icon buttons to save space */}
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                title="View Profile"
-                                onClick={() => setViewEmp(emp)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10 transition-colors"
-                              >
+                              <button title="View Profile" onClick={() => setViewEmp(emp)}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10 transition-colors">
                                 <Briefcase className="w-3.5 h-3.5" />
                               </button>
-                              <button
-                                title="Assign Work"
-                                onClick={() => setAssignEmp(emp)}
-                                disabled={emp.status === "On Leave"}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                              >
+                              <button title="Assign Work" onClick={() => setAssignEmp(emp)} disabled={emp.status === "On Leave"}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                                 <Clock className="w-3.5 h-3.5" />
                               </button>
-                              <button
-                                title="Edit Employee"
-                                onClick={() => setEditEmp(emp)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-sky-500/30 text-sky-400 hover:bg-sky-500/10 transition-colors"
-                              >
+                              <button title="Edit Employee" onClick={() => setEditEmp(emp)}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-sky-500/30 text-sky-400 hover:bg-sky-500/10 transition-colors">
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
-                              <button
-                                title="Archive Employee"
-                                onClick={() => setArchiveEmp(emp)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
-                              >
+                              <button title="Archive Employee" onClick={() => setArchiveEmp(emp)}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors">
                                 <Archive className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -901,18 +929,15 @@ export function Employees() {
       </Card>
 
       {/* ── Modals ── */}
-      {addOpen   && <AddEmployeeModal onClose={() => setAddOpen(false)} onSave={handleAdd} />}
-      {viewEmp   && (
-        <ProfileModal
-          employee={viewEmp}
-          onClose={() => setViewEmp(null)}
+      {addOpen    && <AddEmployeeModal onClose={() => setAddOpen(false)} onSave={handleAdd} />}
+      {viewEmp    && (
+        <ProfileModal employee={viewEmp} onClose={() => setViewEmp(null)}
           onAssign={() => { setAssignEmp(viewEmp); setViewEmp(null); }}
-          onEdit={() => { setEditEmp(viewEmp); setViewEmp(null); }}
-        />
+          onEdit={()   => { setEditEmp(viewEmp);   setViewEmp(null); }} />
       )}
-      {assignEmp   && <AssignWorkModal      employee={assignEmp}  onClose={() => setAssignEmp(null)}  onSave={handleAssign} />}
-      {editEmp     && <EditEmployeeModal    employee={editEmp}    onClose={() => setEditEmp(null)}    onSave={handleEdit} />}
-      {archiveEmp  && <ArchiveEmployeeModal employee={archiveEmp} onClose={() => setArchiveEmp(null)} onConfirm={() => handleArchive(archiveEmp.id)} />}
+      {assignEmp  && <AssignWorkModal      employee={assignEmp}  onClose={() => setAssignEmp(null)}  onSave={handleAssign} />}
+      {editEmp    && <EditEmployeeModal    employee={editEmp}    onClose={() => setEditEmp(null)}    onSave={handleEdit} />}
+      {archiveEmp && <ArchiveEmployeeModal employee={archiveEmp} onClose={() => setArchiveEmp(null)} onConfirm={() => handleArchive(archiveEmp.id)} />}
     </div>
   );
 }
