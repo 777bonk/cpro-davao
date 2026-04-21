@@ -56,9 +56,8 @@ const SERVICE_OPTIONS = [
   "Nano Ceramic Spray", "Paint Decontamination",
 ];
 
-const TIME_OPTIONS = [
-  "8:00 AM","9:00 AM","10:00 AM","10:30 AM","11:00 AM",
-  "1:00 PM","2:00 PM","3:00 PM","4:00 PM",
+const ALL_STATUSES: AppointmentStatus[] = [
+  "Pending Verification","Confirmed","Pending","In Progress","Completed","Cancelled","Rejected",
 ];
 
 const ALL_STATUSES: AppointmentStatus[] = [
@@ -548,6 +547,13 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
   });
   const [error, setError] = useState("");
 
+  const [form, setForm] = useState({
+    customerId: "", customer: "", contact: "", vehicle: "",
+    service: "", date: todayStr(), time: "9:00 AM",
+    deposit: "", notes: "", status: "Confirmed" as AppointmentStatus,
+  });
+  const [error, setError] = useState("");
+
   const handleCustomerChange = (id: string) => {
     const found = customers.find(c => c.id === id);
     setForm(f => ({
@@ -859,7 +865,7 @@ export function FrontDeskAppointments() {
     }
   };
 
-  const handleCancel = async (id: number | string) => {
+  const handleCancel = async (id: string | number) => {
     try {
       await updateAppointmentStatus(String(id), "Cancelled");
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a));
