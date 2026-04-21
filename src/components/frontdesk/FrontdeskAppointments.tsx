@@ -13,7 +13,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
+
 // ─── TYPES ────────────────────────────────────────────────────────────────────
+
 
 type AppointmentStatus =
   | "Pending Verification"
@@ -23,6 +25,7 @@ type AppointmentStatus =
   | "Completed"
   | "Cancelled"
   | "Rejected";
+
 
 interface Appointment {
   id:               number | string;
@@ -47,7 +50,9 @@ interface Appointment {
   addons?:          string;
 }
 
+
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
+
 
 const SERVICE_OPTIONS = [
   "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
@@ -56,13 +61,17 @@ const SERVICE_OPTIONS = [
   "Nano Ceramic Spray", "Paint Decontamination",
 ];
 
-const ALL_STATUSES: AppointmentStatus[] = [
-  "Pending Verification","Confirmed","Pending","In Progress","Completed","Cancelled","Rejected",
+
+const TIME_OPTIONS = [
+  "8:00 AM","9:00 AM","10:00 AM","10:30 AM","11:00 AM",
+  "1:00 PM","2:00 PM","3:00 PM","4:00 PM",
 ];
+
 
 const ALL_STATUSES: AppointmentStatus[] = [
   "Confirmed","Pending","In Progress","Completed","Cancelled",
 ];
+
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string; border: string }> = {
   "Pending Verification": { bg: "bg-orange-500/20", text: "text-orange-300", dot: "bg-orange-400", border: "border-orange-500/30" },
@@ -74,23 +83,28 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string; bord
   Rejected:      { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
 };
 
+
 const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 const cardCls  = "bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur rounded-xl border";
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+
 
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
+
 function formatShort(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric",
   });
 }
+
 
 function serviceIcon(service: string) {
   const s = service.toLowerCase();
@@ -99,6 +113,7 @@ function serviceIcon(service: string) {
   if (s.includes("tint"))    return <Sparkles className="w-4 h-4 text-sky-400"    />;
   return                            <Car      className="w-4 h-4 text-white/50"    />;
 }
+
 
 function mapRawAppointment(a: any): Appointment {
   const raw = a.scheduled_date || a.date || "";
@@ -128,7 +143,9 @@ function mapRawAppointment(a: any): Appointment {
   };
 }
 
+
 // ─── STATUS BADGE ─────────────────────────────────────────────────────────────
+
 
 function StatusBadge({ status }: { status: string }) {
   const s = STATUS_STYLE[status] ?? STATUS_STYLE["Pending"];
@@ -139,7 +156,9 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+
 // ─── PENDING REQUESTS PANEL ───────────────────────────────────────────────────
+
 
 function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
   requests:     Appointment[];
@@ -159,6 +178,7 @@ function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
     );
   }
 
+
   return (
     <div className="space-y-3">
       {requests.map(a => (
@@ -175,6 +195,7 @@ function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
             </div>
             <StatusBadge status={a.status} />
           </div>
+
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
             <div className="bg-white/5 rounded-lg p-2.5">
@@ -195,6 +216,7 @@ function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
             </div>
           </div>
 
+
           <div className="flex flex-wrap gap-3 mb-3 text-xs text-white/50">
             {a.mobileNumber && (
               <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{a.mobileNumber}</span>
@@ -209,6 +231,7 @@ function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
             )}
           </div>
 
+
           {a.proofUrl && (
             <div className="mb-3">
               <a
@@ -222,7 +245,9 @@ function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
             </div>
           )}
 
+
           {a.notes && <p className="text-white/40 text-xs italic mb-3">"{a.notes}"</p>}
+
 
           <div className="flex items-center gap-2 pt-2 border-t border-white/10">
             <button
@@ -248,7 +273,9 @@ function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
   );
 }
 
+
 // ─── REJECT REASON MODAL ──────────────────────────────────────────────────────
+
 
 function RejectReasonModal({ onClose, onConfirm }: {
   onClose:   () => void;
@@ -294,7 +321,9 @@ function RejectReasonModal({ onClose, onConfirm }: {
   );
 }
 
+
 // ─── CALENDAR ─────────────────────────────────────────────────────────────────
+
 
 function CalendarCard({ selected, onSelect, dotDates }: {
   selected:  string;
@@ -306,6 +335,7 @@ function CalendarCard({ selected, onSelect, dotDates }: {
   const [viewYear,  setViewYear]  = useState(selDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selDate.getMonth());
 
+
   const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const cells: (number | null)[] = [
@@ -314,10 +344,12 @@ function CalendarCard({ selected, onSelect, dotDates }: {
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
+
   const prev = () => viewMonth === 0 ? (setViewMonth(11), setViewYear(y => y - 1)) : setViewMonth(m => m - 1);
   const next = () => viewMonth === 11 ? (setViewMonth(0), setViewYear(y => y + 1)) : setViewMonth(m => m + 1);
   const cellKey = (day: number) =>
     `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+
 
   const dotColor = (statuses: string[]) => {
     if (statuses.includes("Pending Verification")) return "bg-orange-400";
@@ -326,6 +358,7 @@ function CalendarCard({ selected, onSelect, dotDates }: {
     if (statuses.includes("Pending"))              return "bg-yellow-400";
     return "bg-white/30";
   };
+
 
   return (
     <div className={`${cardCls} p-5`}>
@@ -382,7 +415,9 @@ function CalendarCard({ selected, onSelect, dotDates }: {
   );
 }
 
+
 // ─── APPOINTMENTS PANEL ───────────────────────────────────────────────────────
+
 
 function AppointmentsPanel({ selected, appts, onViewDetail }: {
   selected:     string;
@@ -441,7 +476,9 @@ function AppointmentsPanel({ selected, appts, onViewDetail }: {
   );
 }
 
+
 // ─── APPOINTMENT TABLE ────────────────────────────────────────────────────────
+
 
 function AppointmentTable({ appts, onViewDetail, onCancel }: {
   appts:        Appointment[];
@@ -533,7 +570,9 @@ function AppointmentTable({ appts, onViewDetail, onCancel }: {
   );
 }
 
+
 // ─── ADD APPOINTMENT MODAL ────────────────────────────────────────────────────
+
 
 function AddAppointmentModal({ onClose, onSave, customers }: {
   onClose:   () => void;
@@ -547,12 +586,6 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
   });
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState({
-    customerId: "", customer: "", contact: "", vehicle: "",
-    service: "", date: todayStr(), time: "9:00 AM",
-    deposit: "", notes: "", status: "Confirmed" as AppointmentStatus,
-  });
-  const [error, setError] = useState("");
 
   const handleCustomerChange = (id: string) => {
     const found = customers.find(c => c.id === id);
@@ -562,6 +595,7 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
     }));
   };
 
+
   const handleSave = () => {
     if (!form.customerId || !form.vehicle || !form.service || !form.date || !form.time) {
       setError("Please select a customer and fill in all required fields."); return;
@@ -570,11 +604,13 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
     onClose();
   };
 
+
   const field = (label: string, required = false) => (
     <span className="text-sm font-medium text-white/70 block mb-1.5">
       {label}{required && <span className="text-red-500 ml-0.5">*</span>}
     </span>
   );
+
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
@@ -670,7 +706,9 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
   );
 }
 
+
 // ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
+
 
 function DetailModal({ appt, onClose, onStatusChange }: {
   appt:           Appointment;
@@ -678,6 +716,7 @@ function DetailModal({ appt, onClose, onStatusChange }: {
   onStatusChange: (id: number | string, status: AppointmentStatus) => void;
 }) {
   const [status, setStatus] = useState<AppointmentStatus>(appt.status);
+
 
   const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
     <div className="flex items-start gap-3 py-3 border-b border-white/10 last:border-0">
@@ -688,6 +727,7 @@ function DetailModal({ appt, onClose, onStatusChange }: {
       </div>
     </div>
   );
+
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
@@ -753,11 +793,14 @@ function DetailModal({ appt, onClose, onStatusChange }: {
   );
 }
 
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+
 
 export function FrontDeskAppointments() {
   const today = todayStr();
   const { profile } = useAuth();
+
 
   const [appointments,    setAppointments]    = useState<Appointment[]>([]);
   const [pendingRequests, setPendingRequests] = useState<Appointment[]>([]);
@@ -771,11 +814,14 @@ export function FrontDeskAppointments() {
   const [isProcessing,    setIsProcessing]    = useState<string | number | null>(null);
   const [rejectTarget,    setRejectTarget]    = useState<string | number | null>(null);
 
+
   const todayDisplay = new Date().toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
+
   useEffect(() => { fetchData(); }, []);
+
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -801,6 +847,7 @@ export function FrontDeskAppointments() {
     }
   };
 
+
   const handleApprove = async (id: string | number) => {
     setIsProcessing(id);
     try {
@@ -814,6 +861,7 @@ export function FrontDeskAppointments() {
       setIsProcessing(null);
     }
   };
+
 
   const handleRejectConfirm = async (reason: string) => {
     if (!rejectTarget) return;
@@ -830,6 +878,7 @@ export function FrontDeskAppointments() {
       setRejectTarget(null);
     }
   };
+
 
   const handleAdd = async (appt: Omit<Appointment, "id">) => {
     try {
@@ -865,7 +914,8 @@ export function FrontDeskAppointments() {
     }
   };
 
-  const handleCancel = async (id: string | number) => {
+
+  const handleCancel = async (id: number | string) => {
     try {
       await updateAppointmentStatus(String(id), "Cancelled");
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a));
@@ -873,6 +923,7 @@ export function FrontDeskAppointments() {
       console.error("Failed to cancel:", err);
     }
   };
+
 
   const handleStatusChange = async (id: number | string, status: AppointmentStatus) => {
     try {
@@ -883,6 +934,7 @@ export function FrontDeskAppointments() {
     }
   };
 
+
   const dotDates = useMemo(() => {
     const map: Record<string, string[]> = {};
     [...appointments, ...pendingRequests].forEach(a => {
@@ -892,10 +944,12 @@ export function FrontDeskAppointments() {
     return map;
   }, [appointments, pendingRequests]);
 
+
   const forSelected = useMemo(
     () => appointments.filter(a => a.date === selected),
     [appointments, selected]
   );
+
 
   const filtered = useMemo(
     () => appointments
@@ -908,6 +962,7 @@ export function FrontDeskAppointments() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     [appointments, search]
   );
+
 
   return (
     <div className="space-y-6">
@@ -924,6 +979,7 @@ export function FrontDeskAppointments() {
           <Plus className="w-3.5 h-3.5" />New Appointment
         </button>
       </div>
+
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10 w-fit">
@@ -956,6 +1012,7 @@ export function FrontDeskAppointments() {
         </button>
       </div>
 
+
       {/* Pending Tab */}
       {activeTab === "pending" && (
         <div>
@@ -979,6 +1036,7 @@ export function FrontDeskAppointments() {
           )}
         </div>
       )}
+
 
       {/* All Appointments Tab */}
       {activeTab === "all" && (
@@ -1014,6 +1072,7 @@ export function FrontDeskAppointments() {
         </>
       )}
 
+
       {/* Modals */}
       {showAdd && (
         <AddAppointmentModal onClose={() => setShowAdd(false)} onSave={handleAdd} customers={customers} />
@@ -1028,4 +1087,6 @@ export function FrontDeskAppointments() {
   );
 }
 
+
 export default FrontDeskAppointments;
+
