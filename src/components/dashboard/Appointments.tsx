@@ -12,11 +12,13 @@ import {
 } from "../dashboard-ui/table";
 
 import {
-  getAppointments, createAppointment,
+  getAppointments,
   updateAppointmentStatus, updateAppointment,
   deleteAppointment, Appointment,
 } from "../../services/appointments";
 import { getCustomers, Customer } from "../../services/customer";
+
+const API = import.meta.env.VITE_API_BASE_URL;
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -37,7 +39,8 @@ const SERVICE_OPTIONS = [
 ];
 
 const STATUS_OPTIONS: Appointment["status"][] = [
-  "Pending", "In Progress", "Completed", "Cancelled",
+  "Pending Verification", "Confirmed", "Pending",
+  "In Progress", "Completed", "Cancelled", "Rejected",
 ];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -64,17 +67,22 @@ function formatShortDate(dateString?: string) {
 
 function getStatusBadgeClass(status: string) {
   switch (status) {
-    case "Completed":   return "bg-green-500/15 text-green-400 border border-green-500/30";
-    case "In Progress": return "bg-[#E41E6A]/15 text-[#E41E6A] border border-[#E41E6A]/30";
-    case "Cancelled":   return "bg-red-500/15 text-red-400 border border-red-500/30";
-    default:            return "bg-blue-500/15 text-blue-400 border border-blue-500/30";
+    case "Completed":            return "bg-green-500/15 text-green-400 border border-green-500/30";
+    case "In Progress":          return "bg-[#E41E6A]/15 text-[#E41E6A] border border-[#E41E6A]/30";
+    case "Cancelled":            return "bg-red-500/15 text-red-400 border border-red-500/30";
+    case "Rejected":             return "bg-red-500/15 text-red-400 border border-red-500/30";
+    case "Pending Verification": return "bg-orange-500/15 text-orange-300 border border-orange-500/30";
+    case "Confirmed":            return "bg-green-500/15 text-green-400 border border-green-500/30";
+    default:                     return "bg-blue-500/15 text-blue-400 border border-blue-500/30";
   }
 }
 
 function getCalendarDotClass(statuses: string[]) {
-  if (statuses.includes("In Progress")) return "bg-[#E41E6A]";
-  if (statuses.includes("Pending"))     return "bg-blue-500";
-  if (statuses.includes("Completed"))   return "bg-green-500";
+  if (statuses.includes("In Progress"))          return "bg-[#E41E6A]";
+  if (statuses.includes("Pending Verification")) return "bg-orange-400";
+  if (statuses.includes("Confirmed"))            return "bg-green-500";
+  if (statuses.includes("Pending"))              return "bg-blue-500";
+  if (statuses.includes("Completed"))            return "bg-green-500";
   return "bg-white/40";
 }
 
@@ -92,7 +100,49 @@ function parseTimeForSort(time?: string) {
   return h * 60 + m;
 }
 
-// Shared input/select styles
+// Admin-only appointment creation (no proof required — admin bypasses verification)
+async function createAdminAppointment(payload: {
+  customerId: string;
+  service: string;
+  date: string;
+  time: string;
+  totalAmount: number;
+}): Promise<Appointment> {
+  const scheduledDate = new Date(`${payload.date}T${payload.time}`);
+  const res = await fetch(`${API}/appointments/admin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      customer_id:    payload.customerId,
+      service_type:   payload.service,
+      scheduled_date: scheduledDate.toISOString(),
+      total_cost:     payload.totalAmount,
+      status:         "Confirmed",
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Request failed" }));
+    throw new Error(err.message ?? `Server error ${res.status}`);
+  }
+  const data = await res.json();
+  // Normalize inline
+  const d = new Date(data.scheduled_date);
+  return {
+    id:               data.id,
+    customerId:       data.customer_id,
+    customerName:     data.customer?.name ?? "—",
+    vehicle:          data.customer?.vehicle ?? "—",
+    service:          data.service_type ?? payload.service,
+    date:             `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`,
+    time:             payload.time,
+    totalAmount:      Number(data.total_cost ?? payload.totalAmount),
+    deposit:          Number(data.deposit ?? 0),
+    remainingBalance: Number(data.remaining_balance ?? 0),
+    status:           data.status as Appointment["status"],
+    notes:            data.notes ?? "",
+  };
+}
+
 const inputCls =
   "w-full px-4 h-10 border border-white/10 bg-white/5 rounded-md " +
   "focus:outline-none focus:border-[#E41E6A] text-white text-sm placeholder:text-white/30";
@@ -141,19 +191,16 @@ function MiniCalendar({
         <h2 className="text-sm font-bold text-white">Calendar</h2>
         <p className="text-xs text-white/40 mt-0.5">Select a date to filter appointments</p>
       </div>
-
       <div className="flex items-center justify-between mb-4">
         <button onClick={prev} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/5 text-white/70">‹</button>
         <span className="text-sm font-semibold text-white">{MONTH_NAMES[viewMonth]} {viewYear}</span>
         <button onClick={next} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/5 text-white/70">›</button>
       </div>
-
       <div className="grid grid-cols-7 mb-1">
         {DAY_NAMES.map(d => (
           <div key={d} className="text-center text-[10px] font-semibold text-white/35 py-1">{d}</div>
         ))}
       </div>
-
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
           if (!day) return <div key={`e-${i}`} />;
@@ -180,12 +227,12 @@ function MiniCalendar({
           );
         })}
       </div>
-
       <div className="mt-5 pt-4 border-t border-white/5 flex flex-col gap-2">
         {[
-          { color: "bg-blue-500",   label: "Pending"     },
-          { color: "bg-[#E41E6A]", label: "In Progress" },
-          { color: "bg-green-500",  label: "Completed"   },
+          { color: "bg-orange-400",  label: "Pending Verification" },
+          { color: "bg-green-500",   label: "Confirmed"            },
+          { color: "bg-[#E41E6A]",  label: "In Progress"          },
+          { color: "bg-blue-500",    label: "Pending"              },
         ].map(l => (
           <div key={l.label} className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${l.color}`} />
@@ -217,7 +264,6 @@ function AppointmentsPanel({
           {appointments.length} appointment{appointments.length !== 1 ? "s" : ""} scheduled
         </p>
       </div>
-
       {appointments.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <p className="text-sm text-white/40">No appointments for this date</p>
@@ -270,11 +316,7 @@ function CustomerSelect({
     <div className="space-y-2">
       <Label className="text-white/70">Customer *</Label>
       <div className="relative">
-        <select
-          className={selectCls}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-        >
+        <select className={selectCls} value={value} onChange={e => onChange(e.target.value)}>
           <option value="" disabled className="bg-[#0a0a0a]">
             {customers.length === 0 ? "Loading customers..." : "Select a customer"}
           </option>
@@ -293,21 +335,12 @@ function CustomerSelect({
   );
 }
 
-function ServiceSelect({
-  value, onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function ServiceSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="space-y-2">
       <Label className="text-white/70">Service</Label>
       <div className="relative">
-        <select
-          className={selectCls}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-        >
+        <select className={selectCls} value={value} onChange={e => onChange(e.target.value)}>
           <option value="" className="bg-[#0a0a0a]">Select a service</option>
           {SERVICE_OPTIONS.map(s => (
             <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>
@@ -321,23 +354,8 @@ function ServiceSelect({
 
 // ─── EMPTY FORM STATES ────────────────────────────────────────────────────────
 
-const emptyNew = {
-  customerId:  "",
-  date:        "",
-  time:        "",
-  service:     "",
-  totalAmount: "",
-};
-
-const emptyEdit = {
-  id:          "",
-  customerId:  "",
-  date:        "",
-  time:        "",
-  service:     "",
-  totalAmount: "",
-  status:      "Pending" as Appointment["status"],
-};
+const emptyNew  = { customerId: "", date: "", time: "", service: "", totalAmount: "" };
+const emptyEdit = { id: "", customerId: "", date: "", time: "", service: "", totalAmount: "", status: "Pending" as Appointment["status"] };
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
@@ -348,7 +366,6 @@ export function Appointments() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  // Modal open states
   const [viewDetailsOpen,     setViewDetailsOpen]     = useState(false);
   const [newAppointmentOpen,  setNewAppointmentOpen]  = useState(false);
   const [editAppointmentOpen, setEditAppointmentOpen] = useState(false);
@@ -357,7 +374,7 @@ export function Appointments() {
   const [newForm,  setNewForm]  = useState(emptyNew);
   const [editForm, setEditForm] = useState(emptyEdit);
 
-  // ── Fetch ────────────────────────────────────────────────────────────────
+  // ── Fetch ─────────────────────────────────────────────────────────────────
 
   useEffect(() => { fetchData(); }, []);
 
@@ -377,7 +394,7 @@ export function Appointments() {
     }
   };
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleViewDetails = (a: Appointment) => {
     setSelectedAppointment(a);
@@ -397,13 +414,10 @@ export function Appointments() {
     setEditAppointmentOpen(true);
   };
 
-
   const handleArchive = async (id: string) => {
     try {
       await updateAppointmentStatus(id, "Cancelled");
-      setAppointments(prev =>
-        prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a)
-      );
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a));
       setEditAppointmentOpen(false);
     } catch (err) {
       console.error(err);
@@ -411,66 +425,63 @@ export function Appointments() {
     }
   };
 
-  // CREATE
   const handleAddAppointment = async () => {
-  if (!newForm.customerId || !newForm.date || !newForm.time || !newForm.totalAmount) {
-    alert("Please fill in all required fields (Customer, Date, Time, Total Amount).");
-    return;
-  }
-  setIsSubmitting(true);
-  try {
-    const created = await createAppointment({   // now returns Appointment
-      customerId:  newForm.customerId,
-      service:     newForm.service || "N/A",
-      date:        newForm.date,
-      time:        newForm.time,
-      totalAmount: parseFloat(newForm.totalAmount),
-    });
-    // Optimistic insert — no full re-fetch needed
-    setAppointments(prev => [...prev, created]);
-    setNewAppointmentOpen(false);
-    setNewForm(emptyNew);
-  } catch (err: any) {
-    alert(`Failed to create appointment: ${err.message}`);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-  // SAVE EDIT
-  const handleMarkComplete = async (id: string) => {
-  try {
-    const updated = await updateAppointmentStatus(id, "Completed"); // now returns Appointment
-    setAppointments(prev => prev.map(a => a.id === id ? updated : a));
-    if (selectedAppointment?.id === id) setSelectedAppointment(updated);
-  } catch (err) {
-    console.error(err);
-    alert("Failed to update status.");
-  }
-};
+    if (!newForm.customerId || !newForm.date || !newForm.time || !newForm.totalAmount) {
+      alert("Please fill in all required fields (Customer, Date, Time, Total Amount).");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const created = await createAdminAppointment({
+        customerId:  newForm.customerId,
+        service:     newForm.service || "N/A",
+        date:        newForm.date,
+        time:        newForm.time,
+        totalAmount: parseFloat(newForm.totalAmount),
+      });
+      setAppointments(prev => [...prev, created]);
+      setNewAppointmentOpen(false);
+      setNewForm(emptyNew);
+    } catch (err: any) {
+      alert(`Failed to create appointment: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-const handleSaveEdit = async () => {
-  if (!editForm.customerId || !editForm.date || !editForm.time || !editForm.totalAmount) {
-    alert("Please fill in all required fields.");
-    return;
-  }
-  setIsSubmitting(true);
-  try {
-    const updated = await updateAppointment(editForm.id, {   // now returns Appointment
-      customerId:  editForm.customerId,
-      service:     editForm.service,
-      date:        editForm.date,
-      time:        editForm.time,
-      totalAmount: parseFloat(editForm.totalAmount),
-      status:      editForm.status,
-    });
-    setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
-    setEditAppointmentOpen(false);
-  } catch (err: any) {
-    alert(`Failed to save changes: ${err.message}`);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  const handleMarkComplete = async (id: string) => {
+    try {
+      const updated = await updateAppointmentStatus(id, "Completed");
+      setAppointments(prev => prev.map(a => a.id === id ? updated : a));
+      if (selectedAppointment?.id === id) setSelectedAppointment(updated);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update status.");
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm.customerId || !editForm.date || !editForm.time || !editForm.totalAmount) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const updated = await updateAppointment(editForm.id, {
+        customer_id:    editForm.customerId,
+        service_type:   editForm.service,
+        scheduled_date: new Date(`${editForm.date}T${editForm.time}`).toISOString(),
+        total_cost:     parseFloat(editForm.totalAmount),
+        status:         editForm.status,
+      });
+      setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
+      setEditAppointmentOpen(false);
+    } catch (err: any) {
+      alert(`Failed to save changes: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
@@ -503,7 +514,9 @@ const handleSaveEdit = async () => {
   }, [appointments]);
 
   const completedCount = appointments.filter(a => a.status === "Completed").length;
-  const pendingCount   = appointments.filter(a => a.status !== "Completed").length;
+  const pendingCount   = appointments.filter(a =>
+    a.status !== "Completed" && a.status !== "Cancelled" && a.status !== "Rejected"
+  ).length;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -527,10 +540,10 @@ const handleSaveEdit = async () => {
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: "Selected Day",       value: todaysAppointments.length,              sub: "Appointments listed",     subColor: ""               },
-          { label: "Total Appointments", value: isLoading ? "..." : appointments.length, sub: "All scheduled",          subColor: ""               },
-          { label: "Completed",          value: isLoading ? "..." : completedCount,      sub: "Finished services",      subColor: "text-green-400" },
-          { label: "Pending",            value: isLoading ? "..." : pendingCount,        sub: "Scheduled & In Progress", subColor: ""              },
+          { label: "Selected Day",       value: todaysAppointments.length,               sub: "Appointments listed",      subColor: ""               },
+          { label: "Total Appointments", value: isLoading ? "..." : appointments.length,  sub: "All scheduled",            subColor: ""               },
+          { label: "Completed",          value: isLoading ? "..." : completedCount,        sub: "Finished services",        subColor: "text-green-400" },
+          { label: "Pending",            value: isLoading ? "..." : pendingCount,          sub: "Scheduled & In Progress",  subColor: ""               },
         ].map(s => (
           <Card key={s.label} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden">
             <CardHeader className="pb-2">
@@ -546,16 +559,8 @@ const handleSaveEdit = async () => {
 
       {/* Calendar + Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
-        <MiniCalendar
-          selectedDate={selectedDate}
-          onSelect={setSelectedDate}
-          dateStatusMap={dateStatusMap}
-        />
-        <AppointmentsPanel
-          selectedDate={selectedDate}
-          appointments={todaysAppointments}
-          onViewDetails={handleViewDetails}
-        />
+        <MiniCalendar selectedDate={selectedDate} onSelect={setSelectedDate} dateStatusMap={dateStatusMap} />
+        <AppointmentsPanel selectedDate={selectedDate} appointments={todaysAppointments} onViewDetails={handleViewDetails} />
       </div>
 
       {/* All Appointments Table */}
@@ -565,7 +570,7 @@ const handleSaveEdit = async () => {
           <p className="text-xs text-white/40 mt-0.5">{appointments.length} total records</p>
         </div>
 
-        {/* Desktop table */}
+        {/* Desktop */}
         <div className="hidden sm:block overflow-x-auto">
           <Table className="w-full">
             <TableHeader>
@@ -581,15 +586,11 @@ const handleSaveEdit = async () => {
             <TableBody>
               {isLoading ? (
                 <TableRow className="border-white/5">
-                  <TableCell colSpan={6} className="text-center text-white/40 py-10">
-                    Loading appointments...
-                  </TableCell>
+                  <TableCell colSpan={6} className="text-center text-white/40 py-10">Loading appointments...</TableCell>
                 </TableRow>
               ) : allAppointments.length === 0 ? (
                 <TableRow className="border-white/5">
-                  <TableCell colSpan={6} className="text-center text-white/40 py-10">
-                    No appointments found.
-                  </TableCell>
+                  <TableCell colSpan={6} className="text-center text-white/40 py-10">No appointments found.</TableCell>
                 </TableRow>
               ) : allAppointments.map(a => (
                 <TableRow key={a.id} className="border-white/5 hover:bg-white/[0.03]">
@@ -602,21 +603,15 @@ const handleSaveEdit = async () => {
                   <TableCell className="text-white">{a.customerName}</TableCell>
                   <TableCell className="text-white">{a.service || "N/A"}</TableCell>
                   <TableCell className="text-white/70">{a.vehicle || "N/A"}</TableCell>
-                  <TableCell>
-                    <Badge className={getStatusBadgeClass(a.status)}>{a.status}</Badge>
-                  </TableCell>
+                  <TableCell><Badge className={getStatusBadgeClass(a.status)}>{a.status}</Badge></TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button size="sm" variant="outline"
                         className="border-white/10 text-white hover:bg-white/10"
-                        onClick={() => handleOpenEdit(a)}>
-                        Edit
-                      </Button>
+                        onClick={() => handleOpenEdit(a)}>Edit</Button>
                       <Button size="sm" variant="outline"
                         className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
-                        onClick={() => handleViewDetails(a)}>
-                        View
-                      </Button>
+                        onClick={() => handleViewDetails(a)}>View</Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -625,7 +620,7 @@ const handleSaveEdit = async () => {
           </Table>
         </div>
 
-        {/* Mobile list */}
+        {/* Mobile */}
         <div className="sm:hidden divide-y divide-white/5">
           {isLoading ? (
             <div className="p-6 text-center text-white/40">Loading appointments...</div>
@@ -645,14 +640,10 @@ const handleSaveEdit = async () => {
               <div className="pt-1 flex gap-2">
                 <Button size="sm" variant="outline"
                   className="border-white/10 text-white hover:bg-white/10"
-                  onClick={() => handleOpenEdit(a)}>
-                  Edit
-                </Button>
+                  onClick={() => handleOpenEdit(a)}>Edit</Button>
                 <Button size="sm" variant="outline"
                   className="border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10"
-                  onClick={() => handleViewDetails(a)}>
-                  View
-                </Button>
+                  onClick={() => handleViewDetails(a)}>View</Button>
               </div>
             </div>
           ))}
@@ -664,7 +655,6 @@ const handleSaveEdit = async () => {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
           <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
-
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-white">Appointment Details</h2>
@@ -674,7 +664,6 @@ const handleSaveEdit = async () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
               <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                 <h3 className="text-white/60 text-sm mb-3">Details</h3>
@@ -684,6 +673,7 @@ const handleSaveEdit = async () => {
                     { label: "Time",     value: selectedAppointment.time                  },
                     { label: "Customer", value: selectedAppointment.customerName          },
                     { label: "Vehicle",  value: selectedAppointment.vehicle || "N/A"      },
+                    { label: "Mobile",   value: selectedAppointment.mobileNumber || "N/A" },
                   ].map(f => (
                     <div key={f.label}>
                       <p className="text-white/40 text-xs">{f.label}</p>
@@ -692,26 +682,48 @@ const handleSaveEdit = async () => {
                   ))}
                 </div>
               </div>
-
               <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                 <h3 className="text-white/60 text-sm mb-2">Service</h3>
                 <p className="text-white">{selectedAppointment.service || "N/A"}</p>
               </div>
-
               <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                <h3 className="text-white/60 text-sm mb-2">Total Amount</h3>
-                <p className="text-[#E41E6A] text-xl">
-                  ₱{selectedAppointment.totalAmount?.toLocaleString?.() ?? selectedAppointment.totalAmount}
-                </p>
+                <h3 className="text-white/60 text-sm mb-3">Payment</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-white/40 text-xs">Total Amount</p>
+                    <p className="text-[#E41E6A] text-lg font-semibold">₱{selectedAppointment.totalAmount?.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/40 text-xs">Deposit Paid</p>
+                    <p className="text-green-400 text-lg font-semibold">₱{selectedAppointment.deposit?.toLocaleString()}</p>
+                  </div>
+                  {selectedAppointment.remainingBalance > 0 && (
+                    <div>
+                      <p className="text-white/40 text-xs">Remaining</p>
+                      <p className="text-yellow-400 text-lg font-semibold">₱{selectedAppointment.remainingBalance?.toLocaleString()}</p>
+                    </div>
+                  )}
+                  {selectedAppointment.paymentMethod && (
+                    <div>
+                      <p className="text-white/40 text-xs">Method</p>
+                      <p className="text-white">{selectedAppointment.paymentMethod}</p>
+                    </div>
+                  )}
+                </div>
               </div>
-
+              {selectedAppointment.adminRemarks && (
+                <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                  <h3 className="text-white/60 text-sm mb-2">Admin Remarks</h3>
+                  <p className="text-white">{selectedAppointment.adminRemarks}</p>
+                </div>
+              )}
               <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                 <h3 className="text-white/60 text-sm mb-2">Status</h3>
                 <div className="flex items-center justify-between gap-3">
                   <Badge className={getStatusBadgeClass(selectedAppointment.status)}>
                     {selectedAppointment.status}
                   </Badge>
-                  {selectedAppointment.status !== "Completed" && (
+                  {selectedAppointment.status !== "Completed" && selectedAppointment.status !== "Cancelled" && selectedAppointment.status !== "Rejected" && (
                     <Button size="sm"
                       className="bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                       onClick={() => handleMarkComplete(selectedAppointment.id)}>
@@ -721,12 +733,9 @@ const handleSaveEdit = async () => {
                 </div>
               </div>
             </div>
-
             <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end">
               <Button variant="outline" className="border-white/10 text-white hover:bg-white/10"
-                onClick={() => setViewDetailsOpen(false)}>
-                Close
-              </Button>
+                onClick={() => setViewDetailsOpen(false)}>Close</Button>
             </div>
           </div>
         </div>
@@ -737,59 +746,40 @@ const handleSaveEdit = async () => {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
           <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
-
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-white">New Appointment</h2>
-                <p className="text-xs text-white/40 mt-1">Fill in the appointment details</p>
+                <p className="text-xs text-white/40 mt-1">Admin-created — auto confirmed, no proof required</p>
               </div>
               <button onClick={() => setNewAppointmentOpen(false)} className="text-white/50 hover:text-white transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
-              <CustomerSelect
-                value={newForm.customerId}
-                onChange={id => setNewForm({ ...newForm, customerId: id })}
-                customers={customers}
-              />
-
+              <CustomerSelect value={newForm.customerId} onChange={id => setNewForm({ ...newForm, customerId: id })} customers={customers} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-white/70">Date *</Label>
                   <input type="date" className={`${inputCls} [color-scheme:dark]`}
-                    value={newForm.date}
-                    onChange={e => setNewForm({ ...newForm, date: e.target.value })} />
+                    value={newForm.date} onChange={e => setNewForm({ ...newForm, date: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-white/70">Time *</Label>
                   <input type="time" className={`${inputCls} [color-scheme:dark]`}
-                    value={newForm.time}
-                    onChange={e => setNewForm({ ...newForm, time: e.target.value })} />
+                    value={newForm.time} onChange={e => setNewForm({ ...newForm, time: e.target.value })} />
                 </div>
               </div>
-
-              <ServiceSelect
-                value={newForm.service}
-                onChange={v => setNewForm({ ...newForm, service: v })}
-              />
-
+              <ServiceSelect value={newForm.service} onChange={v => setNewForm({ ...newForm, service: v })} />
               <div className="space-y-2">
                 <Label className="text-white/70">Total Amount (₱) *</Label>
                 <input type="number" placeholder="0" className={inputCls}
-                  value={newForm.totalAmount}
-                  onChange={e => setNewForm({ ...newForm, totalAmount: e.target.value })} />
+                  value={newForm.totalAmount} onChange={e => setNewForm({ ...newForm, totalAmount: e.target.value })} />
               </div>
             </div>
-
             <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
               <Button variant="outline" className="border-white/10 text-white hover:bg-white/10"
-                onClick={() => setNewAppointmentOpen(false)} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button
-                className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90"
+                onClick={() => setNewAppointmentOpen(false)} disabled={isSubmitting}>Cancel</Button>
+              <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90"
                 onClick={handleAddAppointment} disabled={isSubmitting}>
                 {isSubmitting ? "Adding..." : "Add Appointment"}
               </Button>
@@ -803,7 +793,6 @@ const handleSaveEdit = async () => {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
           <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
-
             <div className="p-6 border-b border-white/10 flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-white">Edit Appointment</h2>
@@ -813,50 +802,31 @@ const handleSaveEdit = async () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
-              <CustomerSelect
-                value={editForm.customerId}
-                onChange={id => setEditForm({ ...editForm, customerId: id })}
-                customers={customers}
-              />
-
+              <CustomerSelect value={editForm.customerId} onChange={id => setEditForm({ ...editForm, customerId: id })} customers={customers} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-white/70">Date</Label>
                   <input type="date" className={`${inputCls} [color-scheme:dark]`}
-                    value={editForm.date}
-                    onChange={e => setEditForm({ ...editForm, date: e.target.value })} />
+                    value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-white/70">Time</Label>
                   <input type="time" className={`${inputCls} [color-scheme:dark]`}
-                    value={editForm.time}
-                    onChange={e => setEditForm({ ...editForm, time: e.target.value })} />
+                    value={editForm.time} onChange={e => setEditForm({ ...editForm, time: e.target.value })} />
                 </div>
               </div>
-
-              <ServiceSelect
-                value={editForm.service}
-                onChange={v => setEditForm({ ...editForm, service: v })}
-              />
-
+              <ServiceSelect value={editForm.service} onChange={v => setEditForm({ ...editForm, service: v })} />
               <div className="space-y-2">
                 <Label className="text-white/70">Total Amount (₱)</Label>
                 <input type="number" className={inputCls}
-                  value={editForm.totalAmount}
-                  onChange={e => setEditForm({ ...editForm, totalAmount: e.target.value })} />
+                  value={editForm.totalAmount} onChange={e => setEditForm({ ...editForm, totalAmount: e.target.value })} />
               </div>
-
               <div className="space-y-2">
                 <Label className="text-white/70">Status</Label>
                 <div className="relative">
-                  <select className={selectCls}
-                    value={editForm.status}
-                    onChange={e => setEditForm({
-                      ...editForm,
-                      status: e.target.value as Appointment["status"],
-                    })}>
+                  <select className={selectCls} value={editForm.status}
+                    onChange={e => setEditForm({ ...editForm, status: e.target.value as Appointment["status"] })}>
                     {STATUS_OPTIONS.map(s => (
                       <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>
                     ))}
@@ -865,21 +835,14 @@ const handleSaveEdit = async () => {
                 </div>
               </div>
             </div>
-
             <div className="p-6 border-t border-white/10 bg-white/5 flex justify-between items-center gap-3">
               <Button variant="outline"
                 className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                onClick={() => handleArchive(editForm.id)}
-                disabled={isSubmitting}>
-                Archive
-              </Button>
+                onClick={() => handleArchive(editForm.id)} disabled={isSubmitting}>Archive</Button>
               <div className="flex gap-3">
                 <Button variant="outline" className="border-white/10 text-white hover:bg-white/10"
-                  onClick={() => setEditAppointmentOpen(false)} disabled={isSubmitting}>
-                  Cancel
-                </Button>
-                <Button
-                  className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90"
+                  onClick={() => setEditAppointmentOpen(false)} disabled={isSubmitting}>Cancel</Button>
+                <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90"
                   onClick={handleSaveEdit} disabled={isSubmitting}>
                   {isSubmitting ? "Saving..." : "Save Changes"}
                 </Button>
