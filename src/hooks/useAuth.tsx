@@ -36,54 +36,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
  const fetchProfile = async (supabaseUser: User) => {
   try {
-    const email = supabaseUser.email ?? '';
     const API = import.meta.env.VITE_API_BASE_URL;
 
-    // Use NestJS instead of direct Supabase — bypasses RLS entirely
-    const res = await fetch(`${API}/customers/by-email/${encodeURIComponent(email)}`);
+    // Use NestJS to fetch profile — bypasses RLS
+    const res = await fetch(`${API}/customers/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
     const customerData = res.ok ? await res.json() : null;
 
-    // Auto-create customers row for OAuth/new users
-    if (!customerData) {
-      const createRes = await fetch(`${API}/customers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name:   supabaseUser.user_metadata?.full_name ?? email,
-          email:  email,
-          status: 'Active',
-        }),
-      });
-      const newCustomer = createRes.ok ? await createRes.json() : null;
-
-      setProfile({
-        id:         supabaseUser.id,
-        customerId: newCustomer?.id ?? supabaseUser.id,
-        full_name:  newCustomer?.name ?? supabaseUser.user_metadata?.full_name ?? '',
-        name:       newCustomer?.name ?? supabaseUser.user_metadata?.full_name ?? '',
-        role:       'customer',
-        avatar_url: supabaseUser.user_metadata?.avatar_url ?? null,
-        email:      email,
-        provider:   supabaseUser.app_metadata?.provider ?? '',
-        created_at: supabaseUser.created_at,
-      });
-      return;
-    }
+    // Also get role from profiles table via NestJS
+    const profileRes = await fetch(`${API}/profiles/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
+    const profileData = profileRes.ok ? await profileRes.json() : null;
 
     setProfile({
       id:         supabaseUser.id,
       customerId: customerData?.id ?? supabaseUser.id,
-      full_name:  customerData?.name ?? '',
-      name:       customerData?.name ?? '',
-      role:       'customer',
-      avatar_url: supabaseUser.user_metadata?.avatar_url ?? null,
-      email:      email,
+      full_name:  profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
+      name:       profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
+      role:       profileData?.role ?? 'customer',
+      avatar_url: profileData?.avatar_url ?? null,
+      email:      supabaseUser.email ?? '',
       provider:   supabaseUser.app_metadata?.provider ?? '',
       created_at: supabaseUser.created_at,
     });
   } catch (err) {
     console.error('fetchProfile threw:', err);
-    // Fallback to auth metadata so UI never stays blank
     setProfile({
       id:         supabaseUser.id,
       customerId: supabaseUser.id,

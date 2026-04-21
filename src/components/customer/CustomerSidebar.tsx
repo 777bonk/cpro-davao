@@ -61,17 +61,22 @@ export function CustomerSidebar({ activeSection, onSectionChange }: CustomerSide
               {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#E41E6A] flex-shrink-0" />}
             </button>
           );
+          
+          
         })}
+
+        
       </nav>
-        <div className="px-3 pb-1">
+
+      <div className="px-3 pb-1">
   <button
     onClick={() => navigate('/')}
     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
   >
-    <Globe className="w-4 h-4 flex-shrink-0" />
-    <span>View Website</span>
-  </button>
-</div>
+            <Globe className="w-4 h-4 flex-shrink-0" />
+          <span>View Website</span>
+           </button>
+          </div>
       <div className="p-3 border-t border-white/10">
         <button onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white/70 hover:text-white hover:bg-red-500/20 transition-colors">

@@ -37,29 +37,27 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
   setIsLoading(true);
   setError("");
 
+  const timeout = setTimeout(() => {
+    setIsLoading(false);
+    setError("Request timed out. Please try again.");
+  }, 10000);
+
   try {
-    // Step 1: sign in
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    clearTimeout(timeout);
     if (error) throw error;
 
-    // Step 2: check employees table for position-based role
-    const { data: employeeData } = await supabase
-      .from('employees')
-      .select('position')
-      .eq('email', email)
-      .maybeSingle();
+    // Fetch role from profiles via NestJS
+    const API = import.meta.env.VITE_API_BASE_URL;
+    const res = await fetch(`${API}/profiles/by-email/${encodeURIComponent(email)}`);
+    const profileData = res.ok ? await res.json() : null;
 
-    // Step 3: map position → route
-    const position = employeeData?.position?.toLowerCase() ?? '';
-    let role = 'customer';
-    if (position.includes('admin'))      role = 'admin';
-    else if (position.includes('front')) role = 'frontdesk';
-    else if (position.includes('staff') || position.includes('technician')) role = 'staff';
-
+    const role = profileData?.role ?? 'customer';
     onClose();
     navigate(roleToPath(role));
 
   } catch (err: any) {
+    clearTimeout(timeout);
     setError(err.message || "Invalid email or password.");
   } finally {
     setIsLoading(false);
