@@ -1,3 +1,4 @@
+import { getCustomers } from "../../services/customer";
 import {
   getAppointments,
   createAppointment,
@@ -10,27 +11,21 @@ import {
   Eye, XCircle, ChevronDown, X, User, Phone, FileText, CalendarX,
 } from "lucide-react";
 
-// ─── API PLACEHOLDERS (Replace with your actual service imports) ──────────────
-// import { getAdminAppointments, createAdminAppointment, updateAppointmentStatus } from "../../services/appointments";
-
-// ─── TYPES ────────────────────────────────────────────────────────────────────
-
 type AppointmentStatus = "Confirmed" | "Pending" | "In Progress" | "Completed" | "Cancelled";
 
 interface Appointment {
   id: number | string;
+  customerId?: string;
   customer: string;
   contact: string;
   vehicle: string;
   service: string;
-  date: string;       // "YYYY-MM-DD"
+  date: string;
   time: string;
   deposit: number;
   notes: string;
   status: AppointmentStatus;
 }
-
-// ─── CONSTANTS & CONFIG ───────────────────────────────────────────────────────
 
 const SERVICE_OPTIONS = [
   "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
@@ -54,12 +49,8 @@ const STATUS_STYLE: Record<AppointmentStatus, { bg: string; text: string; dot: s
   Cancelled:    { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
 };
 
-// ─── SHARED CLASSES ───────────────────────────────────────────────────────────
-
 const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 const cardCls  = "bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur rounded-xl border";
-
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -75,12 +66,10 @@ function formatShort(dateStr: string) {
 function serviceIcon(service: string) {
   const s = service.toLowerCase();
   if (s.includes("coating")) return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
-  if (s.includes("ppf") || s.includes("paint protection")) return <Layers   className="w-4 h-4 text-violet-400" />;
-  if (s.includes("tint"))    return <Sparkles className="w-4 h-4 text-sky-400"   />;
-  return                            <Car      className="w-4 h-4 text-white/50"   />;
+  if (s.includes("ppf") || s.includes("paint protection")) return <Layers className="w-4 h-4 text-violet-400" />;
+  if (s.includes("tint"))    return <Sparkles className="w-4 h-4 text-sky-400"    />;
+  return                            <Car      className="w-4 h-4 text-white/50"    />;
 }
-
-// ─── STATUS BADGE ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: AppointmentStatus }) {
   const s = STATUS_STYLE[status] || STATUS_STYLE.Pending;
@@ -91,8 +80,6 @@ function StatusBadge({ status }: { status: AppointmentStatus }) {
     </span>
   );
 }
-
-// ─── CALENDAR ─────────────────────────────────────────────────────────────────
 
 function CalendarCard({
   selected, onSelect, dotDates,
@@ -116,10 +103,8 @@ function CalendarCard({
 
   const prev = () => viewMonth === 0 ? (setViewMonth(11), setViewYear(y => y - 1)) : setViewMonth(m => m - 1);
   const next = () => viewMonth === 11 ? (setViewMonth(0),  setViewYear(y => y + 1)) : setViewMonth(m => m + 1);
-
   const cellKey = (day: number) =>
     `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-
   const dotColor = (statuses: AppointmentStatus[]) => {
     if (statuses.includes("In Progress")) return "bg-blue-500";
     if (statuses.includes("Confirmed"))   return "bg-green-500";
@@ -133,7 +118,6 @@ function CalendarCard({
         <h2 className="text-sm font-bold text-white">Calendar</h2>
         <p className="text-xs text-white/50 mt-0.5">Select a date to filter appointments</p>
       </div>
-
       <div className="flex items-center justify-between mb-4">
         <button onClick={prev} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors">
           <ChevronLeft className="w-4 h-4 text-white/60" />
@@ -143,11 +127,9 @@ function CalendarCard({
           <ChevronRight className="w-4 h-4 text-white/60" />
         </button>
       </div>
-
       <div className="grid grid-cols-7 mb-1">
         {DAY_NAMES.map(d => <div key={d} className="text-center text-[10px] font-semibold text-white/30 py-1">{d}</div>)}
       </div>
-
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
           if (!day) return <div key={`e-${i}`} />;
@@ -156,15 +138,11 @@ function CalendarCard({
           const isSel   = key === selected;
           const dots    = dotDates[key];
           return (
-            <button
-              key={key}
-              onClick={() => onSelect(key)}
-              className={`
-                relative flex flex-col items-center justify-center w-8 h-8 mx-auto rounded-full text-xs font-medium transition-all
-                ${isSel   ? "bg-[#E41E6A] text-white shadow-md shadow-[#E41E6A]/30" : ""}
+            <button key={key} onClick={() => onSelect(key)}
+              className={`relative flex flex-col items-center justify-center w-8 h-8 mx-auto rounded-full text-xs font-medium transition-all
+                ${isSel ? "bg-[#E41E6A] text-white shadow-md shadow-[#E41E6A]/30" : ""}
                 ${isToday && !isSel ? "border border-[#E41E6A] text-[#E41E6A]" : ""}
-                ${!isSel && !isToday ? "text-white/60 hover:bg-white/10" : ""}
-              `}
+                ${!isSel && !isToday ? "text-white/60 hover:bg-white/10" : ""}`}
             >
               {day}
               {dots && <span className={`absolute bottom-0.5 w-1.5 h-1.5 rounded-full ${isSel ? "bg-white" : dotColor(dots)}`} />}
@@ -172,7 +150,6 @@ function CalendarCard({
           );
         })}
       </div>
-
       <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-1.5">
         {[
           { dot: "bg-green-500",  label: "Confirmed"   },
@@ -189,8 +166,6 @@ function CalendarCard({
   );
 }
 
-// ─── APPOINTMENT PANEL ────────────────────────────────────────────────────────
-
 function AppointmentsPanel({
   selected, appts, onViewDetail,
 }: {
@@ -206,7 +181,6 @@ function AppointmentsPanel({
         </h2>
         <p className="text-xs text-white/50 mt-0.5">{appts.length} appointment{appts.length !== 1 ? "s" : ""} scheduled</p>
       </div>
-
       {appts.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
           <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mb-3">
@@ -245,8 +219,6 @@ function AppointmentsPanel({
   );
 }
 
-// ─── ALL APPOINTMENTS TABLE ───────────────────────────────────────────────────
-
 function AppointmentTable({
   appts, onViewDetail, onCancel,
 }: {
@@ -260,8 +232,6 @@ function AppointmentTable({
         <h2 className="text-sm font-bold text-white">All Appointments</h2>
         <span className="text-xs text-white/40">{appts.length} total records</span>
       </div>
-
-      {/* Mobile */}
       <div className="sm:hidden divide-y divide-white/5">
         {appts.map(a => (
           <div key={a.id} className="p-4 flex flex-col gap-2 hover:bg-white/5 transition-colors">
@@ -285,8 +255,6 @@ function AppointmentTable({
           </div>
         ))}
       </div>
-
-      {/* Desktop */}
       <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -343,21 +311,34 @@ function AppointmentTable({
 // ─── ADD APPOINTMENT MODAL ────────────────────────────────────────────────────
 
 function AddAppointmentModal({
-  onClose, onSave,
+  onClose, onSave, customers,
 }: {
   onClose: () => void;
   onSave: (a: Omit<Appointment, "id">) => void;
+  customers: any[];
 }) {
   const [form, setForm] = useState({
-    customer: "", contact: "", vehicle: "",
+    customerId: "", customer: "", contact: "", vehicle: "",
     service: "", date: todayStr(), time: "9:00 AM",
     deposit: "", notes: "", status: "Confirmed" as AppointmentStatus,
   });
   const [error, setError] = useState("");
 
+  // Auto-fill contact and vehicle when customer selected
+  const handleCustomerChange = (id: string) => {
+    const found = customers.find(c => c.id === id);
+    setForm(f => ({
+      ...f,
+      customerId: id,
+      customer:   found?.name    ?? "",
+      contact:    found?.contact ?? "",
+      vehicle:    found?.vehicle ?? "",
+    }));
+  };
+
   const handleSave = () => {
-    if (!form.customer || !form.vehicle || !form.service || !form.date || !form.time) {
-      setError("Please fill in all required fields."); return;
+    if (!form.customerId || !form.vehicle || !form.service || !form.date || !form.time) {
+      setError("Please select a customer and fill in all required fields."); return;
     }
     onSave({ ...form, deposit: parseFloat(form.deposit) || 0 });
     onClose();
@@ -381,64 +362,95 @@ function AddAppointmentModal({
         </div>
 
         <div className="p-6 overflow-y-auto space-y-4">
+
+          {/* ── Customer dropdown ── */}
+          <div>
+            {field("Customer", true)}
+            <div className="relative">
+              <select
+                className={`${inputCls} appearance-none pr-8`}
+                value={form.customerId}
+                onChange={e => handleCustomerChange(e.target.value)}
+              >
+                <option value="" className="bg-[#0a0a0a]">Select a customer...</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id} className="bg-[#0a0a0a]">
+                    {c.name}{c.vehicle ? ` · ${c.vehicle}` : ""}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Auto-filled read-only fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              {field("Customer Name", true)}
-              <input className={inputCls} placeholder="Full name" value={form.customer} onChange={e => setForm({...form, customer: e.target.value})} />
+              {field("Contact Number")}
+              <input className={inputCls + " opacity-60"} placeholder="Auto-filled" value={form.contact}
+                onChange={e => setForm({...form, contact: e.target.value})} />
             </div>
             <div>
-              {field("Contact Number")}
-              <input className={inputCls} placeholder="09XX-XXX-XXXX" value={form.contact} onChange={e => setForm({...form, contact: e.target.value})} />
+              {field("Vehicle", true)}
+              <input className={inputCls} placeholder="Year Make Model" value={form.vehicle}
+                onChange={e => setForm({...form, vehicle: e.target.value})} />
             </div>
           </div>
-          <div>
-            {field("Vehicle", true)}
-            <input className={inputCls} placeholder="Year Make Model (e.g. 2023 Toyota Fortuner)" value={form.vehicle} onChange={e => setForm({...form, vehicle: e.target.value})} />
-          </div>
+
           <div>
             {field("Service", true)}
             <div className="relative">
-              <select className={`${inputCls} appearance-none pr-8`} value={form.service} onChange={e => setForm({...form, service: e.target.value})}>
+              <select className={`${inputCls} appearance-none pr-8`} value={form.service}
+                onChange={e => setForm({...form, service: e.target.value})}>
                 <option value="" className="bg-[#0a0a0a]">Select a service...</option>
                 {SERVICE_OPTIONS.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {field("Date", true)}
-              <input type="date" className={`${inputCls} [color-scheme:dark]`} value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
+              <input type="date" className={`${inputCls} [color-scheme:dark]`} value={form.date}
+                onChange={e => setForm({...form, date: e.target.value})} />
             </div>
             <div>
               {field("Time", true)}
               <div className="relative">
-                <select className={`${inputCls} appearance-none pr-8`} value={form.time} onChange={e => setForm({...form, time: e.target.value})}>
+                <select className={`${inputCls} appearance-none pr-8`} value={form.time}
+                  onChange={e => setForm({...form, time: e.target.value})}>
                   {TIME_OPTIONS.map(t => <option key={t} value={t} className="bg-[#0a0a0a]">{t}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
               </div>
             </div>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {field("Deposit (₱)")}
-              <input type="number" className={inputCls} placeholder="0" value={form.deposit} onChange={e => setForm({...form, deposit: e.target.value})} />
+              <input type="number" className={inputCls} placeholder="0" value={form.deposit}
+                onChange={e => setForm({...form, deposit: e.target.value})} />
             </div>
             <div>
               {field("Status")}
               <div className="relative">
-                <select className={`${inputCls} appearance-none pr-8`} value={form.status} onChange={e => setForm({...form, status: e.target.value as AppointmentStatus})}>
+                <select className={`${inputCls} appearance-none pr-8`} value={form.status}
+                  onChange={e => setForm({...form, status: e.target.value as AppointmentStatus})}>
                   {ALL_STATUSES.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
               </div>
             </div>
           </div>
+
           <div>
             {field("Notes")}
-            <textarea className={`${inputCls} resize-none h-20 py-2.5`} placeholder="Optional notes..." value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
+            <textarea className={`${inputCls} resize-none h-20 py-2.5`} placeholder="Optional notes..."
+              value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
           </div>
+
           {error && (
             <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
               <X className="w-4 h-4 flex-shrink-0" />{error}
@@ -497,35 +509,27 @@ function DetailModal({
           </div>
           <button onClick={onClose} className="text-white/50 hover:text-white transition-colors flex-shrink-0"><X className="w-5 h-5" /></button>
         </div>
-
         <div className="p-6 overflow-y-auto">
-          <Row icon={<User      className="w-4 h-4 text-white/50" />} label="Customer"  value={appt.customer} />
-          <Row icon={<Phone     className="w-4 h-4 text-white/50" />} label="Contact"   value={appt.contact || "N/A"} />
-          <Row icon={<Car       className="w-4 h-4 text-white/50" />} label="Vehicle"   value={appt.vehicle} />
-          <Row icon={<Shield    className="w-4 h-4 text-[#E41E6A]"/>} label="Service"   value={appt.service} />
-          <Row icon={<Clock     className="w-4 h-4 text-[#E41E6A]"/>} label="Schedule"  value={`${formatShort(appt.date)} · ${appt.time}`} />
-          <Row icon={<Banknote  className="w-4 h-4 text-green-400"/>} label="Deposit" value={`₱${appt.deposit.toLocaleString()}`} />
+          <Row icon={<User     className="w-4 h-4 text-white/50" />} label="Customer" value={appt.customer} />
+          <Row icon={<Phone    className="w-4 h-4 text-white/50" />} label="Contact"  value={appt.contact || "N/A"} />
+          <Row icon={<Car      className="w-4 h-4 text-white/50" />} label="Vehicle"  value={appt.vehicle} />
+          <Row icon={<Shield   className="w-4 h-4 text-[#E41E6A]"/>} label="Service"  value={appt.service} />
+          <Row icon={<Clock    className="w-4 h-4 text-[#E41E6A]"/>} label="Schedule" value={`${formatShort(appt.date)} · ${appt.time}`} />
+          <Row icon={<Banknote className="w-4 h-4 text-green-400"/>} label="Deposit"  value={`₱${appt.deposit.toLocaleString()}`} />
           {appt.notes && <Row icon={<FileText className="w-4 h-4 text-white/50" />} label="Notes" value={appt.notes} />}
-
           <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-xs text-white/50 font-medium mb-2">Update Status</p>
             <div className="relative">
-              <select
-                className={`${inputCls} appearance-none pr-8 font-semibold`}
-                value={status}
-                onChange={e => setStatus(e.target.value as AppointmentStatus)}
-              >
+              <select className={`${inputCls} appearance-none pr-8 font-semibold`} value={status}
+                onChange={e => setStatus(e.target.value as AppointmentStatus)}>
                 {ALL_STATUSES.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </div>
         </div>
-
         <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
-            Close
-          </button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Close</button>
           <button onClick={handleUpdate} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">
             Update Status
           </button>
@@ -539,11 +543,10 @@ function DetailModal({
 
 export function FrontDeskAppointments() {
   const today = todayStr();
-  
-  // State is now initialized as an empty array, ready for backend data.
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [customers,    setCustomers]    = useState<any[]>([]);
   const [isLoading,    setIsLoading]    = useState(true);
-  
   const [selected,     setSelected]     = useState(today);
   const [search,       setSearch]       = useState("");
   const [showAdd,      setShowAdd]      = useState(false);
@@ -553,13 +556,17 @@ export function FrontDeskAppointments() {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  // ─── DATA FETCHING (Simulated) ───
+  useEffect(() => { fetchData(); }, []);
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const data = await getAppointments();
-      // Map Appointment service shape → component shape
-      const mapped: Appointment[] = data.map((a) => ({
+      const [cust, data] = await Promise.all([
+        getCustomers().catch(() => []),
+        getAppointments().catch(() => []),
+      ]);
+      setCustomers(cust);
+      setAppointments(data.map((a) => ({
         id:       a.id,
         customer: a.customerName,
         contact:  "",
@@ -570,26 +577,25 @@ export function FrontDeskAppointments() {
         deposit:  a.totalAmount,
         notes:    "",
         status:   a.status as AppointmentStatus,
-      }));
-      setAppointments(mapped);
+      })));
     } catch (err) {
       console.error("Failed to fetch appointments:", err);
     } finally {
       setIsLoading(false);
     }
   };
-  // ─── HANDLERS ───
+
+  // ── FIXED: uses customerId (UUID) not customer name ──
   const handleAdd = async (appt: Omit<Appointment, "id">) => {
     try {
-      // Convert "9:00 AM" → "09:00" for the service layer
       const [timePart, meridiem] = appt.time.split(" ");
-      let [hours, minutes]       = timePart.split(":").map(Number);
+      let [hours, minutes] = timePart.split(":").map(Number);
       if (meridiem === "PM" && hours !== 12) hours += 12;
       if (meridiem === "AM" && hours === 12) hours  = 0;
       const time24 = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 
       const created = await createAppointment({
-        customerId:  appt.customer, // adjust if you have a real ID
+        customerId:  appt.customerId!, // ← real UUID from dropdown
         service:     appt.service,
         date:        appt.date,
         time:        time24,
@@ -597,16 +603,17 @@ export function FrontDeskAppointments() {
       });
 
       setAppointments(prev => [...prev, {
-        id:       created.id,
-        customer: created.customerName,
-        contact:  appt.contact,
-        vehicle:  created.vehicle,
-        service:  created.service,
-        date:     created.date,
-        time:     appt.time,
-        deposit:  created.totalAmount,
-        notes:    appt.notes,
-        status:   created.status as AppointmentStatus,
+        id:         created.id,
+        customerId: appt.customerId,
+        customer:   created.customerName,
+        contact:    appt.contact,
+        vehicle:    created.vehicle,
+        service:    created.service,
+        date:       created.date,
+        time:       appt.time,
+        deposit:    created.totalAmount,
+        notes:      appt.notes,
+        status:     created.status as AppointmentStatus,
       }]);
     } catch (err) {
       console.error("Failed to create appointment:", err);
@@ -616,25 +623,21 @@ export function FrontDeskAppointments() {
   const handleCancel = async (id: number | string) => {
     try {
       await updateAppointmentStatus(String(id), "Cancelled");
-      setAppointments(prev =>
-        prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a)
-      );
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a));
     } catch (err) {
       console.error("Failed to cancel appointment:", err);
     }
   };
-  
+
   const handleStatusChange = async (id: number | string, status: AppointmentStatus) => {
     try {
       await updateAppointmentStatus(String(id), status);
-      setAppointments(prev =>
-        prev.map(a => a.id === id ? { ...a, status } : a)
-      );
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
     } catch (err) {
       console.error("Failed to update status:", err);
     }
   };
-  // ─── COMPUTED DATA ───
+
   const dotDates = useMemo(() => {
     const map: Record<string, AppointmentStatus[]> = {};
     appointments.forEach(a => {
@@ -653,8 +656,8 @@ export function FrontDeskAppointments() {
     () => appointments
       .filter(a =>
         a.customer.toLowerCase().includes(search.toLowerCase()) ||
-        a.service.toLowerCase().includes(search.toLowerCase()) ||
-        a.vehicle.toLowerCase().includes(search.toLowerCase()) ||
+        a.service.toLowerCase().includes(search.toLowerCase())  ||
+        a.vehicle.toLowerCase().includes(search.toLowerCase())  ||
         a.status.toLowerCase().includes(search.toLowerCase())
       )
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
@@ -664,7 +667,6 @@ export function FrontDeskAppointments() {
   return (
     <div className="space-y-6">
 
-      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-white text-3xl font-bold mb-1">Manage Appointments</h1>
@@ -674,48 +676,38 @@ export function FrontDeskAppointments() {
           onClick={() => setShowAdd(true)}
           className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
         >
-          <Plus className="w-4 h-4" />
-          New Appointment
+          <Plus className="w-4 h-4" />New Appointment
         </button>
       </div>
 
-      {/* ── Search + Filter ── */}
       <div className="flex items-center gap-3 max-w-lg">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by customer, service, vehicle..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors"
-          />
+          <input type="text" placeholder="Search by customer, service, vehicle..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors" />
         </div>
         <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white/60 bg-white/5 border border-white/10 rounded-xl shadow-sm hover:border-white/20 hover:text-white hover:bg-white/10 transition-colors">
           <SlidersHorizontal className="w-4 h-4" />Filter
         </button>
       </div>
 
-      {/* ── Content Area ── */}
       {isLoading ? (
         <div className={`${cardCls} flex items-center justify-center h-40 text-white/50`}>
           Loading appointments...
         </div>
       ) : (
         <>
-          {/* ── Calendar + Panel ── */}
           <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
             <CalendarCard selected={selected} onSelect={setSelected} dotDates={dotDates} />
             <AppointmentsPanel selected={selected} appts={forSelected} onViewDetail={setDetailAppt} />
           </div>
-
-          {/* ── All Appointments Table ── */}
           <AppointmentTable appts={filtered} onViewDetail={setDetailAppt} onCancel={handleCancel} />
         </>
       )}
 
-      {/* ── Modals ── */}
-      {showAdd    && <AddAppointmentModal onClose={() => setShowAdd(false)} onSave={handleAdd} />}
+      {/* ── FIXED: customers prop now passed ── */}
+      {showAdd    && <AddAppointmentModal onClose={() => setShowAdd(false)} onSave={handleAdd} customers={customers} />}
       {detailAppt && <DetailModal appt={detailAppt} onClose={() => setDetailAppt(null)} onStatusChange={handleStatusChange} />}
 
     </div>

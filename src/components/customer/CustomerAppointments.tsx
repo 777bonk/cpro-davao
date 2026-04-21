@@ -13,29 +13,37 @@ import { useAuth } from "../../hooks/useAuth";
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
 type AppointmentStatus =
-  | "Confirmed" | "Pending" | "In Progress"
-  | "Completed" | "Cancelled" | "Scheduled";
+  | "Pending Verification"
+  | "Confirmed"
+  | "Pending"
+  | "In Progress"
+  | "Completed"
+  | "Cancelled"
+  | "Scheduled"
+  | "Rejected";
 
 interface Appointment {
-  id:       string | number;
-  service:  string;
-  vehicle:  string;
-  date:     string;
-  time:     string;
-  deposit:  number;
-  status:   AppointmentStatus;
-  notes?:   string;
+  id: string | number;
+  service: string;
+  vehicle: string;
+  date: string;
+  time: string;
+  deposit: number;
+  status: AppointmentStatus;
+  notes?: string;
 }
 
 // ─── STATUS CONFIG ────────────────────────────────────────────────────────────
 
 const STATUS: Record<string, { bg: string; text: string; dot: string; border: string }> = {
-  Confirmed:     { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30"  },
-  Pending:       { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30" },
-  Scheduled:     { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30"  },
-  "In Progress": { bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30"   },
-  Completed:     { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10"      },
-  Cancelled:     { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
+  "Pending Verification": { bg: "bg-orange-500/20", text: "text-orange-300", dot: "bg-orange-400", border: "border-orange-500/30" },
+  Confirmed: { bg: "bg-green-500/20", text: "text-green-400", dot: "bg-green-500", border: "border-green-500/30" },
+  Pending: { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30" },
+  Scheduled: { bg: "bg-green-500/20", text: "text-green-400", dot: "bg-green-500", border: "border-green-500/30" },
+  "In Progress": { bg: "bg-blue-500/20", text: "text-blue-400", dot: "bg-blue-500", border: "border-blue-500/30" },
+  Completed: { bg: "bg-white/10", text: "text-white/50", dot: "bg-white/30", border: "border-white/10" },
+  Cancelled: { bg: "bg-red-500/20", text: "text-red-400", dot: "bg-red-500", border: "border-red-500/30" },
+  Rejected: { bg: "bg-red-500/20", text: "text-red-400", dot: "bg-red-500", border: "border-red-500/30" },
 };
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -45,6 +53,43 @@ const MONTH_NAMES = [
   "July","August","September","October","November","December",
 ];
 const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+const VEHICLE_CLASS_OPTIONS = [
+  { label: "Sedan", value: "Sedan" },
+  { label: "Hatchback", value: "Hatchback" },
+  { label: "Crossover", value: "Crossover" },
+  { label: "SUV", value: "SUV" },
+  { label: "Pickup", value: "Pickup" },
+  { label: "Van", value: "Van" },
+  { label: "MPV", value: "MPV" },
+  { label: "Full-size SUV", value: "Full-size SUV" },
+
+  { label: "Scooter", value: "Scooter" },
+  { label: "Underbone", value: "Underbone" },
+  { label: "Small Displacement Motorcycle", value: "Small Displacement Motorcycle" },
+  { label: "Naked Bike", value: "Naked Bike" },
+  { label: "Sport Bike", value: "Sport Bike" },
+  { label: "Cruiser", value: "Cruiser" },
+  { label: "Adventure Bike", value: "Adventure Bike" },
+  { label: "Big Bike", value: "Big Bike" },
+];
+
+const DEFAULT_SERVICES = [
+  { name: "Ceramic Coating - Full Body", price: 12000 },
+  { name: "Ceramic Coating - Partial", price: 7000 },
+  { name: "PPF - Hood & Fenders", price: 15000 },
+  { name: "PPF - Full Body", price: 65000 },
+  { name: "Window Tinting - Full Car", price: 5000 },
+  { name: "Full Interior Detailing", price: 3500 },
+  { name: "Nano Ceramic Spray", price: 2500 },
+  { name: "Paint Decontamination", price: 3000 },
+];
+
+const DEFAULT_ADDONS = [
+  { name: "Glass Coating", price: 1500 },
+  { name: "Wheel Coating", price: 2000 },
+  { name: "Engine Bay Detailing", price: 1200 },
+];
 
 function todayStr() {
   const d = new Date();
@@ -57,25 +102,45 @@ function formatShort(dateStr: string) {
   });
 }
 
+function formatMoney(value: number) {
+  return `₱${Number(value || 0).toLocaleString()}`;
+}
+
+function getServiceCatalog(serviceNames: string[]) {
+  if (!serviceNames?.length) return DEFAULT_SERVICES;
+
+  return serviceNames.map((name) => {
+    const found = DEFAULT_SERVICES.find((s) => s.name === name);
+    return found ?? { name, price: 0 };
+  });
+}
+
 function serviceIcon(service: string) {
   const s = (service ?? "").toLowerCase();
-  if (s.includes("coating"))                                return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
-  if (s.includes("ppf") || s.includes("paint protection")) return <Layers   className="w-4 h-4 text-violet-400" />;
-  if (s.includes("tint"))                                   return <Sparkles className="w-4 h-4 text-sky-400"    />;
-  return                                                           <Wrench   className="w-4 h-4 text-white/50"   />;
+  if (s.includes("coating")) return <Shield className="w-4 h-4 text-[#E41E6A]" />;
+  if (s.includes("ppf") || s.includes("paint protection")) return <Layers className="w-4 h-4 text-violet-400" />;
+  if (s.includes("tint")) return <Sparkles className="w-4 h-4 text-sky-400" />;
+  return <Wrench className="w-4 h-4 text-white/50" />;
 }
 
 function normalizeAppointment(a: any): Appointment {
   const d = new Date(a.scheduled_date || a.date);
+  const vehicle =
+    a.customers?.vehicle ??
+    a.customer?.vehicle ??
+    a.vehicle ??
+    [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") ??
+    "Vehicle";
+
   return {
-    id:      a.id,
+    id: a.id,
     service: a.service_type ?? a.service ?? "Appointment",
-    vehicle: a.customers?.vehicle ?? a.customer?.vehicle ?? a.vehicle ?? "Vehicle",
-    date:    `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`,
-    time:    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    deposit: Number(a.total_cost ?? a.deposit ?? a.deposit_amount ?? 0), // ← fix
-    status:  (a.status ?? "Pending") as AppointmentStatus,
-    notes:   a.notes ?? "",
+    vehicle,
+    date: `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`,
+    time: d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    deposit: Number(a.deposit ?? a.deposit_amount ?? a.total_cost ?? 0),
+    status: (a.status ?? "Pending") as AppointmentStatus,
+    notes: a.notes ?? "",
   };
 }
 
@@ -95,16 +160,16 @@ function StatusBadge({ status }: { status: string }) {
 function CalendarCard({
   selected, onSelect, dotDates,
 }: {
-  selected:  string;
-  onSelect:  (d: string) => void;
-  dotDates:  Record<string, string[]>;
+  selected: string;
+  onSelect: (d: string) => void;
+  dotDates: Record<string, string[]>;
 }) {
-  const today   = todayStr();
+  const today = todayStr();
   const selDate = new Date(selected + "T00:00:00");
-  const [viewYear,  setViewYear]  = useState(selDate.getFullYear());
+  const [viewYear, setViewYear] = useState(selDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selDate.getMonth());
 
-  const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
@@ -121,9 +186,11 @@ function CalendarCard({
     `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
 
   const dotColor = (statuses: string[]) => {
-    if (statuses.includes("In Progress"))                                 return "bg-blue-500";
+    if (statuses.includes("In Progress")) return "bg-blue-500";
     if (statuses.includes("Confirmed") || statuses.includes("Scheduled")) return "bg-green-500";
-    if (statuses.includes("Pending"))                                     return "bg-yellow-400";
+    if (statuses.includes("Pending Verification")) return "bg-orange-400";
+    if (statuses.includes("Pending")) return "bg-yellow-400";
+    if (statuses.includes("Rejected")) return "bg-red-500";
     return "bg-white/30";
   };
 
@@ -153,10 +220,10 @@ function CalendarCard({
         <div className="grid grid-cols-7 gap-y-1">
           {cells.map((day, i) => {
             if (!day) return <div key={`e-${i}`} />;
-            const key     = cellKey(day);
+            const key = cellKey(day);
             const isToday = key === today;
-            const isSel   = key === selected;
-            const dots    = dotDates[key];
+            const isSel = key === selected;
+            const dots = dotDates[key];
             return (
               <button key={key} onClick={() => onSelect(key)}
                 className={[
@@ -177,9 +244,10 @@ function CalendarCard({
 
         <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-1.5">
           {[
-            { dot: "bg-green-500",  label: "Confirmed"   },
-            { dot: "bg-blue-500",   label: "In Progress" },
-            { dot: "bg-yellow-400", label: "Pending"     },
+            { dot: "bg-orange-400", label: "Pending Verification" },
+            { dot: "bg-green-500", label: "Confirmed" },
+            { dot: "bg-blue-500", label: "In Progress" },
+            { dot: "bg-yellow-400", label: "Pending" },
           ].map(l => (
             <div key={l.label} className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${l.dot}`} />
@@ -196,8 +264,8 @@ function CalendarCard({
 
 function AppointmentsPanel({ selected, appts, onView }: {
   selected: string;
-  appts:    Appointment[];
-  onView:   (a: Appointment) => void;
+  appts: Appointment[];
+  onView: (a: Appointment) => void;
 }) {
   return (
     <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur flex flex-col min-h-[420px]" style={{ borderRadius: "12px" }}>
@@ -241,7 +309,7 @@ function AppointmentsPanel({ selected, appts, onView }: {
                   </span>
                   <span className="flex items-center gap-1 text-xs text-white/50">
                     <Banknote className="w-3.5 h-3.5 text-green-400" />
-                    ₱{Number(a.deposit).toLocaleString()} deposit
+                    ₱{Number(a.deposit).toLocaleString()} paid
                   </span>
                   <button
                     onClick={() => onView(a)}
@@ -264,33 +332,185 @@ function AppointmentsPanel({ selected, appts, onView }: {
 function BookModal({
   onClose, onSave, services, vehicle,
 }: {
-  onClose:  () => void;
-  onSave:   (data: any) => Promise<void>;
+  onClose: () => void;
+  onSave: (data: any) => Promise<void>;
   services: string[];
-  vehicle:  string;
+  vehicle: string;
 }) {
   const TIME_OPTIONS = [
     "8:00 AM","9:00 AM","10:00 AM","10:30 AM",
     "11:00 AM","1:00 PM","2:00 PM","3:00 PM","4:00 PM",
   ];
 
+  const serviceCatalog = useMemo(() => getServiceCatalog(services), [services]);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
   const [form, setForm] = useState({
+    fullName: "",
+    mobileNumber: "",
     service: "",
-    vehicle: vehicle || "",
-    date:    todayStr(),
-    time:    "9:00 AM",
-    deposit: "",
-    notes:   "",
+    addons: [] as string[],
+    vehicleMake: "",
+    vehicleModel: vehicle || "",
+    vehicleYear: "",
+    vehicleClass: "",
+    vehiclePlateNumber: "",
+    date: todayStr(),
+    time: "9:00 AM",
+    paymentMethod: "",
+    paymentType: "" as "" | "Full Payment" | "Down Payment",
+    proofFile: null as File | null,
+    termsAccepted: false,
+    notes: "",
   });
+
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = async () => {
-    if (!form.service || !form.vehicle || !form.date || !form.time) {
-      alert("Please fill in Service, Vehicle, Date, and Time."); return;
+  const selectedService = serviceCatalog.find((s) => s.name === form.service);
+  const addonObjects = DEFAULT_ADDONS.filter((a) => form.addons.includes(a.name));
+
+  const baseServiceTotal = selectedService?.price ?? 0;
+  const addonsTotal = addonObjects.reduce((sum, item) => sum + item.price, 0);
+  const grandTotal = baseServiceTotal + addonsTotal;
+
+  const downPaymentAmount = grandTotal > 0 ? Math.max(Math.round(grandTotal * 0.3), 1000) : 0;
+  const amountToPayNow =
+    form.paymentType === "Full Payment"
+      ? grandTotal
+      : form.paymentType === "Down Payment"
+      ? downPaymentAmount
+      : 0;
+  const remainingBalance = Math.max(grandTotal - amountToPayNow, 0);
+
+  const isPastDate = form.date < todayStr();
+  const currentYear = new Date().getFullYear();
+  const yearNum = Number(form.vehicleYear);
+  const validVehicleYear =
+    !!form.vehicleYear &&
+    Number.isInteger(yearNum) &&
+    yearNum >= 1950 &&
+    yearNum <= currentYear + 1;
+
+  const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
+  const selCls = inputCls + " appearance-none";
+  const checkCard = (active: boolean) =>
+    `flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+      active
+        ? "border-[#E41E6A] bg-[#E41E6A]/10"
+        : "border-white/10 bg-white/5 hover:bg-white/10"
+    }`;
+
+  const handleAddonToggle = (addonName: string) => {
+    setForm((prev) => ({
+      ...prev,
+      addons: prev.addons.includes(addonName)
+        ? prev.addons.filter((a) => a !== addonName)
+        : [...prev.addons, addonName],
+    }));
+  };
+
+  const handlePaymentTypeChange = (type: "Full Payment" | "Down Payment") => {
+    setForm((prev) => ({
+      ...prev,
+      paymentType: prev.paymentType === type ? "" : type,
+    }));
+  };
+
+  const validateStep1 = () => {
+    if (!form.fullName.trim()) {
+      alert("Full name is required.");
+      return false;
     }
+    if (!form.mobileNumber.trim()) {
+      alert("Mobile number is required.");
+      return false;
+    }
+    if (!/^(\+63|09)\d{9}$/.test(form.mobileNumber.replace(/\s+/g, ""))) {
+      alert("Enter a valid mobile number.");
+      return false;
+    }
+    if (!form.vehicleMake.trim()) {
+      alert("Vehicle make is required.");
+      return false;
+    }
+    if (!form.vehicleModel.trim()) {
+      alert("Vehicle model is required.");
+      return false;
+    }
+    if (!validVehicleYear) {
+      alert("Enter a valid vehicle year.");
+      return false;
+    }
+    if (!form.vehicleClass) {
+      alert("Please select vehicle size/class.");
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep2 = () => {
+    if (!form.service) {
+      alert("Please select a service package.");
+      return false;
+    }
+    if (!form.date || isPastDate) {
+      alert("Please select a valid appointment date.");
+      return false;
+    }
+    if (!form.time) {
+      alert("Please select a time.");
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep3 = () => {
+    if (!form.paymentMethod) {
+      alert("Please select a payment method.");
+      return false;
+    }
+    if (!form.paymentType) {
+      alert("Please select full payment or down payment.");
+      return false;
+    }
+    if (!form.proofFile) {
+      alert("Please upload proof of payment.");
+      return false;
+    }
+    if (!form.termsAccepted) {
+      alert("You must agree to the terms.");
+      return false;
+    }
+    return true;
+  };
+
+  const goNext = () => {
+    if (step === 1 && !validateStep1()) return;
+    if (step === 2 && !validateStep2()) return;
+    if (step < 3) setStep((prev) => (prev + 1) as 1 | 2 | 3);
+  };
+
+  const goBack = () => {
+    if (step > 1) setStep((prev) => (prev - 1) as 1 | 2 | 3);
+  };
+
+  const handleSave = async () => {
+    if (!validateStep1()) return;
+    if (!validateStep2()) return;
+    if (!validateStep3()) return;
+
     setIsSaving(true);
     try {
-      await onSave({ ...form, deposit: parseFloat(form.deposit) || 0, status: "Pending" });
+      await onSave({
+        ...form,
+        baseServiceTotal,
+        addonsTotal,
+        grandTotal,
+        amountToPayNow,
+        remainingBalance,
+        deposit: amountToPayNow,
+        status: "Pending Verification",
+      });
       onClose();
     } catch (error: any) {
       alert(`Error: ${error?.message || "Failed to book appointment."}`);
@@ -299,93 +519,466 @@ function BookModal({
     }
   };
 
-  const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
-  const selCls   = inputCls + " appearance-none";
+  const StepPill = ({
+    index,
+    title,
+    active,
+    done,
+  }: {
+    index: number;
+    title: string;
+    active: boolean;
+    done: boolean;
+  }) => (
+    <div className="flex items-center gap-2">
+      <div
+        className={[
+          "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border transition-colors",
+          active
+            ? "bg-[#E41E6A] border-[#E41E6A] text-white"
+            : done
+            ? "bg-green-500/20 border-green-500/30 text-green-400"
+            : "bg-white/5 border-white/10 text-white/50",
+        ].join(" ")}
+      >
+        {index}
+      </div>
+      <span className={active ? "text-white text-sm font-semibold" : "text-white/50 text-sm"}>
+        {title}
+      </span>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
-      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
+      style={{ backgroundColor: "rgba(0,0,0,0.8)" }}
+    >
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
         <div className="p-6 border-b border-white/10 flex justify-between items-center">
           <div>
             <h2 className="text-xl font-bold text-white">Book Appointment</h2>
-            <p className="text-white/50 text-xs mt-0.5">Schedule a new service</p>
+            <p className="text-white/50 text-xs mt-0.5">Submit your booking for admin verification</p>
           </div>
           <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-white/70">Service <span className="text-red-500">*</span></label>
-            <select className={selCls} value={form.service} onChange={e => setForm(f => ({ ...f, service: e.target.value }))}>
-              <option value="" className="bg-[#0a0a0a]">Select a service...</option>
-              {services.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-white/70">Vehicle <span className="text-red-500">*</span></label>
-            <input
-              className={inputCls}
-              placeholder="e.g. Toyota Fortuner"
-              value={form.vehicle}
-              onChange={e => setForm(f => ({ ...f, vehicle: e.target.value }))}
-            />
-            <p className="text-white/30 text-xs px-1">Pre-filled from your profile</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-white/70">Date <span className="text-red-500">*</span></label>
-              <input
-                type="date"
-                className={inputCls + " [color-scheme:dark]"}
-                value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-white/70">Time <span className="text-red-500">*</span></label>
-              <select className={selCls} value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))}>
-                {TIME_OPTIONS.map(t => <option key={t} value={t} className="bg-[#0a0a0a]">{t}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-white/70">Deposit (₱)</label>
-            <input
-              type="number"
-              className={inputCls}
-              placeholder="0"
-              value={form.deposit}
-              onChange={e => setForm(f => ({ ...f, deposit: e.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-white/70">Notes</label>
-            <textarea
-              className={inputCls + " resize-none h-20 py-2.5"}
-              placeholder="Any special requests..."
-              value={form.notes}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-            />
+        <div className="px-6 pt-5">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <StepPill index={1} title="Customer & Vehicle" active={step === 1} done={step > 1} />
+            <div className="hidden md:block h-px flex-1 bg-white/10 mx-3" />
+            <StepPill index={2} title="Service & Schedule" active={step === 2} done={step > 2} />
+            <div className="hidden md:block h-px flex-1 bg-white/10 mx-3" />
+            <StepPill index={3} title="Payment & Submit" active={step === 3} done={false} />
           </div>
         </div>
 
-        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all disabled:opacity-50"
-          >
-            {isSaving ? "Booking..." : "Confirm Booking"}
-          </button>
+        <div className="p-6 space-y-6">
+          {step === 1 && (
+            <div>
+              <h3 className="text-white text-sm font-semibold mb-3">Step 1: Customer & Vehicle Information</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Full Name <span className="text-red-500">*</span></label>
+                  <input
+                    className={inputCls}
+                    value={form.fullName}
+                    onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+                    placeholder="Enter your full name"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Mobile Number <span className="text-red-500">*</span></label>
+                  <input
+                    className={inputCls}
+                    value={form.mobileNumber}
+                    onChange={(e) => setForm((f) => ({ ...f, mobileNumber: e.target.value }))}
+                    placeholder="09xxxxxxxxx"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Vehicle Make <span className="text-red-500">*</span></label>
+                  <input
+                    className={inputCls}
+                    value={form.vehicleMake}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicleMake: e.target.value }))}
+                    placeholder="Toyota"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Vehicle Model <span className="text-red-500">*</span></label>
+                  <input
+                    className={inputCls}
+                    value={form.vehicleModel}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicleModel: e.target.value }))}
+                    placeholder="Fortuner"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Vehicle Year <span className="text-red-500">*</span></label>
+                  <input
+                    type="number"
+                    className={inputCls}
+                    value={form.vehicleYear}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicleYear: e.target.value }))}
+                    placeholder="2022"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Vehicle Size/Class <span className="text-red-500">*</span></label>
+                  <select
+                    className={selCls}
+                    value={form.vehicleClass}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicleClass: e.target.value }))}
+                  >
+                    <option value="" className="bg-[#0a0a0a]">Select vehicle class...</option>
+                    {VEHICLE_CLASS_OPTIONS.map((v) => (
+                      <option key={v.value} value={v.value} className="bg-[#0a0a0a]">
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-sm font-medium text-white/70">Vehicle Plate Number</label>
+                  <input
+                    className={inputCls}
+                    value={form.vehiclePlateNumber}
+                    onChange={(e) => setForm((f) => ({ ...f, vehiclePlateNumber: e.target.value }))}
+                    placeholder="ABC 1234"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div>
+              <h3 className="text-white text-sm font-semibold mb-3">Step 2: Service & Schedule</h3>
+
+              <div className="space-y-1.5 mb-4">
+                <label className="text-sm font-medium text-white/70">Service Package <span className="text-red-500">*</span></label>
+                <select
+                  className={selCls}
+                  value={form.service}
+                  onChange={(e) => setForm((f) => ({ ...f, service: e.target.value }))}
+                >
+                  <option value="" className="bg-[#0a0a0a]">Select a service...</option>
+                  {serviceCatalog.map((s) => (
+                    <option key={s.name} value={s.name} className="bg-[#0a0a0a]">
+                      {s.name} — {formatMoney(s.price)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2 mb-6">
+                <label className="text-sm font-medium text-white/70">Add-ons</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {DEFAULT_ADDONS.map((addon) => {
+                    const active = form.addons.includes(addon.name);
+                    return (
+                      <button
+                        type="button"
+                        key={addon.name}
+                        onClick={() => handleAddonToggle(addon.name)}
+                        className={checkCard(active)}
+                      >
+                        <span className="text-left">
+                          <span className="block text-sm font-medium text-white">{addon.name}</span>
+                          <span className="block text-xs text-white/50">{formatMoney(addon.price)}</span>
+                        </span>
+                        <span className={`w-4 h-4 rounded border ${active ? "bg-[#E41E6A] border-[#E41E6A]" : "border-white/20"}`} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Date <span className="text-red-500">*</span></label>
+                  <input
+                    type="date"
+                    min={todayStr()}
+                    className={inputCls + " [color-scheme:dark]"}
+                    value={form.date}
+                    onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Time <span className="text-red-500">*</span></label>
+                  <select
+                    className={selCls}
+                    value={form.time}
+                    onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+                  >
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t} value={t} className="bg-[#0a0a0a]">{t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-6 p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
+                <p className="text-sm font-semibold text-white">Current Summary</p>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Base service</span>
+                  <span>{formatMoney(baseServiceTotal)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Add-ons</span>
+                  <span>{formatMoney(addonsTotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-white font-semibold pt-2 border-t border-white/10">
+                  <span>Total Amount</span>
+                  <span>{formatMoney(grandTotal)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div>
+              <h3 className="text-white text-sm font-semibold mb-3">Step 3: Payment & Submit</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-white/70">Payment Method <span className="text-red-500">*</span></label>
+                <select
+                  className={selCls}
+                  value={form.paymentMethod}
+                  onChange={(e) => setForm((f) => ({ ...f, paymentMethod: e.target.value }))}
+                >
+                  <option value="" className="bg-[#0a0a0a]">Select payment method...</option>
+                  <option value="Bank Transfer" className="bg-[#0a0a0a]">Bank Transfer</option>
+                  <option value="QR Payment" className="bg-[#0a0a0a]">QR Payment</option>
+                </select>
+              </div>
+            </div>
+
+            {form.paymentMethod === "Bank Transfer" && (
+              <div className="mb-4 rounded-xl border border-violet-500/20 bg-violet-500/10 p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Bank Transfer Details</p>
+                  <p className="text-xs text-white/50 mt-1">
+                    Transfer the exact amount, then upload your proof of payment below.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-white/40">Bank Name</p>
+                    <p className="text-sm font-medium text-white mt-1">BDO</p>
+                  </div>
+
+                  <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-white/40">Account Name</p>
+                    <p className="text-sm font-medium text-white mt-1">Ceramic Pro Davao</p>
+                  </div>
+
+                  <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-white/40">Account Number</p>
+                    <p className="text-sm font-medium text-white mt-1">1234 5678 9012</p>
+                  </div>
+
+                  <div className="rounded-lg bg-white/5 border border-white/10 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-white/40">Reference</p>
+                    <p className="text-sm font-medium text-white mt-1">
+                      {form.fullName ? `${form.fullName} - ${form.date}` : "Use your full name as payment reference"}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-violet-200/80">
+                  Make sure the account name and number are correct before sending payment.
+                </p>
+              </div>
+            )}
+
+            {form.paymentMethod === "QR Payment" && (
+              <div className="mb-4 rounded-xl border border-sky-500/20 bg-sky-500/10 p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">QR Payment</p>
+                  <p className="text-xs text-white/50 mt-1">
+                    Scan the QR code below, send the payment, then upload your proof of payment.
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center justify-center rounded-xl bg-white p-4 border border-white/10">
+                  <img
+                    src="/images/payment-qr.png"
+                    alt="QR Payment"
+                    className="w-56 h-56 object-contain"
+                  />
+                  <p className="text-xs text-gray-600 mt-3 text-center">
+                    Scan this QR code using your banking or e-wallet app.
+                  </p>
+                </div>
+
+                <p className="text-xs text-sky-200/80">
+                  After payment, please upload a clear screenshot or receipt as proof.
+                </p>
+              </div>
+            )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <button
+                  type="button"
+                  onClick={() => handlePaymentTypeChange("Full Payment")}
+                  className={checkCard(form.paymentType === "Full Payment")}
+                >
+                  <span className="text-sm font-medium text-white">Full Payment</span>
+                  <span className={`w-4 h-4 rounded border ${form.paymentType === "Full Payment" ? "bg-[#E41E6A] border-[#E41E6A]" : "border-white/20"}`} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePaymentTypeChange("Down Payment")}
+                  className={checkCard(form.paymentType === "Down Payment")}
+                >
+                  <span className="text-sm font-medium text-white">Down Payment</span>
+                  <span className={`w-4 h-4 rounded border ${form.paymentType === "Down Payment" ? "bg-[#E41E6A] border-[#E41E6A]" : "border-white/20"}`} />
+                </button>
+              </div>
+
+              <div className="space-y-1.5 mb-4">
+                <label className="text-sm font-medium text-white/70">Deposit Proof Upload <span className="text-red-500">*</span></label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className={inputCls + " py-2 h-auto"}
+                  onChange={(e) => setForm((f) => ({ ...f, proofFile: e.target.files?.[0] ?? null }))}
+                />
+                {form.proofFile && (
+                  <p className="text-xs text-white/50">{form.proofFile.name}</p>
+                )}
+              </div>
+
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2 mb-4">
+                <p className="text-sm font-semibold text-white">Booking Summary</p>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Customer</span>
+                  <span>{form.fullName || "—"}</span>
+                </div>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Vehicle</span>
+                  <span>{[form.vehicleMake, form.vehicleModel, form.vehicleClass].filter(Boolean).join(" ") || "—"}</span>
+                </div>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Service</span>
+                  <span>{form.service || "—"}</span>
+                </div>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Schedule</span>
+                  <span>{form.date ? `${form.date} ${form.time}` : "—"}</span>
+                </div>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Base service</span>
+                  <span>{formatMoney(baseServiceTotal)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Add-ons</span>
+                  <span>{formatMoney(addonsTotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-white font-semibold pt-2 border-t border-white/10">
+                  <span>Total Amount</span>
+                  <span>{formatMoney(grandTotal)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-white/60">
+                  <span>Payment Type</span>
+                  <span>{form.paymentType || "—"}</span>
+                </div>
+                <div className="flex justify-between text-sm text-[#E41E6A] font-semibold">
+                  <span>Amount to Pay Now</span>
+                  <span>{formatMoney(amountToPayNow)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-yellow-400">
+                  <span>Remaining Balance</span>
+                  <span>{formatMoney(remainingBalance)}</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-yellow-300/80 mb-4">
+                Submitting this booking does not automatically confirm your appointment. All bookings are subject to payment verification and admin approval.
+              </p>
+
+              <div className="space-y-2 mb-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.termsAccepted}
+                    onChange={(e) => setForm((f) => ({ ...f, termsAccepted: e.target.checked }))}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-white/70">
+                    I agree to the booking terms, payment policy, and appointment confirmation process.
+                  </span>
+                </label>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-white/70">Additional Notes</label>
+                <textarea
+                  className={inputCls + " resize-none h-20 py-2.5"}
+                  placeholder="Any special requests..."
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-between gap-3">
+          <div>
+            {step > 1 && (
+              <button
+                onClick={goBack}
+                className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
+                Back
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+
+            {step < 3 ? (
+              <button
+                onClick={goNext}
+                className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all"
+              >
+                Next
+              </button>
+            ) : (
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Submitting..." : "Submit Booking"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -418,12 +1011,17 @@ function ViewModal({ appt, onClose }: { appt: Appointment; onClose: () => void }
           </button>
         </div>
         <div className="p-6 space-y-3">
-          <Row icon={<Shield   className="w-4 h-4" />} label="Service" value={appt.service}                                />
-          <Row icon={<Car      className="w-4 h-4" />} label="Vehicle" value={appt.vehicle}                                />
-          <Row icon={<Calendar className="w-4 h-4" />} label="Date"    value={formatShort(appt.date)}                      />
-          <Row icon={<Clock    className="w-4 h-4" />} label="Time"    value={appt.time}                                   />
-          <Row icon={<Banknote className="w-4 h-4" />} label="Deposit" value={`₱${Number(appt.deposit).toLocaleString()}`} />
+          <Row icon={<Shield className="w-4 h-4" />} label="Service" value={appt.service} />
+          <Row icon={<Car className="w-4 h-4" />} label="Vehicle" value={appt.vehicle} />
+          <Row icon={<Calendar className="w-4 h-4" />} label="Date" value={formatShort(appt.date)} />
+          <Row icon={<Clock className="w-4 h-4" />} label="Time" value={appt.time} />
+          <Row icon={<Banknote className="w-4 h-4" />} label="Amount Paid" value={`₱${Number(appt.deposit).toLocaleString()}`} />
           {appt.notes && <Row icon={<Eye className="w-4 h-4" />} label="Notes" value={appt.notes} />}
+          <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+            <p className="text-yellow-300 text-xs">
+              Appointment submission is subject to payment verification and admin approval.
+            </p>
+          </div>
           <div className="flex items-center justify-between pt-2">
             <span className="text-white/50 text-sm">Status</span>
             <StatusBadge status={appt.status} />
@@ -447,19 +1045,18 @@ export function CustomerAppointments() {
   const { profile, isLoading: profileLoading } = useAuth();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [services,     setServices]     = useState<string[]>([]);
-  const [isLoading,    setIsLoading]    = useState(true);
-  const [selected,     setSelected]     = useState(today);
-  const [search,       setSearch]       = useState("");
+  const [services, setServices] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selected, setSelected] = useState(today);
+  const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"All" | string>("All");
-  const [showBook,     setShowBook]     = useState(false);
-  const [viewAppt,     setViewAppt]     = useState<Appointment | null>(null);
+  const [showBook, setShowBook] = useState(false);
+  const [viewAppt, setViewAppt] = useState<Appointment | null>(null);
 
   const todayDisplay = new Date().toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  // ✅ Wait for customerId — not profile.id (Supabase auth UUID)
   useEffect(() => {
     if (profile?.customerId) fetchData();
   }, [profile?.customerId]);
@@ -469,19 +1066,23 @@ export function CustomerAppointments() {
     setIsLoading(true);
     try {
       const [rawAppts, rawServices] = await Promise.all([
-        getCustomerAppointments(profile.customerId).catch(() => []),  // ✅ correct ID
+        getCustomerAppointments(profile.customerId).catch(() => []),
         getServices().catch(() => []),
       ]);
 
       setAppointments(rawAppts.map(normalizeAppointment));
 
       const svcNames = rawServices.map((s: any) => s.name).filter(Boolean);
-      setServices(svcNames.length > 0 ? svcNames : [
-        "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
-        "PPF - Hood & Fenders", "PPF - Full Body",
-        "Window Tinting - Full Car", "Full Interior Detailing",
-        "Nano Ceramic Spray", "Paint Decontamination",
-      ]);
+      setServices(
+        svcNames.length > 0
+          ? svcNames
+          : [
+              "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
+              "PPF - Hood & Fenders", "PPF - Full Body",
+              "Window Tinting - Full Car", "Full Interior Detailing",
+              "Nano Ceramic Spray", "Paint Decontamination",
+            ]
+      );
     } catch (err) {
       console.error("CustomerAppointments fetch error:", err);
     } finally {
@@ -491,34 +1092,51 @@ export function CustomerAppointments() {
 
   const handleBook = async (data: any) => {
     if (!profile?.customerId) return;
+    console.log("customerId being sent:", profile.customerId); 
 
-    // Convert "9:00 AM" → 24-hour for createAppointment
     const [time, meridiem] = data.time.split(" ");
     const [h, m] = time.split(":").map(Number);
     let hour = h;
     if (meridiem === "PM" && h !== 12) hour += 12;
     if (meridiem === "AM" && h === 12) hour = 0;
 
-    await createAppointment({
-      customerId:  profile.customerId,    // ✅ correct customers table UUID
-      service:     data.service,
-      date:        data.date,
-      time:        `${String(hour).padStart(2,"0")}:${String(m).padStart(2,"0")}`,
-      totalAmount: data.deposit || 0,
-    });
+    const payload = {
+      customerId: profile.customerId,
+      service: data.service,
+      date: data.date,
+      time: `${String(hour).padStart(2,"0")}:${String(m).padStart(2,"0")}`,
+      totalAmount: data.grandTotal || data.deposit || 0,
+      deposit: data.amountToPayNow || 0,
+      paymentMethod: data.paymentMethod,
+      paymentType: data.paymentType,
+      status: "Pending Verification",
+      notes: data.notes,
+      fullName: data.fullName,
+      mobileNumber: data.mobileNumber,
+      vehicleMake: data.vehicleMake,
+      vehicleModel: data.vehicleModel,
+      vehicleYear: data.vehicleYear,
+      vehicleClass: data.vehicleClass,
+      vehiclePlateNumber: data.vehiclePlateNumber,
+      addons: data.addons,
+      remainingBalance: data.remainingBalance,
+      proofFile: data.proofFile,
+    };
 
-    if (data.vehicle) {
-  await fetch(`${import.meta.env.VITE_API_BASE_URL}/customers/${profile.customerId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ vehicle: data.vehicle }),
-  });
-}
+    await createAppointment(payload);
+
+    await fetch(`${import.meta.env.VITE_API_BASE_URL}/customers/${profile.customerId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        vehicle: [data.vehicleMake, data.vehicleModel, data.vehicleClass].filter(Boolean).join(" "),
+        full_name: data.fullName,
+        mobile_number: data.mobileNumber,
+      }),
+    });
 
     await fetchData();
   };
-
-  // ── Derived data ──────────────────────────────────────────────────────────
 
   const dotDates = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -534,20 +1152,19 @@ export function CustomerAppointments() {
     [appointments, selected]
   );
 
-  const filtered = useMemo(() =>
-    appointments
-      .filter(a => filterStatus === "All" || a.status === filterStatus)
-      .filter(a =>
-        a.service.toLowerCase().includes(search.toLowerCase()) ||
-        a.vehicle.toLowerCase().includes(search.toLowerCase()) ||
-        a.status.toLowerCase().includes(search.toLowerCase())
-      )
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+  const filtered = useMemo(
+    () =>
+      appointments
+        .filter(a => filterStatus === "All" || a.status === filterStatus)
+        .filter(a =>
+          a.service.toLowerCase().includes(search.toLowerCase()) ||
+          a.vehicle.toLowerCase().includes(search.toLowerCase()) ||
+          a.status.toLowerCase().includes(search.toLowerCase())
+        )
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     [appointments, search, filterStatus]
   );
 
-  // Vehicle pre-fill: use the first appointment's vehicle (from customers table),
-  // falling back to empty string so the user can type it in manually.
   const customerVehicle = appointments[0]?.vehicle ?? "";
 
   if (profileLoading) {
@@ -560,8 +1177,6 @@ export function CustomerAppointments() {
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-white text-3xl font-bold mb-1">My Appointments</h1>
@@ -575,7 +1190,6 @@ export function CustomerAppointments() {
         </button>
       </div>
 
-      {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -589,19 +1203,22 @@ export function CustomerAppointments() {
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
-          {(["All", "Confirmed", "Pending", "Completed"] as const).map(f => (
-            <button key={f} onClick={() => setFilterStatus(f)}
+          {(["All", "Pending Verification", "Confirmed", "Pending", "Completed", "Rejected"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilterStatus(f)}
               className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${
                 filterStatus === f
                   ? "bg-[#E41E6A] text-white border-[#E41E6A]"
                   : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
               }`}
-            >{f}</button>
+            >
+              {f}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Calendar + Panel */}
       {isLoading ? (
         <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
           <CardContent className="flex items-center justify-center h-40 text-white/50">
@@ -615,7 +1232,6 @@ export function CustomerAppointments() {
         </div>
       )}
 
-      {/* All Appointments Table */}
       <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden" style={{ borderRadius: "12px" }}>
         <CardHeader className="border-b border-white/10 pb-4">
           <div className="flex items-center justify-between">
@@ -624,7 +1240,6 @@ export function CustomerAppointments() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Mobile */}
           <div className="sm:hidden divide-y divide-white/5">
             {filtered.length === 0 ? (
               <div className="py-12 flex flex-col items-center text-center">
@@ -650,12 +1265,11 @@ export function CustomerAppointments() {
             ))}
           </div>
 
-          {/* Desktop */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10">
-                  {["Date","Service","Vehicle","Deposit","Status","Actions"].map(h => (
+                  {["Date","Service","Vehicle","Paid","Status","Actions"].map(h => (
                     <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-white/50 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -700,7 +1314,6 @@ export function CustomerAppointments() {
         </CardContent>
       </Card>
 
-      {/* Modals */}
       {showBook && (
         <BookModal
           onClose={() => setShowBook(false)}

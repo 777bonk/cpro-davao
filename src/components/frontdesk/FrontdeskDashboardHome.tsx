@@ -1,14 +1,23 @@
-import { getAppointments }  from "../../services/appointments";
-import { getCustomers }     from "../../services/customer";
-import { getInventory }     from "../../services/inventory";
-import { useState, useEffect } from "react";
-import { 
-  Calendar, Users, ClipboardList, Package, Plus, UserPlus, 
-  FileText, Clock, Car, AlertTriangle, Eye, CheckCircle, Loader, CalendarX
+import { getAppointments } from "../../services/appointments";
+import { getCustomers } from "../../services/customer";
+import { getInventory } from "../../services/inventory";
+import { useState, useEffect, type ReactNode } from "react";
+import {
+  Calendar,
+  Users,
+  ClipboardList,
+  Package,
+  Plus,
+  UserPlus,
+  FileText,
+  Clock,
+  Car,
+  AlertTriangle,
+  Eye,
+  CheckCircle,
+  Loader,
+  CalendarX,
 } from "lucide-react";
-
-// ─── API PLACEHOLDERS (Replace with your actual service imports) ──────────────
-// import { getDashboardStats, getTodaysAppointments, getRecentCustomers, getLowStockAlerts } from "../../services/dashboard";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -48,35 +57,98 @@ interface DashboardStats {
 
 // ─── STATUS CONFIG ─────────────────────────────────────────────────────────────
 
-const STATUS_STYLE: Record<AppointmentStatus, { bg: string; text: string; icon: React.ReactNode }> = {
-  Confirmed:   { bg: "bg-green-500/20",  text: "text-green-400",  icon: <CheckCircle className="w-3.5 h-3.5" /> },
-  "In Progress":{ bg: "bg-blue-500/20",   text: "text-blue-400",   icon: <Loader      className="w-3.5 h-3.5 animate-spin" /> },
-  Pending:     { bg: "bg-yellow-500/20", text: "text-yellow-400", icon: <Clock       className="w-3.5 h-3.5" /> },
+const STATUS_STYLE: Record<
+  AppointmentStatus,
+  { bg: string; text: string; icon: ReactNode }
+> = {
+  Confirmed: {
+    bg: "bg-green-500/20",
+    text: "text-green-400",
+    icon: <CheckCircle className="w-3.5 h-3.5" />,
+  },
+  "In Progress": {
+    bg: "bg-blue-500/20",
+    text: "text-blue-400",
+    icon: <Loader className="w-3.5 h-3.5 animate-spin" />,
+  },
+  Pending: {
+    bg: "bg-yellow-500/20",
+    text: "text-yellow-400",
+    icon: <Clock className="w-3.5 h-3.5" />,
+  },
+};
+
+const DEFAULT_STATUS_STYLE = {
+  bg: "bg-gray-500/20",
+  text: "text-gray-400",
+  icon: <Clock className="w-3.5 h-3.5" />,
 };
 
 // ─── SHARED CLASSES ───────────────────────────────────────────────────────────
 
-const cardCls = "bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur rounded-xl border";
+const cardCls =
+  "bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur rounded-xl border";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function todayFull() {
   return new Date().toLocaleDateString("en-US", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 }
+
 function todayShort() {
   return new Date().toLocaleDateString("en-US", {
-    month: "long", day: "numeric", year: "numeric",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
   });
+}
+
+function getLocalToday() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function normalizeAppointmentStatus(status: unknown): AppointmentStatus {
+  const value = String(status ?? "")
+    .trim()
+    .toLowerCase();
+
+  switch (value) {
+    case "confirmed":
+    case "confirm":
+      return "Confirmed";
+
+    case "in progress":
+    case "in-progress":
+    case "inprogress":
+    case "ongoing":
+      return "In Progress";
+
+    case "pending":
+    default:
+      return "Pending";
+  }
 }
 
 // ─── STAT CARD ────────────────────────────────────────────────────────────────
 
 function StatCard({
-  icon, title, value, iconBg, iconColor, accent,
+  icon,
+  title,
+  value,
+  iconBg,
+  iconColor,
+  accent,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   value: number | string;
   iconBg: string;
@@ -85,12 +157,18 @@ function StatCard({
 }) {
   return (
     <div className={`${cardCls} p-5 flex items-center gap-4`}>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+      <div
+        className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}
+      >
         <span className={iconColor}>{icon}</span>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-white/40">{title}</p>
-        <p className={`text-2xl font-bold mt-0.5 ${accent ?? "text-white"}`}>{value}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/40">
+          {title}
+        </p>
+        <p className={`text-2xl font-bold mt-0.5 ${accent ?? "text-white"}`}>
+          {value}
+        </p>
       </div>
     </div>
   );
@@ -99,19 +177,24 @@ function StatCard({
 // ─── SECTION CARD ─────────────────────────────────────────────────────────────
 
 function SectionCard({
-  title, subtitle, children, action,
+  title,
+  subtitle,
+  children,
+  action,
 }: {
   title: string;
   subtitle?: string;
-  children: React.ReactNode;
-  action?: React.ReactNode;
+  children: ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <div className={`${cardCls} overflow-hidden flex flex-col`}>
       <div className="px-5 py-4 border-b border-white/10 flex items-start justify-between gap-3 bg-white/5">
         <div>
           <h2 className="text-sm font-bold text-white">{title}</h2>
-          {subtitle && <p className="text-xs text-white/40 mt-0.5">{subtitle}</p>}
+          {subtitle && (
+            <p className="text-xs text-white/40 mt-0.5">{subtitle}</p>
+          )}
         </div>
         {action}
       </div>
@@ -123,7 +206,8 @@ function SectionCard({
 // ─── APPOINTMENT ROW ──────────────────────────────────────────────────────────
 
 function AppointmentRow({ appt }: { appt: Appointment }) {
-  const s = STATUS_STYLE[appt.status];
+  const s = STATUS_STYLE[appt.status] ?? DEFAULT_STATUS_STYLE;
+
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-white/5 transition-colors">
       <div className="w-16 flex-shrink-0 text-center">
@@ -133,14 +217,18 @@ function AppointmentRow({ appt }: { appt: Appointment }) {
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white truncate">{appt.service}</p>
+        <p className="text-sm font-semibold text-white truncate">
+          {appt.service}
+        </p>
         <p className="text-xs text-white/50 flex items-center gap-1 mt-0.5 truncate">
           <Car className="w-3 h-3 flex-shrink-0" />
           {appt.customer} · {appt.vehicle}
         </p>
       </div>
 
-      <span className={`hidden sm:inline-flex flex-shrink-0 items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${s.bg} ${s.text}`}>
+      <span
+        className={`hidden sm:inline-flex flex-shrink-0 items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${s.bg} ${s.text}`}
+      >
         {s.icon}
         {appt.status}
       </span>
@@ -154,19 +242,28 @@ function CustomerItem({ customer }: { customer: Customer }) {
   return (
     <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors">
       <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#E41E6A] to-pink-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-md shadow-[#E41E6A]/20">
-        {customer.name.split(" ").map(n => n[0]).slice(0, 2).join("")}
+        {customer.name
+          .split(" ")
+          .map((n) => n[0])
+          .slice(0, 2)
+          .join("")}
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white truncate">{customer.name}</p>
+        <p className="text-sm font-semibold text-white truncate">
+          {customer.name}
+        </p>
         <p className="text-xs text-white/40 truncate">{customer.email}</p>
       </div>
 
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
         <button className="inline-flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
-          <Eye className="w-3.5 h-3.5" />View
+          <Eye className="w-3.5 h-3.5" />
+          View
         </button>
-        <span className="text-[10px] text-white/30">{customer.registeredAt}</span>
+        <span className="text-[10px] text-white/30">
+          {customer.registeredAt}
+        </span>
       </div>
     </div>
   );
@@ -175,7 +272,9 @@ function CustomerItem({ customer }: { customer: Customer }) {
 // ─── STOCK ALERT CARD ─────────────────────────────────────────────────────────
 
 function StockAlertCard({ item }: { item: StockItem }) {
-  const pct = Math.round((item.quantity / item.minimum) * 100);
+  const pct =
+    item.minimum > 0 ? Math.round((item.quantity / item.minimum) * 100) : 0;
+
   return (
     <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-red-500/10 transition-colors group">
       <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0 border border-red-500/20 group-hover:border-red-500/40 transition-colors">
@@ -184,11 +283,14 @@ function StockAlertCard({ item }: { item: StockItem }) {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-white truncate">{item.name}</p>
+          <p className="text-sm font-semibold text-white truncate">
+            {item.name}
+          </p>
           <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 uppercase tracking-wide">
             Low Stock
           </span>
         </div>
+
         <div className="flex items-center gap-2 mt-1.5">
           <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
             <div
@@ -200,6 +302,7 @@ function StockAlertCard({ item }: { item: StockItem }) {
             {item.quantity} / {item.minimum} min
           </span>
         </div>
+
         <p className="text-[10px] text-white/30 mt-0.5">{item.category}</p>
       </div>
     </div>
@@ -210,94 +313,109 @@ function StockAlertCard({ item }: { item: StockItem }) {
 
 export function FrontDeskDashboardHome() {
   const [stats, setStats] = useState<DashboardStats>({
-    todaysAppointments: 0, totalCustomers: 0, pendingJobs: 0, lowStockItems: 0
+    todaysAppointments: 0,
+    totalCustomers: 0,
+    pendingJobs: 0,
+    lowStockItems: 0,
   });
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [lowStock, setLowStock] = useState<StockItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ─── DATA FETCHING (Simulated) ───
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
-const fetchDashboardData = async () => {
-  setIsLoading(true);
-  try {
-    const today = new Date().toISOString().split("T")[0];
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
 
-    const [apptData, customerData, inventoryData] = await Promise.all([
-      getAppointments().catch(() => []),
-      getCustomers().catch(()     => []),
-      getInventory().catch(()     => []),
-    ]);
+    try {
+      const today = getLocalToday();
 
-    // Today's appointments
-    const todaysAppts = apptData.filter((a) => a.date === today);
+      const [apptDataRaw, customerDataRaw, inventoryDataRaw] = await Promise.all(
+        [getAppointments().catch(() => []), getCustomers().catch(() => []), getInventory().catch(() => [])]
+      );
 
-    // Pending jobs
-    const pendingJobs = apptData.filter(
-      (a) => a.status === "Pending" || a.status === "In Progress"
-    ).length;
+      const apptData = Array.isArray(apptDataRaw) ? apptDataRaw : [];
+      const customerData = Array.isArray(customerDataRaw) ? customerDataRaw : [];
+      const inventoryData = Array.isArray(inventoryDataRaw)
+        ? inventoryDataRaw
+        : [];
 
-    // Low stock
-    const lowStock = inventoryData.filter(
-      (i: any) => i.stock <= i.reorderLevel
-    );
+      // Today's appointments
+      const todaysAppts = apptData.filter((a: any) => a?.date === today);
 
-    setStats({
-      todaysAppointments: todaysAppts.length,
-      totalCustomers:     customerData.length,
-      pendingJobs,
-      lowStockItems:      lowStock.length,
-    });
+      // Pending jobs
+      const pendingJobs = apptData.filter((a: any) => {
+        const normalized = normalizeAppointmentStatus(a?.status);
+        return normalized === "Pending" || normalized === "In Progress";
+      }).length;
 
-    // Today's schedule — map to component shape
-    setAppointments(
-      todaysAppts.slice(0, 5).map((a) => ({
-        id:       a.id,
-        customer: a.customerName,
-        vehicle:  a.vehicle,
-        service:  a.service,
-        time:     a.time,
-        status:   a.status as AppointmentStatus,
-      }))
-    );
+      // Low stock
+      const lowStockItems = inventoryData.filter(
+        (i: any) => Number(i?.stock ?? 0) <= Number(i?.reorderLevel ?? 0)
+      );
 
-    // Recent customers — last 5
-    setCustomers(
-      customerData.slice(0, 5).map((c: any) => ({
-        id:           c.id,
-        name:         c.name,
-        email:        c.email        ?? "",
-        vehicle:      c.vehicle      ?? "",
-        registeredAt: c.created_at
-          ? c.created_at.split("T")[0]
-          : "",
-      }))
-    );
+      setStats({
+        todaysAppointments: todaysAppts.length,
+        totalCustomers: customerData.length,
+        pendingJobs,
+        lowStockItems: lowStockItems.length,
+      });
 
-    // Low stock alerts
-    setLowStock(
-      lowStock.slice(0, 5).map((i: any) => ({
-        id:       i.id,
-        name:     i.name,
-        category: i.category,
-        quantity: i.stock,
-        minimum:  i.reorderLevel,
-      }))
-    );
-  } catch (err) {
-    console.error("Failed to load dashboard data:", err);
-  } finally {
-    setIsLoading(false);
-  }
-};
+      // Today's schedule
+      setAppointments(
+        todaysAppts.slice(0, 5).map((a: any) => ({
+          id: a?.id ?? "",
+          customer: a?.customerName ?? "Unknown Customer",
+          vehicle: a?.vehicle ?? "No vehicle",
+          service: a?.service ?? "No service",
+          time: a?.time ?? "--:--",
+          status: normalizeAppointmentStatus(a?.status),
+        }))
+      );
+
+      // Recent customers
+      setCustomers(
+        customerData.slice(0, 5).map((c: any) => ({
+          id: c?.id ?? "",
+          name: c?.name ?? "Unknown Customer",
+          email: c?.email ?? "",
+          vehicle: c?.vehicle ?? "",
+          registeredAt: c?.created_at ? String(c.created_at).split("T")[0] : "",
+        }))
+      );
+
+      // Low stock alerts
+      setLowStock(
+        lowStockItems.slice(0, 5).map((i: any) => ({
+          id: i?.id ?? "",
+          name: i?.name ?? "Unnamed Item",
+          category: i?.category ?? "",
+          quantity: Number(i?.stock ?? 0),
+          minimum: Number(i?.reorderLevel ?? 0),
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to load dashboard data:", err);
+      setStats({
+        todaysAppointments: 0,
+        totalCustomers: 0,
+        pendingJobs: 0,
+        lowStockItems: 0,
+      });
+      setAppointments([]);
+      setCustomers([]);
+      setLowStock([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-
       {/* ── Header + Actions ── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
@@ -310,10 +428,12 @@ const fetchDashboardData = async () => {
             <Plus className="w-3.5 h-3.5" />
             New Appointment
           </button>
+
           <button className="inline-flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-white/10 shadow-sm transition-colors">
             <UserPlus className="w-3.5 h-3.5 text-sky-400" />
             Register Customer
           </button>
+
           <button className="inline-flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-white/10 shadow-sm transition-colors">
             <FileText className="w-3.5 h-3.5 text-violet-400" />
             Create Job Order
@@ -330,6 +450,7 @@ const fetchDashboardData = async () => {
           iconBg="bg-pink-500/20"
           iconColor="text-pink-400"
         />
+
         <StatCard
           icon={<Users className="w-5 h-5" />}
           title="Total Customers"
@@ -337,6 +458,7 @@ const fetchDashboardData = async () => {
           iconBg="bg-sky-500/20"
           iconColor="text-sky-400"
         />
+
         <StatCard
           icon={<ClipboardList className="w-5 h-5" />}
           title="Pending Jobs"
@@ -344,6 +466,7 @@ const fetchDashboardData = async () => {
           iconBg="bg-yellow-500/20"
           iconColor="text-yellow-400"
         />
+
         <StatCard
           icon={<Package className="w-5 h-5" />}
           title="Low Stock Items"
@@ -360,22 +483,25 @@ const fetchDashboardData = async () => {
         subtitle={`Appointments for ${todayShort()}`}
       >
         {isLoading ? (
-          <div className="flex items-center justify-center py-12 text-white/50 text-sm">Loading schedule...</div>
+          <div className="flex items-center justify-center py-12 text-white/50 text-sm">
+            Loading schedule...
+          </div>
         ) : appointments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mb-3">
               <CalendarX className="w-6 h-6 text-white/20" />
             </div>
-            <p className="text-sm font-medium text-white/40">No appointments scheduled for today</p>
+            <p className="text-sm font-medium text-white/40">
+              No appointments scheduled for today
+            </p>
           </div>
         ) : (
-          appointments.map(a => <AppointmentRow key={a.id} appt={a} />)
+          appointments.map((a) => <AppointmentRow key={a.id} appt={a} />)
         )}
       </SectionCard>
 
       {/* ── Bottom 2-col grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
         {/* Recent Customers */}
         <SectionCard
           title="Recent Customers"
@@ -387,11 +513,15 @@ const fetchDashboardData = async () => {
           }
         >
           {isLoading ? (
-             <div className="flex items-center justify-center py-8 text-white/50 text-sm">Loading customers...</div>
+            <div className="flex items-center justify-center py-8 text-white/50 text-sm">
+              Loading customers...
+            </div>
           ) : customers.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-white/40 text-sm">No recent customers</div>
+            <div className="flex items-center justify-center py-8 text-white/40 text-sm">
+              No recent customers
+            </div>
           ) : (
-            customers.map(c => <CustomerItem key={c.id} customer={c} />)
+            customers.map((c) => <CustomerItem key={c.id} customer={c} />)
           )}
         </SectionCard>
 
@@ -406,17 +536,18 @@ const fetchDashboardData = async () => {
           }
         >
           {isLoading ? (
-            <div className="flex items-center justify-center py-8 text-white/50 text-sm">Loading stock alerts...</div>
+            <div className="flex items-center justify-center py-8 text-white/50 text-sm">
+              Loading stock alerts...
+            </div>
           ) : lowStock.length === 0 ? (
             <div className="flex items-center justify-center py-8 text-white/40 text-sm flex-col gap-2">
               <CheckCircle className="w-8 h-8 text-green-500/50" />
               <span>All stock levels are looking good</span>
             </div>
           ) : (
-            lowStock.map(item => <StockAlertCard key={item.id} item={item} />)
+            lowStock.map((item) => <StockAlertCard key={item.id} item={item} />)
           )}
         </SectionCard>
-
       </div>
     </div>
   );
