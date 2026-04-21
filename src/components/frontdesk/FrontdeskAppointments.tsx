@@ -1,31 +1,54 @@
 import { getCustomers } from "../../services/customer";
 import {
-  getAppointments,
-  createAppointment,
-  updateAppointmentStatus,
+  getAppointments, createAppointment,
+  updateAppointmentStatus, getPendingVerificationAppointments,
+  approveAppointment, rejectAppointment,
 } from "../../services/appointments";
 import { useState, useEffect, useMemo } from "react";
 import {
   ChevronLeft, ChevronRight, Search, SlidersHorizontal, Plus,
   Calendar, Car, Clock, Banknote, Shield, Layers, Sparkles,
-  Eye, XCircle, ChevronDown, X, User, Phone, FileText, CalendarX,
+  Eye, XCircle, ChevronDown, X, User, Phone, FileText,
+  CalendarX, CheckCircle2, XOctagon, AlertTriangle, Bell,
 } from "lucide-react";
+import { useAuth } from "../../hooks/useAuth";
 
-type AppointmentStatus = "Confirmed" | "Pending" | "In Progress" | "Completed" | "Cancelled";
+// ─── TYPES ────────────────────────────────────────────────────────────────────
+
+type AppointmentStatus =
+  | "Pending Verification"
+  | "Confirmed"
+  | "Pending"
+  | "In Progress"
+  | "Completed"
+  | "Cancelled"
+  | "Rejected";
 
 interface Appointment {
-  id: number | string;
+  id:          number | string;
   customerId?: string;
-  customer: string;
-  contact: string;
-  vehicle: string;
-  service: string;
-  date: string;
-  time: string;
-  deposit: number;
-  notes: string;
-  status: AppointmentStatus;
+  customer:    string;
+  contact:     string;
+  vehicle:     string;
+  service:     string;
+  date:        string;
+  time:        string;
+  deposit:     number;
+  notes:       string;
+  status:      AppointmentStatus;
+  // Extra fields from new booking flow
+  fullName?:         string;
+  mobileNumber?:     string;
+  paymentMethod?:    string;
+  paymentType?:      string;
+  totalAmount?:      number;
+  remainingBalance?: number;
+  proofUrl?:         string;
+  rejectionReason?:  string;
+  addons?:           string;
 }
+
+// ─── STATUS CONFIG ────────────────────────────────────────────────────────────
 
 const SERVICE_OPTIONS = [
   "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
@@ -39,14 +62,18 @@ const TIME_OPTIONS = [
   "1:00 PM","2:00 PM","3:00 PM","4:00 PM",
 ];
 
-const ALL_STATUSES: AppointmentStatus[] = ["Confirmed", "Pending", "In Progress", "Completed", "Cancelled"];
+const ALL_STATUSES: AppointmentStatus[] = [
+  "Confirmed","Pending","In Progress","Completed","Cancelled",
+];
 
-const STATUS_STYLE: Record<AppointmentStatus, { bg: string; text: string; dot: string; border: string }> = {
+const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string; border: string }> = {
+  "Pending Verification": { bg: "bg-orange-500/20", text: "text-orange-300", dot: "bg-orange-400", border: "border-orange-500/30" },
   Confirmed:    { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30"  },
   Pending:      { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30" },
   "In Progress":{ bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30"   },
   Completed:    { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10"      },
   Cancelled:    { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
+  Rejected:     { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
 };
 
 const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
@@ -55,40 +82,262 @@ const cardCls  = "bg-gradient-to-br from-white/5 to-white/10 border-white/10 bac
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
+
 function formatShort(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
 }
+
 function serviceIcon(service: string) {
   const s = service.toLowerCase();
   if (s.includes("coating")) return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
-  if (s.includes("ppf") || s.includes("paint protection")) return <Layers className="w-4 h-4 text-violet-400" />;
+  if (s.includes("ppf"))     return <Layers   className="w-4 h-4 text-violet-400" />;
   if (s.includes("tint"))    return <Sparkles className="w-4 h-4 text-sky-400"    />;
   return                            <Car      className="w-4 h-4 text-white/50"    />;
 }
 
-function StatusBadge({ status }: { status: AppointmentStatus }) {
-  const s = STATUS_STYLE[status] || STATUS_STYLE.Pending;
+function mapRawAppointment(a: any): Appointment {
+  const raw = a.scheduled_date || a.date || "";
+  const d   = raw ? new Date(raw) : new Date();
+  const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+
+  return {
+    id:              a.id,
+    customerId:      a.customer_id ?? a.customerId,
+    customer:        a.customer?.name ?? a.customerName ?? a.full_name ?? "Unknown",
+    contact:         a.customer?.contact ?? a.mobile_number ?? a.contact ?? "",
+    vehicle:         a.customer?.vehicle ?? [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") || a.vehicle || "N/A",
+    service:         a.service_type ?? a.service ?? "Service",
+    date:            dateStr,
+    time:            d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    deposit:         Number(a.deposit ?? a.total_cost ?? 0),
+    notes:           a.notes ?? "",
+    status:          (a.status ?? "Pending") as AppointmentStatus,
+    fullName:        a.full_name,
+    mobileNumber:    a.mobile_number,
+    paymentMethod:   a.payment_method,
+    paymentType:     a.payment_type,
+    totalAmount:     Number(a.total_cost ?? 0),
+    remainingBalance:Number(a.remaining_balance ?? 0),
+    proofUrl:        a.proof_url,
+    rejectionReason: a.rejection_reason,
+    addons:          a.addons,
+  };
+}
+
+// ─── STATUS BADGE ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const s = STATUS_STYLE[status] ?? STATUS_STYLE["Pending"];
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {status}
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{status}
     </span>
   );
 }
 
-function CalendarCard({
-  selected, onSelect, dotDates,
+// ─── PENDING REQUESTS PANEL ───────────────────────────────────────────────────
+
+function PendingRequestsPanel({
+  requests, onApprove, onReject, isProcessing,
 }: {
-  selected: string;
-  onSelect: (d: string) => void;
-  dotDates: Record<string, AppointmentStatus[]>;
+  requests:     Appointment[];
+  onApprove:    (id: string | number) => void;
+  onReject:     (id: string | number) => void;
+  isProcessing: string | number | null;
 }) {
-  const today = todayStr();
+  if (requests.length === 0) {
+    return (
+      <div className={`${cardCls} p-10 flex flex-col items-center text-center`}>
+        <div className="w-14 h-14 bg-green-500/10 rounded-2xl flex items-center justify-center mb-4">
+          <CheckCircle2 className="w-7 h-7 text-green-400" />
+        </div>
+        <p className="text-white font-semibold text-sm">All caught up!</p>
+        <p className="text-white/40 text-xs mt-1">No pending appointment requests.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {requests.map(a => (
+        <div
+          key={a.id}
+          className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 hover:border-orange-500/40 transition-all"
+        >
+          {/* Top row */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0">
+                {serviceIcon(a.service)}
+              </div>
+              <div>
+                <p className="text-white text-sm font-semibold">{a.service}</p>
+                <p className="text-white/50 text-xs mt-0.5">
+                  {a.fullName || a.customer} · {a.vehicle}
+                </p>
+              </div>
+            </div>
+            <StatusBadge status={a.status} />
+          </div>
+
+          {/* Details grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <p className="text-white/40 text-[10px] uppercase tracking-wide">Date</p>
+              <p className="text-white text-xs font-medium mt-0.5">{formatShort(a.date)}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <p className="text-white/40 text-[10px] uppercase tracking-wide">Time</p>
+              <p className="text-white text-xs font-medium mt-0.5">{a.time}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <p className="text-white/40 text-[10px] uppercase tracking-wide">Payment</p>
+              <p className="text-white text-xs font-medium mt-0.5">{a.paymentType || "—"}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <p className="text-white/40 text-[10px] uppercase tracking-wide">Amount Paid</p>
+              <p className="text-green-400 text-xs font-semibold mt-0.5">₱{Number(a.deposit).toLocaleString()}</p>
+            </div>
+          </div>
+
+          {/* Contact + method */}
+          <div className="flex flex-wrap gap-3 mb-3 text-xs text-white/50">
+            {a.mobileNumber && (
+              <span className="flex items-center gap-1">
+                <Phone className="w-3.5 h-3.5" />{a.mobileNumber}
+              </span>
+            )}
+            {a.paymentMethod && (
+              <span className="flex items-center gap-1">
+                <Banknote className="w-3.5 h-3.5 text-sky-400" />{a.paymentMethod}
+              </span>
+            )}
+            {a.remainingBalance ? (
+              <span className="flex items-center gap-1 text-yellow-400">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Balance: ₱{Number(a.remainingBalance).toLocaleString()}
+              </span>
+            ) : null}
+          </div>
+
+          {/* Proof of payment */}
+          {a.proofUrl && (
+          <div className="mb-3">
+              <a
+                href={`${import.meta.env.VITE_API_BASE_URL}${a.proofUrl}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5" />View Proof of Payment
+              </a>
+            </div>
+          )}
+
+          {a.notes && (
+            <p className="text-white/40 text-xs italic mb-3">"{a.notes}"</p>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+            <button
+              onClick={() => onApprove(a.id)}
+              disabled={isProcessing === a.id}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-green-400 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {isProcessing === a.id ? "Processing..." : "Approve"}
+            </button>
+            <button
+              onClick={() => onReject(a.id)}
+              disabled={isProcessing === a.id}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <XOctagon className="w-3.5 h-3.5" />
+              {isProcessing === a.id ? "Processing..." : "Reject"}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── REJECT REASON MODAL ──────────────────────────────────────────────────────
+
+function RejectReasonModal({
+  onClose, onConfirm,
+}: {
+  onClose:   () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
+      style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-white">Reject Appointment</h2>
+            <p className="text-xs text-white/50 mt-0.5">Provide a reason for rejection</p>
+          </div>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg mb-4 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-red-400 text-xs">
+              The customer will be notified that their appointment was rejected. This action cannot be undone.
+            </p>
+          </div>
+          <label className="text-sm font-medium text-white/70 block mb-1.5">
+            Rejection Reason <span className="text-white/30">(optional)</span>
+          </label>
+          <textarea
+            className={inputCls + " resize-none h-24 py-2.5"}
+            placeholder="e.g. Selected time slot is unavailable, please rebook..."
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+          />
+        </div>
+
+        <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => { onConfirm(reason); onClose(); }}
+            className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <XOctagon className="w-4 h-4" />Confirm Rejection
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CALENDAR ─────────────────────────────────────────────────────────────────
+
+function CalendarCard({ selected, onSelect, dotDates }: {
+  selected:  string;
+  onSelect:  (d: string) => void;
+  dotDates:  Record<string, string[]>;
+}) {
+  const today   = todayStr();
   const selDate = new Date(selected + "T00:00:00");
   const [viewYear,  setViewYear]  = useState(selDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selDate.getMonth());
@@ -102,13 +351,15 @@ function CalendarCard({
   while (cells.length % 7 !== 0) cells.push(null);
 
   const prev = () => viewMonth === 0 ? (setViewMonth(11), setViewYear(y => y - 1)) : setViewMonth(m => m - 1);
-  const next = () => viewMonth === 11 ? (setViewMonth(0),  setViewYear(y => y + 1)) : setViewMonth(m => m + 1);
+  const next = () => viewMonth === 11 ? (setViewMonth(0), setViewYear(y => y + 1)) : setViewMonth(m => m + 1);
   const cellKey = (day: number) =>
     `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-  const dotColor = (statuses: AppointmentStatus[]) => {
-    if (statuses.includes("In Progress")) return "bg-blue-500";
-    if (statuses.includes("Confirmed"))   return "bg-green-500";
-    if (statuses.includes("Pending"))     return "bg-yellow-400";
+
+  const dotColor = (statuses: string[]) => {
+    if (statuses.includes("Pending Verification")) return "bg-orange-400";
+    if (statuses.includes("In Progress"))          return "bg-blue-500";
+    if (statuses.includes("Confirmed"))            return "bg-green-500";
+    if (statuses.includes("Pending"))              return "bg-yellow-400";
     return "bg-white/30";
   };
 
@@ -152,9 +403,10 @@ function CalendarCard({
       </div>
       <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-1.5">
         {[
-          { dot: "bg-green-500",  label: "Confirmed"   },
-          { dot: "bg-blue-500",   label: "In Progress" },
-          { dot: "bg-yellow-400", label: "Pending"     },
+          { dot: "bg-orange-400", label: "Pending Verification" },
+          { dot: "bg-green-500",  label: "Confirmed"            },
+          { dot: "bg-blue-500",   label: "In Progress"          },
+          { dot: "bg-yellow-400", label: "Pending"              },
         ].map(l => (
           <div key={l.label} className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${l.dot}`} />
@@ -166,11 +418,11 @@ function CalendarCard({
   );
 }
 
-function AppointmentsPanel({
-  selected, appts, onViewDetail,
-}: {
-  selected: string;
-  appts: Appointment[];
+// ─── APPOINTMENTS PANEL ───────────────────────────────────────────────────────
+
+function AppointmentsPanel({ selected, appts, onViewDetail }: {
+  selected:     string;
+  appts:        Appointment[];
   onViewDetail: (a: Appointment) => void;
 }) {
   return (
@@ -179,7 +431,9 @@ function AppointmentsPanel({
         <h2 className="text-sm font-bold text-white">
           Appointments for <span className="text-[#E41E6A]">{formatShort(selected)}</span>
         </h2>
-        <p className="text-xs text-white/50 mt-0.5">{appts.length} appointment{appts.length !== 1 ? "s" : ""} scheduled</p>
+        <p className="text-xs text-white/50 mt-0.5">
+          {appts.length} appointment{appts.length !== 1 ? "s" : ""} scheduled
+        </p>
       </div>
       {appts.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
@@ -219,12 +473,12 @@ function AppointmentsPanel({
   );
 }
 
-function AppointmentTable({
-  appts, onViewDetail, onCancel,
-}: {
-  appts: Appointment[];
+// ─── APPOINTMENT TABLE ────────────────────────────────────────────────────────
+
+function AppointmentTable({ appts, onViewDetail, onCancel }: {
+  appts:        Appointment[];
   onViewDetail: (a: Appointment) => void;
-  onCancel: (id: number | string) => void;
+  onCancel:     (id: number | string) => void;
 }) {
   return (
     <div className={`${cardCls} overflow-hidden`}>
@@ -246,7 +500,7 @@ function AppointmentTable({
               <button onClick={() => onViewDetail(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400">
                 <Eye className="w-3.5 h-3.5" />View
               </button>
-              {a.status !== "Completed" && a.status !== "Cancelled" && (
+              {a.status !== "Completed" && a.status !== "Cancelled" && a.status !== "Rejected" && (
                 <button onClick={() => onCancel(a.id)} className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300">
                   <XCircle className="w-3.5 h-3.5" />Cancel
                 </button>
@@ -267,40 +521,38 @@ function AppointmentTable({
           <tbody className="divide-y divide-white/5">
             {appts.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-10 text-white/40 text-sm">No appointments found.</td></tr>
-            ) : (
-              appts.map(a => (
-                <tr key={a.id} className="hover:bg-white/5 transition-colors">
-                  <td className="px-5 py-3.5 whitespace-nowrap">
-                    <span className="block text-xs font-medium text-white">{formatShort(a.date)}</span>
-                    <span className="text-xs text-white/40">{a.time}</span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="block text-sm font-medium text-white">{a.customer}</span>
-                    <span className="text-xs text-white/50 flex items-center gap-1 mt-0.5"><Phone className="w-3 h-3" />{a.contact}</span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">{serviceIcon(a.service)}</div>
-                      <span className="text-sm text-white max-w-[180px] truncate">{a.service}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-white/60 whitespace-nowrap">{a.vehicle}</td>
-                  <td className="px-5 py-3.5"><StatusBadge status={a.status} /></td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => onViewDetail(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
-                        <Eye className="w-3.5 h-3.5" />View
+            ) : appts.map(a => (
+              <tr key={a.id} className="hover:bg-white/5 transition-colors">
+                <td className="px-5 py-3.5 whitespace-nowrap">
+                  <span className="block text-xs font-medium text-white">{formatShort(a.date)}</span>
+                  <span className="text-xs text-white/40">{a.time}</span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <span className="block text-sm font-medium text-white">{a.customer}</span>
+                  <span className="text-xs text-white/50 flex items-center gap-1 mt-0.5"><Phone className="w-3 h-3" />{a.contact}</span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">{serviceIcon(a.service)}</div>
+                    <span className="text-sm text-white max-w-[180px] truncate">{a.service}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-3.5 text-sm text-white/60 whitespace-nowrap">{a.vehicle}</td>
+                <td className="px-5 py-3.5"><StatusBadge status={a.status} /></td>
+                <td className="px-5 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => onViewDetail(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors">
+                      <Eye className="w-3.5 h-3.5" />View
+                    </button>
+                    {a.status !== "Completed" && a.status !== "Cancelled" && a.status !== "Rejected" && (
+                      <button onClick={() => onCancel(a.id)} className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 transition-colors">
+                        <XCircle className="w-3.5 h-3.5" />Cancel
                       </button>
-                      {a.status !== "Completed" && a.status !== "Cancelled" && (
-                        <button onClick={() => onCancel(a.id)} className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 transition-colors">
-                          <XCircle className="w-3.5 h-3.5" />Cancel
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -310,11 +562,9 @@ function AppointmentTable({
 
 // ─── ADD APPOINTMENT MODAL ────────────────────────────────────────────────────
 
-function AddAppointmentModal({
-  onClose, onSave, customers,
-}: {
-  onClose: () => void;
-  onSave: (a: Omit<Appointment, "id">) => void;
+function AddAppointmentModal({ onClose, onSave, customers }: {
+  onClose:   () => void;
+  onSave:    (a: Omit<Appointment, "id">) => void;
   customers: any[];
 }) {
   const [form, setForm] = useState({
@@ -324,15 +574,11 @@ function AddAppointmentModal({
   });
   const [error, setError] = useState("");
 
-  // Auto-fill contact and vehicle when customer selected
   const handleCustomerChange = (id: string) => {
     const found = customers.find(c => c.id === id);
     setForm(f => ({
-      ...f,
-      customerId: id,
-      customer:   found?.name    ?? "",
-      contact:    found?.contact ?? "",
-      vehicle:    found?.vehicle ?? "",
+      ...f, customerId: id,
+      customer: found?.name ?? "", contact: found?.contact ?? "", vehicle: found?.vehicle ?? "",
     }));
   };
 
@@ -358,50 +604,38 @@ function AddAppointmentModal({
             <h2 className="text-base font-bold text-white">New Appointment</h2>
             <p className="text-xs text-white/50 mt-0.5">Fill in the appointment details</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-6 overflow-y-auto space-y-4">
-
-          {/* ── Customer dropdown ── */}
           <div>
             {field("Customer", true)}
             <div className="relative">
-              <select
-                className={`${inputCls} appearance-none pr-8`}
-                value={form.customerId}
-                onChange={e => handleCustomerChange(e.target.value)}
-              >
+              <select className={`${inputCls} appearance-none pr-8`} value={form.customerId} onChange={e => handleCustomerChange(e.target.value)}>
                 <option value="" className="bg-[#0a0a0a]">Select a customer...</option>
                 {customers.map(c => (
-                  <option key={c.id} value={c.id} className="bg-[#0a0a0a]">
-                    {c.name}{c.vehicle ? ` · ${c.vehicle}` : ""}
-                  </option>
+                  <option key={c.id} value={c.id} className="bg-[#0a0a0a]">{c.name}{c.vehicle ? ` · ${c.vehicle}` : ""}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
             </div>
           </div>
 
-          {/* Auto-filled read-only fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {field("Contact Number")}
-              <input className={inputCls + " opacity-60"} placeholder="Auto-filled" value={form.contact}
-                onChange={e => setForm({...form, contact: e.target.value})} />
+              <input className={inputCls + " opacity-60"} placeholder="Auto-filled" value={form.contact} onChange={e => setForm({...form, contact: e.target.value})} />
             </div>
             <div>
               {field("Vehicle", true)}
-              <input className={inputCls} placeholder="Year Make Model" value={form.vehicle}
-                onChange={e => setForm({...form, vehicle: e.target.value})} />
+              <input className={inputCls} placeholder="Year Make Model" value={form.vehicle} onChange={e => setForm({...form, vehicle: e.target.value})} />
             </div>
           </div>
 
           <div>
             {field("Service", true)}
             <div className="relative">
-              <select className={`${inputCls} appearance-none pr-8`} value={form.service}
-                onChange={e => setForm({...form, service: e.target.value})}>
+              <select className={`${inputCls} appearance-none pr-8`} value={form.service} onChange={e => setForm({...form, service: e.target.value})}>
                 <option value="" className="bg-[#0a0a0a]">Select a service...</option>
                 {SERVICE_OPTIONS.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
               </select>
@@ -412,14 +646,12 @@ function AddAppointmentModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {field("Date", true)}
-              <input type="date" className={`${inputCls} [color-scheme:dark]`} value={form.date}
-                onChange={e => setForm({...form, date: e.target.value})} />
+              <input type="date" className={`${inputCls} [color-scheme:dark]`} value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
             </div>
             <div>
               {field("Time", true)}
               <div className="relative">
-                <select className={`${inputCls} appearance-none pr-8`} value={form.time}
-                  onChange={e => setForm({...form, time: e.target.value})}>
+                <select className={`${inputCls} appearance-none pr-8`} value={form.time} onChange={e => setForm({...form, time: e.target.value})}>
                   {TIME_OPTIONS.map(t => <option key={t} value={t} className="bg-[#0a0a0a]">{t}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -430,14 +662,12 @@ function AddAppointmentModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               {field("Deposit (₱)")}
-              <input type="number" className={inputCls} placeholder="0" value={form.deposit}
-                onChange={e => setForm({...form, deposit: e.target.value})} />
+              <input type="number" className={inputCls} placeholder="0" value={form.deposit} onChange={e => setForm({...form, deposit: e.target.value})} />
             </div>
             <div>
               {field("Status")}
               <div className="relative">
-                <select className={`${inputCls} appearance-none pr-8`} value={form.status}
-                  onChange={e => setForm({...form, status: e.target.value as AppointmentStatus})}>
+                <select className={`${inputCls} appearance-none pr-8`} value={form.status} onChange={e => setForm({...form, status: e.target.value as AppointmentStatus})}>
                   {ALL_STATUSES.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -447,8 +677,7 @@ function AddAppointmentModal({
 
           <div>
             {field("Notes")}
-            <textarea className={`${inputCls} resize-none h-20 py-2.5`} placeholder="Optional notes..."
-              value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
+            <textarea className={`${inputCls} resize-none h-20 py-2.5`} placeholder="Optional notes..." value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
           </div>
 
           {error && (
@@ -459,9 +688,7 @@ function AddAppointmentModal({
         </div>
 
         <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
-            Cancel
-          </button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
           <button onClick={handleSave} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">
             Save Appointment
           </button>
@@ -471,27 +698,20 @@ function AddAppointmentModal({
   );
 }
 
-// ─── VIEW / EDIT DETAIL MODAL ─────────────────────────────────────────────────
+// ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
 
-function DetailModal({
-  appt, onClose, onStatusChange,
-}: {
-  appt: Appointment;
-  onClose: () => void;
+function DetailModal({ appt, onClose, onStatusChange }: {
+  appt:           Appointment;
+  onClose:        () => void;
   onStatusChange: (id: number | string, status: AppointmentStatus) => void;
 }) {
   const [status, setStatus] = useState<AppointmentStatus>(appt.status);
 
-  const handleUpdate = () => {
-    onStatusChange(appt.id, status);
-    onClose();
-  };
+  const handleUpdate = () => { onStatusChange(appt.id, status); onClose(); };
 
   const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
     <div className="flex items-start gap-3 py-3 border-b border-white/10 last:border-0">
-      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5 border border-white/5">
-        {icon}
-      </div>
+      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5 border border-white/5">{icon}</div>
       <div>
         <p className="text-xs text-white/50 font-medium">{label}</p>
         <p className="text-sm text-white font-semibold mt-0.5">{value}</p>
@@ -507,21 +727,36 @@ function DetailModal({
             <h2 className="text-base font-bold text-white">Appointment Details</h2>
             <p className="text-xs text-white/50 mt-0.5">#{appt.id} · {formatShort(appt.date)}</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors flex-shrink-0"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white flex-shrink-0"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 overflow-y-auto">
-          <Row icon={<User     className="w-4 h-4 text-white/50" />} label="Customer" value={appt.customer} />
-          <Row icon={<Phone    className="w-4 h-4 text-white/50" />} label="Contact"  value={appt.contact || "N/A"} />
+          <Row icon={<User     className="w-4 h-4 text-white/50" />} label="Customer" value={appt.fullName || appt.customer} />
+          <Row icon={<Phone    className="w-4 h-4 text-white/50" />} label="Contact"  value={appt.mobileNumber || appt.contact || "N/A"} />
           <Row icon={<Car      className="w-4 h-4 text-white/50" />} label="Vehicle"  value={appt.vehicle} />
           <Row icon={<Shield   className="w-4 h-4 text-[#E41E6A]"/>} label="Service"  value={appt.service} />
           <Row icon={<Clock    className="w-4 h-4 text-[#E41E6A]"/>} label="Schedule" value={`${formatShort(appt.date)} · ${appt.time}`} />
           <Row icon={<Banknote className="w-4 h-4 text-green-400"/>} label="Deposit"  value={`₱${appt.deposit.toLocaleString()}`} />
+          {appt.paymentMethod && <Row icon={<Banknote className="w-4 h-4 text-sky-400"/>} label="Payment Method" value={`${appt.paymentMethod} · ${appt.paymentType || ""}`} />}
+          {appt.remainingBalance ? <Row icon={<AlertTriangle className="w-4 h-4 text-yellow-400"/>} label="Balance Due" value={`₱${Number(appt.remainingBalance).toLocaleString()}`} /> : null}
           {appt.notes && <Row icon={<FileText className="w-4 h-4 text-white/50" />} label="Notes" value={appt.notes} />}
+          {appt.rejectionReason && (
+            <div className="mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p className="text-red-400 text-xs font-medium">Rejection Reason:</p>
+              <p className="text-red-300 text-xs mt-1">{appt.rejectionReason}</p>
+            </div>
+          )}
+          {appt.proofUrl && (
+            <div className="mt-3">
+              <a href={`${import.meta.env.VITE_API_BASE_URL}${appt.proofUrl}`} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 rounded-lg transition-colors">
+                <FileText className="w-3.5 h-3.5" />View Proof of Payment
+              </a>
+            </div>
+          )}
           <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-xs text-white/50 font-medium mb-2">Update Status</p>
             <div className="relative">
-              <select className={`${inputCls} appearance-none pr-8 font-semibold`} value={status}
-                onChange={e => setStatus(e.target.value as AppointmentStatus)}>
+              <select className={`${inputCls} appearance-none pr-8 font-semibold`} value={status} onChange={e => setStatus(e.target.value as AppointmentStatus)}>
                 {ALL_STATUSES.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -543,14 +778,19 @@ function DetailModal({
 
 export function FrontDeskAppointments() {
   const today = todayStr();
+  const { profile } = useAuth();
 
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [customers,    setCustomers]    = useState<any[]>([]);
-  const [isLoading,    setIsLoading]    = useState(true);
-  const [selected,     setSelected]     = useState(today);
-  const [search,       setSearch]       = useState("");
-  const [showAdd,      setShowAdd]      = useState(false);
-  const [detailAppt,   setDetailAppt]   = useState<Appointment | null>(null);
+  const [appointments,    setAppointments]    = useState<Appointment[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<Appointment[]>([]);
+  const [customers,       setCustomers]       = useState<any[]>([]);
+  const [isLoading,       setIsLoading]       = useState(true);
+  const [selected,        setSelected]        = useState(today);
+  const [search,          setSearch]          = useState("");
+  const [activeTab,       setActiveTab]       = useState<"pending" | "all">("pending");
+  const [showAdd,         setShowAdd]         = useState(false);
+  const [detailAppt,      setDetailAppt]      = useState<Appointment | null>(null);
+  const [isProcessing,    setIsProcessing]    = useState<string | number | null>(null);
+  const [rejectTarget,    setRejectTarget]    = useState<string | number | null>(null);
 
   const todayDisplay = new Date().toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -561,23 +801,21 @@ export function FrontDeskAppointments() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [cust, data] = await Promise.all([
+      const [cust, allData, pendingData] = await Promise.all([
         getCustomers().catch(() => []),
         getAppointments().catch(() => []),
+        getPendingVerificationAppointments().catch(() => []),
       ]);
+
       setCustomers(cust);
-      setAppointments(data.map((a) => ({
-        id:       a.id,
-        customer: a.customerName,
-        contact:  "",
-        vehicle:  a.vehicle,
-        service:  a.service,
-        date:     a.date,
-        time:     a.time,
-        deposit:  a.totalAmount,
-        notes:    "",
-        status:   a.status as AppointmentStatus,
-      })));
+      setAppointments(
+        (Array.isArray(allData) ? allData : allData?.data ?? [])
+          .map(mapRawAppointment)
+          .filter((a: Appointment) => a.status !== "Pending Verification")
+      );
+      setPendingRequests(
+        (Array.isArray(pendingData) ? pendingData : []).map(mapRawAppointment)
+      );
     } catch (err) {
       console.error("Failed to fetch appointments:", err);
     } finally {
@@ -585,36 +823,69 @@ export function FrontDeskAppointments() {
     }
   };
 
-  // ── FIXED: uses customerId (UUID) not customer name ──
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  const handleApprove = async (id: string | number) => {
+    setIsProcessing(id);
+    try {
+      await approveAppointment(String(id), "Appointment confirmed by front desk");
+      setPendingRequests(prev => prev.filter(a => a.id !== id));
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to approve:", err);
+      alert("Failed to approve appointment.");
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
+  const handleRejectConfirm = async (reason: string) => {
+    if (!rejectTarget) return;
+    setIsProcessing(rejectTarget);
+    try {
+      await rejectAppointment(String(rejectTarget), reason);
+      setPendingRequests(prev => prev.filter(a => a.id !== rejectTarget));
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to reject:", err);
+      alert("Failed to reject appointment.");
+    } finally {
+      setIsProcessing(null);
+      setRejectTarget(null);
+    }
+  };
+
   const handleAdd = async (appt: Omit<Appointment, "id">) => {
     try {
       const [timePart, meridiem] = appt.time.split(" ");
       let [hours, minutes] = timePart.split(":").map(Number);
       if (meridiem === "PM" && hours !== 12) hours += 12;
-      if (meridiem === "AM" && hours === 12) hours  = 0;
-      const time24 = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+      if (meridiem === "AM" && hours === 12) hours = 0;
+      const time24 = `${String(hours).padStart(2,"0")}:${String(minutes).padStart(2,"0")}`;
 
-      const created = await createAppointment({
-        customerId:  appt.customerId!, // ← real UUID from dropdown
-        service:     appt.service,
-        date:        appt.date,
-        time:        time24,
-        totalAmount: appt.deposit,
+      await createAppointment({
+        customerId:        appt.customerId!,
+        fullName:          appt.customer,
+        mobileNumber:      appt.contact,
+        service:           appt.service,
+        addons:            [],
+        vehicleMake:       "",
+        vehicleModel:      appt.vehicle,
+        vehicleYear:       "",
+        vehicleClass:      "",
+        vehiclePlateNumber:"",
+        date:              appt.date,
+        time:              time24,
+        paymentMethod:     "Cash",
+        paymentType:       "Full Payment",
+        totalAmount:       appt.deposit,
+        deposit:           appt.deposit,
+        remainingBalance:  0,
+        notes:             appt.notes,
+        proofFile:         new File([], "frontdesk-booking.txt"),
       });
 
-      setAppointments(prev => [...prev, {
-        id:         created.id,
-        customerId: appt.customerId,
-        customer:   created.customerName,
-        contact:    appt.contact,
-        vehicle:    created.vehicle,
-        service:    created.service,
-        date:       created.date,
-        time:       appt.time,
-        deposit:    created.totalAmount,
-        notes:      appt.notes,
-        status:     created.status as AppointmentStatus,
-      }]);
+      await fetchData();
     } catch (err) {
       console.error("Failed to create appointment:", err);
     }
@@ -625,7 +896,7 @@ export function FrontDeskAppointments() {
       await updateAppointmentStatus(String(id), "Cancelled");
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" } : a));
     } catch (err) {
-      console.error("Failed to cancel appointment:", err);
+      console.error("Failed to cancel:", err);
     }
   };
 
@@ -638,14 +909,16 @@ export function FrontDeskAppointments() {
     }
   };
 
+  // ── Derived data ──────────────────────────────────────────────────────────
+
   const dotDates = useMemo(() => {
-    const map: Record<string, AppointmentStatus[]> = {};
-    appointments.forEach(a => {
+    const map: Record<string, string[]> = {};
+    [...appointments, ...pendingRequests].forEach(a => {
       if (!map[a.date]) map[a.date] = [];
       map[a.date].push(a.status);
     });
     return map;
-  }, [appointments]);
+  }, [appointments, pendingRequests]);
 
   const forSelected = useMemo(
     () => appointments.filter(a => a.date === selected),
@@ -667,49 +940,120 @@ export function FrontDeskAppointments() {
   return (
     <div className="space-y-6">
 
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-white text-3xl font-bold mb-1">Manage Appointments</h1>
           <p className="text-white/60 text-sm">{todayDisplay}</p>
         </div>
+        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => setShowAdd(true)}
+            className="inline-flex items-center gap-1.5 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" />New Appointment
+          </button>
+        </div>
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10 w-fit">
         <button
-          onClick={() => setShowAdd(true)}
-          className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all"
+          onClick={() => setActiveTab("pending")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            activeTab === "pending"
+              ? "bg-orange-500/20 text-orange-300 border border-orange-500/30"
+              : "text-white/60 hover:text-white hover:bg-white/10"
+          }`}
         >
-          <Plus className="w-4 h-4" />New Appointment
+          <Bell className="w-4 h-4" />
+          Pending Requests
+          {pendingRequests.length > 0 && (
+            <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+              {pendingRequests.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("all")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            activeTab === "all"
+              ? "bg-[#E41E6A] text-white"
+              : "text-white/60 hover:text-white hover:bg-white/10"
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          All Appointments
         </button>
       </div>
 
-      <div className="flex items-center gap-3 max-w-lg">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-          <input type="text" placeholder="Search by customer, service, vehicle..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors" />
-        </div>
-        <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white/60 bg-white/5 border border-white/10 rounded-xl shadow-sm hover:border-white/20 hover:text-white hover:bg-white/10 transition-colors">
-          <SlidersHorizontal className="w-4 h-4" />Filter
-        </button>
-      </div>
-
-      {isLoading ? (
-        <div className={`${cardCls} flex items-center justify-center h-40 text-white/50`}>
-          Loading appointments...
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
-            <CalendarCard selected={selected} onSelect={setSelected} dotDates={dotDates} />
-            <AppointmentsPanel selected={selected} appts={forSelected} onViewDetail={setDetailAppt} />
+      {/* ── PENDING REQUESTS TAB ── */}
+      {activeTab === "pending" && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-white font-semibold">Booking Requests</h2>
+              <p className="text-white/50 text-xs mt-0.5">
+                {pendingRequests.length} request{pendingRequests.length !== 1 ? "s" : ""} awaiting review
+              </p>
+            </div>
           </div>
-          <AppointmentTable appts={filtered} onViewDetail={setDetailAppt} onCancel={handleCancel} />
+
+          {isLoading ? (
+            <div className={`${cardCls} flex items-center justify-center h-40 text-white/50`}>
+              Loading requests...
+            </div>
+          ) : (
+            <PendingRequestsPanel
+              requests={pendingRequests}
+              onApprove={handleApprove}
+              onReject={(id) => setRejectTarget(id)}
+              isProcessing={isProcessing}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── ALL APPOINTMENTS TAB ── */}
+      {activeTab === "all" && (
+        <>
+          <div className="flex items-center gap-3 max-w-lg">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
+              <input type="text" placeholder="Search by customer, service, vehicle..."
+                value={search} onChange={e => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors" />
+            </div>
+            <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white/60 bg-white/5 border border-white/10 rounded-xl hover:border-white/20 hover:text-white hover:bg-white/10 transition-colors">
+              <SlidersHorizontal className="w-4 h-4" />Filter
+            </button>
+          </div>
+
+          {isLoading ? (
+            <div className={`${cardCls} flex items-center justify-center h-40 text-white/50`}>
+              Loading appointments...
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
+                <CalendarCard selected={selected} onSelect={setSelected} dotDates={dotDates} />
+                <AppointmentsPanel selected={selected} appts={forSelected} onViewDetail={setDetailAppt} />
+              </div>
+              <AppointmentTable appts={filtered} onViewDetail={setDetailAppt} onCancel={handleCancel} />
+            </>
+          )}
         </>
       )}
 
-      {/* ── FIXED: customers prop now passed ── */}
+      {/* Modals */}
       {showAdd    && <AddAppointmentModal onClose={() => setShowAdd(false)} onSave={handleAdd} customers={customers} />}
       {detailAppt && <DetailModal appt={detailAppt} onClose={() => setDetailAppt(null)} onStatusChange={handleStatusChange} />}
-
+      {rejectTarget !== null && (
+        <RejectReasonModal
+          onClose={() => setRejectTarget(null)}
+          onConfirm={handleRejectConfirm}
+        />
+      )}
     </div>
   );
 }
