@@ -126,7 +126,8 @@ function AddEmployeeModal({
     status:    "Active" as "Active" | "On Leave",
     hire_date: "",   // NEW — replaces performance
   });
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving,    setIsSaving]    = useState(false);
+  const [credentials, setCredentials] = useState<{ email: string; password: string; role: string } | null>(null);
 
   const handleSave = async () => {
     if (!form.name || !form.position || !form.department) {
@@ -145,7 +146,7 @@ function AddEmployeeModal({
       });
       onClose();
     } catch (error: any) {
-      alert(`Database Error: ${error?.message || "Failed to add employee."}`);
+      alert(`Error: ${error?.message || "Failed to add employee."}`);
     } finally {
       setIsSaving(false);
     }
@@ -157,7 +158,7 @@ function AddEmployeeModal({
         <div className="p-6 border-b border-white/10 flex justify-between items-center">
           <div>
             <h2 className="text-xl font-bold text-white">Add New Employee</h2>
-            <p className="text-white/50 text-xs mt-0.5">Fill in the employee details below</p>
+            <p className="text-white/50 text-xs mt-0.5">An account will be created automatically</p>
           </div>
           <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
             <X className="w-5 h-5" />
@@ -165,6 +166,15 @@ function AddEmployeeModal({
         </div>
 
         <div className="p-6 space-y-4 overflow-y-auto">
+          {form.name && (
+            <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+              <p className="text-white/50 text-xs mb-1">Auto-generated email</p>
+              <p className="text-[#E41E6A] font-mono text-sm">
+                {form.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@cprodavao.com
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Full Name" required>
               <input className={inputClass} placeholder="Full name"
@@ -289,7 +299,6 @@ function ProfileModal({
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Hero */}
           <div className="flex items-center gap-4 p-4 bg-gradient-to-br from-[#E41E6A]/10 to-pink-600/5 rounded-xl border border-[#E41E6A]/20">
             <div className="relative">
               <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${avatarColor(employee.id)} flex items-center justify-center text-white text-lg font-bold flex-shrink-0`}>
@@ -457,12 +466,8 @@ function AssignWorkModal({
             <label className="text-sm font-medium text-white/70">
               Assignment Details <span className="text-red-500">*</span>
             </label>
-            <input
-              className={inputClass}
-              placeholder="Enter work assignment (type 'None' to clear)"
-              value={assignment}
-              onChange={e => setAssignment(e.target.value)}
-            />
+            <input className={inputClass} placeholder="Enter work assignment (type 'None' to clear)"
+              value={assignment} onChange={e => setAssignment(e.target.value)} />
             {isClear && (
               <p className="text-emerald-400 text-xs flex items-center gap-1 mt-1">
                 <CheckCircle className="w-3.5 h-3.5" />This will mark the employee as Available
@@ -901,16 +906,12 @@ export function Employees() {
                     <p className="text-white text-xs font-medium truncate">{emp.current_assignment}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => handleMarkAvailable(emp.id)}
-                      className="flex-1 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-                    >
+                    <button onClick={() => handleMarkAvailable(emp.id)}
+                      className="flex-1 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5">
                       <CheckCircle className="w-3.5 h-3.5" />Mark Available
                     </button>
-                    <button
-                      onClick={() => setAssignEmp(emp)}
-                      className="flex-1 py-1.5 text-xs font-semibold text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-                    >
+                    <button onClick={() => setAssignEmp(emp)}
+                      className="flex-1 py-1.5 text-xs font-semibold text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5">
                       <Edit2 className="w-3.5 h-3.5" />Reassign
                     </button>
                   </div>
@@ -925,15 +926,10 @@ export function Employees() {
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by name, position, or department..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors"
-          />
+          <input type="text" placeholder="Search by name, position, or department..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors" />
         </div>
-
         <div className="flex items-center gap-1.5 flex-wrap">
           <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
           {(["All","Available","Busy"] as const).map(f => (
@@ -959,13 +955,9 @@ export function Employees() {
             {tenureSortLabel}
           </button>
         </div>
-
         <div className="relative">
-          <select
-            value={filterDept}
-            onChange={e => setFilterDept(e.target.value)}
-            className="pl-3 pr-8 py-2.5 text-xs font-semibold bg-white/5 border border-white/10 rounded-xl text-white/70 focus:outline-none focus:border-[#E41E6A] appearance-none"
-          >
+          <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
+            className="pl-3 pr-8 py-2.5 text-xs font-semibold bg-white/5 border border-white/10 rounded-xl text-white/70 focus:outline-none focus:border-[#E41E6A] appearance-none">
             {departments.map(d => <option key={d} value={d} className="bg-[#0a0a0a]">{d}</option>)}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none" />
@@ -990,7 +982,7 @@ export function Employees() {
             </div>
           ) : (
             <>
-              {/* Mobile cards */}
+              {/* Mobile */}
               <div className="sm:hidden divide-y divide-white/5">
                 {filtered.map(emp => {
                   const isNew = isNewEmployee(emp.hire_date);
@@ -1024,7 +1016,7 @@ export function Employees() {
                 })}
               </div>
 
-              {/* Desktop table */}
+              {/* Desktop */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1158,8 +1150,7 @@ export function Employees() {
           employee={viewEmp}
           onClose={() => setViewEmp(null)}
           onAssign={() => { setAssignEmp(viewEmp); setViewEmp(null); }}
-          onEdit={() => { setEditEmp(viewEmp); setViewEmp(null); }}
-        />
+          onEdit={()   => { setEditEmp(viewEmp);   setViewEmp(null); }} />
       )}
       {assignEmp && (
         <AssignWorkModal

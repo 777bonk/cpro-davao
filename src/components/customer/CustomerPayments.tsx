@@ -11,18 +11,25 @@ import { useAuth } from "../../hooks/useAuth";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
-type PaymentStatus = "Paid" | "Pending" | "Partial" | "Refunded";
+type PaymentStatus =
+  | "Pending Verification"
+  | "Paid"
+  | "Pending"
+  | "Partial"
+  | "Refunded"
+  | "Rejected";
 
 interface PaymentRecord {
-  id:        string | number;
-  service:   string;
-  vehicle:   string;
-  date:      string;
-  total:     number;
-  deposit:   number;
-  balance:   number;
-  status:    PaymentStatus;
-  method:    string;
+  id: string | number;
+  service: string;
+  vehicle: string;
+  date: string;
+  total: number;
+  deposit: number;
+  balance: number;
+  status: PaymentStatus;
+  method: string;
+  paymentType: string;
   receiptNo: string;
 }
 
@@ -31,17 +38,55 @@ interface PaymentRecord {
 const STATUS_STYLE: Record<PaymentStatus, {
   bg: string; text: string; dot: string; border: string; icon: React.ReactNode;
 }> = {
-  Paid:     { bg: "bg-green-500/20",  text: "text-green-400",  dot: "bg-green-500",  border: "border-green-500/30",  icon: <CheckCircle className="w-3.5 h-3.5" /> },
-  Pending:  { bg: "bg-yellow-500/20", text: "text-yellow-400", dot: "bg-yellow-400", border: "border-yellow-500/30", icon: <Clock       className="w-3.5 h-3.5" /> },
-  Partial:  { bg: "bg-blue-500/20",   text: "text-blue-400",   dot: "bg-blue-500",   border: "border-blue-500/30",   icon: <AlertCircle className="w-3.5 h-3.5" /> },
-  Refunded: { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10",      icon: <TrendingUp  className="w-3.5 h-3.5" /> },
+  "Pending Verification": {
+    bg: "bg-orange-500/20",
+    text: "text-orange-300",
+    dot: "bg-orange-400",
+    border: "border-orange-500/30",
+    icon: <Clock className="w-3.5 h-3.5" />
+  },
+  Paid: {
+    bg: "bg-green-500/20",
+    text: "text-green-400",
+    dot: "bg-green-500",
+    border: "border-green-500/30",
+    icon: <CheckCircle className="w-3.5 h-3.5" />
+  },
+  Pending: {
+    bg: "bg-yellow-500/20",
+    text: "text-yellow-400",
+    dot: "bg-yellow-400",
+    border: "border-yellow-500/30",
+    icon: <Clock className="w-3.5 h-3.5" />
+  },
+  Partial: {
+    bg: "bg-blue-500/20",
+    text: "text-blue-400",
+    dot: "bg-blue-500",
+    border: "border-blue-500/30",
+    icon: <AlertCircle className="w-3.5 h-3.5" />
+  },
+  Refunded: {
+    bg: "bg-white/10",
+    text: "text-white/50",
+    dot: "bg-white/30",
+    border: "border-white/10",
+    icon: <TrendingUp className="w-3.5 h-3.5" />
+  },
+  Rejected: {
+    bg: "bg-red-500/20",
+    text: "text-red-400",
+    dot: "bg-red-500",
+    border: "border-red-500/30",
+    icon: <AlertCircle className="w-3.5 h-3.5" />
+  },
 };
 
 const METHOD_ICON: Record<string, React.ReactNode> = {
-  "GCash":         <div className="w-5 h-5 rounded bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center">G</div>,
-  "Cash":          <Banknote   className="w-4 h-4 text-green-400"  />,
+  "QR Payment": <div className="w-5 h-5 rounded bg-sky-500 text-white text-[9px] font-bold flex items-center justify-center">QR</div>,
   "Bank Transfer": <CreditCard className="w-4 h-4 text-violet-400" />,
-  "—":             <Clock      className="w-4 h-4 text-white/40"   />,
+  "Cash": <Banknote className="w-4 h-4 text-green-400" />,
+  "—": <Clock className="w-4 h-4 text-white/40" />,
 };
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -53,9 +98,12 @@ function formatDate(d: string) {
 }
 
 function derivePaymentStatus(apptStatus: string, balance: number): PaymentStatus {
+  if (apptStatus === "Pending Verification") return "Pending Verification";
+  if (apptStatus === "Rejected") return "Rejected";
+  if (apptStatus === "Cancelled") return "Refunded";
   if (apptStatus === "Completed" && balance === 0) return "Paid";
-  if (apptStatus === "Completed" && balance > 0)   return "Partial";
-  if (apptStatus === "Cancelled")                  return "Refunded";
+  if (apptStatus === "Completed" && balance > 0) return "Partial";
+  if (apptStatus === "Confirmed" && balance > 0) return "Partial";
   return "Pending";
 }
 
@@ -92,10 +140,11 @@ function ReceiptModal({ payment, onClose }: { payment: PaymentRecord; onClose: (
           </div>
 
           {[
-            { label: "Service", value: payment.service        },
-            { label: "Vehicle", value: payment.vehicle        },
-            { label: "Date",    value: formatDate(payment.date) },
-            { label: "Method",  value: payment.method         },
+            { label: "Service", value: payment.service },
+            { label: "Vehicle", value: payment.vehicle },
+            { label: "Date", value: formatDate(payment.date) },
+            { label: "Method", value: payment.method },
+            { label: "Payment Type", value: payment.paymentType },
           ].map(r => (
             <div key={r.label} className="flex justify-between items-start gap-3">
               <p className="text-white/50 text-xs font-medium">{r.label}</p>
@@ -144,48 +193,55 @@ function ReceiptModal({ payment, onClose }: { payment: PaymentRecord; onClose: (
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function CustomerPayments() {
-  // ── Get logged-in customer ────────────────────────────────────────────────
   const { profile, isLoading: profileLoading } = useAuth();
 
-  const [payments,     setPayments]     = useState<PaymentRecord[]>([]);
-  const [isLoading,    setIsLoading]    = useState(true);
-  const [search,       setSearch]       = useState("");
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"All" | PaymentStatus>("All");
-  const [viewReceipt,  setViewReceipt]  = useState<PaymentRecord | null>(null);
+  const [viewReceipt, setViewReceipt] = useState<PaymentRecord | null>(null);
 
   useEffect(() => {
-  if (profile?.customerId) fetchData();
+    if (profile?.customerId) fetchData();
   }, [profile?.customerId]);
 
   const fetchData = async () => {
     if (!profile?.customerId) return;
     setIsLoading(true);
     try {
-      // ✅ Only fetch THIS customer's appointments
       const appts = await getCustomerAppointments(profile.customerId).catch(() => []);
 
       const records: PaymentRecord[] = appts.map((a: any, i: number) => {
-        const raw     = a.scheduled_date || a.date;
-        const d       = new Date(raw);
+        const raw = a.scheduled_date || a.date;
+        const d = new Date(raw);
         const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+
         const service = a.service_type ?? a.service ?? "Service";
-        const vehicle = a.customer?.vehicle ?? a.customers?.vehicle ?? a.vehicle ?? "Vehicle";
-        const total   = Number(a.total_cost  ?? a.amount  ?? 0);
-        const deposit = Number(a.deposit     ?? a.deposit_amount ?? 0);
+        const vehicle =
+          a.customer?.vehicle ??
+          a.customers?.vehicle ??
+          a.vehicle ??
+          [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") ??
+          "Vehicle";
+
+        const total = Number(a.total_cost ?? a.totalAmount ?? a.amount ?? 0);
+        const deposit = Number(a.deposit ?? a.deposit_amount ?? 0);
         const balance = Math.max(total - deposit, 0);
-        const status  = derivePaymentStatus(a.status ?? "Pending", balance);
-        const method  = a.payment_method ?? (status === "Paid" ? "Cash" : "—");
+        const status = derivePaymentStatus(a.status ?? "Pending", balance);
+        const method = a.payment_method ?? "—";
+        const paymentType = a.payment_type ?? "—";
 
         return {
-          id:        a.id,
+          id: a.id,
           service,
           vehicle,
-          date:      dateStr,
+          date: dateStr,
           total,
           deposit,
           balance,
           status,
           method,
+          paymentType,
           receiptNo: `RCP-${d.getFullYear()}-${String(i + 1).padStart(3, "0")}`,
         };
       }).sort((a: PaymentRecord, b: PaymentRecord) =>
@@ -200,21 +256,25 @@ export function CustomerPayments() {
     }
   };
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
-  const totalPaid     = payments.filter(p => p.status === "Paid").reduce((s, p) => s + p.total,   0);
+  const totalPaid = payments.filter(p => p.status === "Paid").reduce((s, p) => s + p.total, 0);
   const totalDeposits = payments.reduce((s, p) => s + p.deposit, 0);
-  const outstanding   = payments.filter(p => p.balance > 0).reduce((s, p) => s + p.balance, 0);
-  const pendingCount  = payments.filter(p => p.status === "Pending" || p.status === "Partial").length;
+  const outstanding = payments.filter(p => p.balance > 0).reduce((s, p) => s + p.balance, 0);
+  const pendingCount = payments.filter(
+    (p) =>
+      p.status === "Pending" ||
+      p.status === "Partial" ||
+      p.status === "Pending Verification"
+  ).length;
 
-  // ── Filtered list ─────────────────────────────────────────────────────────
-  const filtered = useMemo(() =>
-    payments
-      .filter(p => filterStatus === "All" || p.status === filterStatus)
-      .filter(p =>
-        p.service.toLowerCase().includes(search.toLowerCase())    ||
-        p.vehicle.toLowerCase().includes(search.toLowerCase())    ||
-        p.receiptNo.toLowerCase().includes(search.toLowerCase())
-      ),
+  const filtered = useMemo(
+    () =>
+      payments
+        .filter(p => filterStatus === "All" || p.status === filterStatus)
+        .filter(p =>
+          p.service.toLowerCase().includes(search.toLowerCase()) ||
+          p.vehicle.toLowerCase().includes(search.toLowerCase()) ||
+          p.receiptNo.toLowerCase().includes(search.toLowerCase())
+        ),
     [payments, search, filterStatus]
   );
 
@@ -228,20 +288,17 @@ export function CustomerPayments() {
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
       <div>
         <h1 className="text-white text-3xl font-bold mb-1">Payments</h1>
         <p className="text-white/60 text-sm">Your payment history, deposits, and balances</p>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: <CheckCircle className="w-4 h-4" />, label: "Total Paid",     value: isLoading ? "..." : `₱${Math.round(totalPaid/1000)}K`,                    iconBg: "bg-green-500/10",                                          iconColor: "text-green-400"   },
-          { icon: <Banknote    className="w-4 h-4" />, label: "Total Deposits", value: isLoading ? "..." : `₱${totalDeposits.toLocaleString()}`,                  iconBg: "bg-sky-500/10",                                            iconColor: "text-sky-400"     },
-          { icon: <AlertCircle className="w-4 h-4" />, label: "Outstanding",    value: isLoading ? "..." : `₱${outstanding.toLocaleString()}`,                    iconBg: outstanding > 0 ? "bg-yellow-500/10" : "bg-white/5",        iconColor: outstanding > 0 ? "text-yellow-400" : "text-white/40" },
-          { icon: <Clock       className="w-4 h-4" />, label: "Pending",        value: isLoading ? "..." : `${pendingCount} item${pendingCount !== 1 ? "s" : ""}`, iconBg: "bg-[#E41E6A]/10",                                         iconColor: "text-[#E41E6A]"   },
+          { icon: <CheckCircle className="w-4 h-4" />, label: "Total Paid", value: isLoading ? "..." : `₱${Math.round(totalPaid/1000)}K`, iconBg: "bg-green-500/10", iconColor: "text-green-400" },
+          { icon: <Banknote className="w-4 h-4" />, label: "Total Deposits", value: isLoading ? "..." : `₱${totalDeposits.toLocaleString()}`, iconBg: "bg-sky-500/10", iconColor: "text-sky-400" },
+          { icon: <AlertCircle className="w-4 h-4" />, label: "Outstanding", value: isLoading ? "..." : `₱${outstanding.toLocaleString()}`, iconBg: outstanding > 0 ? "bg-yellow-500/10" : "bg-white/5", iconColor: outstanding > 0 ? "text-yellow-400" : "text-white/40" },
+          { icon: <Clock className="w-4 h-4" />, label: "Pending", value: isLoading ? "..." : `${pendingCount} item${pendingCount !== 1 ? "s" : ""}`, iconBg: "bg-[#E41E6A]/10", iconColor: "text-[#E41E6A]" },
         ].map((s, i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -257,7 +314,6 @@ export function CustomerPayments() {
         ))}
       </div>
 
-      {/* Outstanding Banner */}
       {outstanding > 0 && !isLoading && (
         <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
@@ -266,13 +322,12 @@ export function CustomerPayments() {
               Outstanding balance of ₱{outstanding.toLocaleString()}
             </p>
             <p className="text-yellow-400/70 text-xs mt-0.5">
-              Please settle your balance before or on the day of your appointment.
+              Remaining balances are settled after frontdesk/admin verification and appointment approval.
             </p>
           </div>
         </div>
       )}
 
-      {/* Search + Filters */}
       <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -286,19 +341,22 @@ export function CustomerPayments() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
-          {(["All", "Paid", "Partial", "Pending", "Refunded"] as const).map(f => (
-            <button key={f} onClick={() => setFilterStatus(f)}
+          {(["All", "Pending Verification", "Paid", "Partial", "Pending", "Refunded", "Rejected"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilterStatus(f)}
               className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${
                 filterStatus === f
                   ? "bg-[#E41E6A] text-white border-[#E41E6A]"
                   : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
               }`}
-            >{f}</button>
+            >
+              {f}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Payment Records */}
       <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden" style={{ borderRadius: "12px" }}>
         <CardHeader className="border-b border-white/10 pb-4">
           <div className="flex items-center justify-between">
@@ -321,7 +379,6 @@ export function CustomerPayments() {
             </div>
           ) : (
             <>
-              {/* Mobile */}
               <div className="sm:hidden divide-y divide-white/5">
                 {filtered.map(p => (
                   <div key={p.id} className="p-4 hover:bg-white/5 transition-colors space-y-3">
@@ -339,8 +396,11 @@ export function CustomerPayments() {
                         <Calendar className="w-3 h-3 text-[#E41E6A]" />{formatDate(p.date)}
                       </span>
                       <span className="flex items-center gap-1.5">
-                        {METHOD_ICON[p.method]}<span className="ml-0.5">{p.method}</span>
+                        {METHOD_ICON[p.method] ?? METHOD_ICON["—"]}<span className="ml-0.5">{p.method}</span>
                       </span>
+                    </div>
+                    <div className="text-xs text-white/50">
+                      Payment Type: <span className="text-white/80">{p.paymentType}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="text-xs space-y-0.5">
@@ -359,12 +419,11 @@ export function CustomerPayments() {
                 ))}
               </div>
 
-              {/* Desktop */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/10">
-                      {["Date","Service","Vehicle","Total","Deposit","Balance","Method","Status",""].map(h => (
+                      {["Date","Service","Vehicle","Total","Deposit","Balance","Method","Payment Type","Status",""].map(h => (
                         <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold text-white/50 uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -393,6 +452,7 @@ export function CustomerPayments() {
                             {METHOD_ICON[p.method] ?? METHOD_ICON["—"]}{p.method}
                           </span>
                         </td>
+                        <td className="px-4 py-3.5 text-white/60 text-xs whitespace-nowrap">{p.paymentType}</td>
                         <td className="px-4 py-3.5"><StatusBadge status={p.status} /></td>
                         <td className="px-4 py-3.5">
                           <button

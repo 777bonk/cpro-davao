@@ -3,11 +3,13 @@ import {
   Search, ClipboardList, ChevronDown, SlidersHorizontal,
   Car, User, Calendar, Clock, Shield, Layers, Sparkles,
   Wrench, X, CheckCircle, PlayCircle, XCircle, Eye,
-  FileText, Hash,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { useAuth } from "../../hooks/useAuth";
 import { getAppointments, updateAppointmentStatus } from "../../services/appointments";
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +24,7 @@ interface Job {
   time: string;
   notes: string;
   status: JobStatus;
+  source: "appointment" | "job_order";
 }
 
 // ─── STATUS CONFIG ─────────────────────────────────────────────────────────────
@@ -67,9 +70,9 @@ function JobDetailModal({ job, onClose, onUpdateStatus }: {
   onClose: () => void;
   onUpdateStatus: (id: string | number, status: JobStatus) => Promise<void>;
 }) {
-  const [status,    setStatus]    = useState<JobStatus>(job.status);
-  const [isSaving,  setIsSaving]  = useState(false);
-  const [success,   setSuccess]   = useState(false);
+  const [status,   setStatus]   = useState<JobStatus>(job.status);
+  const [isSaving, setIsSaving] = useState(false);
+  const [success,  setSuccess]  = useState(false);
 
   const handleUpdate = async () => {
     if (status === job.status) { onClose(); return; }
@@ -103,7 +106,9 @@ function JobDetailModal({ job, onClose, onUpdateStatus }: {
             <h2 className="text-white text-xl font-bold">Job Details</h2>
             <p className="text-white/50 text-xs mt-0.5">{formatDate(job.date)}</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-6 space-y-3">
@@ -114,11 +119,8 @@ function JobDetailModal({ job, onClose, onUpdateStatus }: {
           <Row icon={<Clock    className="w-4 h-4" />} label="Time"     value={job.time} />
           {job.notes && <Row icon={<FileText className="w-4 h-4" />} label="Notes" value={job.notes} />}
 
-          {/* Status update */}
           <div className="pt-2">
             <p className="text-white/50 text-xs font-medium mb-2">Update Status</p>
-
-            {/* Quick action buttons */}
             <div className="flex gap-2 mb-3">
               {job.status !== "In Progress" && job.status !== "Completed" && (
                 <button
@@ -148,9 +150,12 @@ function JobDetailModal({ job, onClose, onUpdateStatus }: {
               </button>
             </div>
 
-            {/* Full dropdown */}
             <div className="relative">
-              <select className={inputClass + " appearance-none pr-8"} value={status} onChange={e => setStatus(e.target.value as JobStatus)}>
+              <select
+                className={inputClass + " appearance-none pr-8"}
+                value={status}
+                onChange={e => setStatus(e.target.value as JobStatus)}
+              >
                 {(["Pending","Scheduled","Confirmed","In Progress","Completed","Cancelled"] as JobStatus[]).map(s => (
                   <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>
                 ))}
@@ -167,7 +172,9 @@ function JobDetailModal({ job, onClose, onUpdateStatus }: {
         </div>
 
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Close</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
+            Close
+          </button>
           <button
             onClick={handleUpdate}
             disabled={isSaving}
@@ -196,30 +203,60 @@ export function StaffJobOrders() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const appts = await getAppointments().catch(() => []);
+      const [appts, jobOrdersRes] = await Promise.all([
+        getAppointments().catch(() => []),
+        fetch(`${API_URL}/job-orders?search=${encodeURIComponent(profile?.full_name ?? "")}`)
+          .then(r => r.json())
+          .catch(() => ({ data: [] })),
+      ]);
 
-      const myJobs: Job[] = appts
+      // Appointments assigned to this staff
+      const myApptJobs: Job[] = appts
         .filter((a: any) => {
           const assignedTo = a.employees?.name ?? a.technician ?? a.assigned_staff ?? "";
-          return assignedTo.toLowerCase().includes((profile?.full_name ?? "").toLowerCase()) ||
-                 a.employee_id === profile?.id;
+          return (
+            assignedTo.toLowerCase().includes((profile?.full_name ?? "").toLowerCase()) ||
+            a.employee_id === profile?.id
+          );
         })
         .map((a: any) => {
           const d = new Date(a.date || a.scheduled_date);
           return {
             id:       a.id,
             service:  a.service_type ?? a.service ?? "Service",
-            customer: a.customers?.name  ?? a.customer ?? "Customer",
+            customer: a.customers?.name ?? a.customer ?? "Customer",
             vehicle:  a.customers?.vehicle ?? a.vehicle ?? "Vehicle",
             date:     (a.date || a.scheduled_date).split("T")[0],
             time:     d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             notes:    a.notes ?? "",
             status:   (a.status ?? "Pending") as JobStatus,
+            source:   "appointment" as const,
           };
-        })
-        .sort((a: Job, b: Job) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        });
 
-      setJobs(myJobs);
+      // Job orders assigned to this staff
+      const myJobOrders: Job[] = (jobOrdersRes.data ?? [])
+        .filter((j: any) =>
+          j.assigned_staff?.toLowerCase().includes((profile?.full_name ?? "").toLowerCase()) ||
+          j.staff_id === profile?.id
+        )
+        .map((j: any) => ({
+          id:       j.id,
+          service:  j.service,
+          customer: j.customer,
+          vehicle:  j.vehicle,
+          date:     j.scheduled_date.split("T")[0],
+          time:     "—",
+          notes:    j.notes ?? "",
+          status:   j.status as JobStatus,
+          source:   "job_order" as const,
+        }));
+
+      // Combine and sort
+      const allJobs = [...myApptJobs, ...myJobOrders]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      setJobs(allJobs);
     } catch (err) {
       console.error("StaffJobOrders fetch error:", err);
     } finally {
@@ -228,8 +265,24 @@ export function StaffJobOrders() {
   };
 
   const handleUpdateStatus = async (id: string | number, status: JobStatus) => {
-    await updateAppointmentStatus(String(id), status);
+    // Optimistic UI update
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status } : j));
+
+    try {
+      const job = jobs.find(j => j.id === id);
+
+      if (job?.source === "job_order") {
+        await fetch(`${API_URL}/job-orders/${id}`, {
+          method:  "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ status }),
+        });
+      } else {
+        await updateAppointmentStatus(String(id), status as any);
+      }
+    } catch (err) {
+      console.error("Update status error:", err);
+    }
   };
 
   const filtered = useMemo(() =>
@@ -243,7 +296,6 @@ export function StaffJobOrders() {
     [jobs, search, filterStatus]
   );
 
-  // Stats
   const active    = jobs.filter(j => j.status === "In Progress").length;
   const pending   = jobs.filter(j => j.status === "Pending" || j.status === "Confirmed" || j.status === "Scheduled").length;
   const completed = jobs.filter(j => j.status === "Completed").length;
@@ -329,7 +381,7 @@ export function StaffJobOrders() {
             <div className="divide-y divide-white/5">
               {filtered.map(job => (
                 <div
-                  key={job.id}
+                  key={String(job.id)}
                   onClick={() => setViewJob(job)}
                   className="flex items-center gap-4 px-5 py-4 hover:bg-white/5 transition-colors cursor-pointer"
                 >

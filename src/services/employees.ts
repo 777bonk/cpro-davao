@@ -64,8 +64,18 @@ async function request<T>(
 // ─── API CALLS ────────────────────────────────────────────────────────────────
 
 /** GET /employees */
-export const getEmployees = (): Promise<Employee[]> =>
-  request<Employee[]>("/employees");
+export const getEmployees = async (): Promise<Employee[]> => {
+  try {
+    const res = await fetch(`${API_URL}/employees`);
+    if (!res.ok) throw new Error("Failed to fetch employees");
+    const data = await res.json();
+    // Backend returns paginated { data: [], total... } — extract the array
+    return Array.isArray(data) ? data : data.data ?? [];
+  } catch (err) {
+    console.error("getEmployees error:", err);
+    return [];
+  }
+};
 
 /** POST /employees */
 export const createEmployee = (
@@ -106,3 +116,27 @@ export const updateEmployeeAssignment = (
 /** DELETE /employees/:id */
 export const deleteEmployee = (id: string): Promise<void> =>
   request<void>(`/employees/${id}`, { method: "DELETE" });
+
+export interface CreateWithAccountResponse {
+  employee: Employee;
+  credentials: {
+    email:    string;
+    password: string;
+    role:     string;
+  };
+}
+
+export const createEmployeeWithAccount = async (
+  payload: Parameters<typeof createEmployee>[0]
+): Promise<CreateWithAccountResponse> => {
+  const res = await fetch(`${API_URL}/employees/with-account`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message ?? 'Failed to create employee');
+  }
+  return res.json();
+};
