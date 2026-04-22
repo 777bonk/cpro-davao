@@ -13,9 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
-
 // ─── TYPES ────────────────────────────────────────────────────────────────────
-
 
 type AppointmentStatus =
   | "Pending Verification"
@@ -25,7 +23,6 @@ type AppointmentStatus =
   | "Completed"
   | "Cancelled"
   | "Rejected";
-
 
 interface Appointment {
   id:               number | string;
@@ -48,11 +45,14 @@ interface Appointment {
   proofUrl?:        string;
   rejectionReason?: string;
   addons?:          string;
+  vehicleMake?:     string;
+  vehicleModel?:    string;
+  vehicleYear?:     string;
+  vehicleClass?:    string;
+  vehiclePlate?:    string;
 }
 
-
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-
 
 const SERVICE_OPTIONS = [
   "Ceramic Coating - Full Body", "Ceramic Coating - Partial",
@@ -61,17 +61,14 @@ const SERVICE_OPTIONS = [
   "Nano Ceramic Spray", "Paint Decontamination",
 ];
 
-
 const TIME_OPTIONS = [
   "8:00 AM","9:00 AM","10:00 AM","10:30 AM","11:00 AM",
   "1:00 PM","2:00 PM","3:00 PM","4:00 PM",
 ];
 
-
 const ALL_STATUSES: AppointmentStatus[] = [
   "Confirmed","Pending","In Progress","Completed","Cancelled",
 ];
-
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string; border: string }> = {
   "Pending Verification": { bg: "bg-orange-500/20", text: "text-orange-300", dot: "bg-orange-400", border: "border-orange-500/30" },
@@ -83,28 +80,23 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string; bord
   Rejected:      { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
 };
 
-
 const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 const cardCls  = "bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur rounded-xl border";
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-
 
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
-
 function formatShort(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric",
   });
 }
-
 
 function serviceIcon(service: string) {
   const s = service.toLowerCase();
@@ -113,7 +105,6 @@ function serviceIcon(service: string) {
   if (s.includes("tint"))    return <Sparkles className="w-4 h-4 text-sky-400"    />;
   return                            <Car      className="w-4 h-4 text-white/50"    />;
 }
-
 
 function mapRawAppointment(a: any): Appointment {
   const raw = a.scheduled_date || a.date || "";
@@ -124,7 +115,7 @@ function mapRawAppointment(a: any): Appointment {
     customerId:       a.customer_id ?? a.customerId,
     customer:         a.customer?.name ?? a.customerName ?? a.full_name ?? "Unknown",
     contact:          a.customer?.contact ?? a.mobile_number ?? a.contact ?? "",
-    vehicle:          a.customer?.vehicle || [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") || a.vehicle || "N/A",
+    vehicle:          a.customer?.vehicle || [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ").trim() || a.vehicle || "N/A",
     service:          a.service_type ?? a.service ?? "Service",
     date:             dateStr,
     time:             d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -140,12 +131,15 @@ function mapRawAppointment(a: any): Appointment {
     proofUrl:         a.proof_url,
     rejectionReason:  a.rejection_reason,
     addons:           a.addons,
+    vehicleMake:      a.vehicle_make,
+    vehicleModel:     a.vehicle_model,
+    vehicleYear:      a.vehicle_year,
+    vehicleClass:     a.vehicle_class,
+    vehiclePlate:     a.vehicle_plate,
   };
 }
 
-
 // ─── STATUS BADGE ─────────────────────────────────────────────────────────────
-
 
 function StatusBadge({ status }: { status: string }) {
   const s = STATUS_STYLE[status] ?? STATUS_STYLE["Pending"];
@@ -156,15 +150,37 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// ─── INFO ROW ─────────────────────────────────────────────────────────────────
+
+function InfoRow({ icon, label, value, highlight }: {
+  icon:       React.ReactNode;
+  label:      string;
+  value:      string;
+  highlight?: "green" | "yellow";
+}) {
+  const valueColor =
+    highlight === "green"  ? "text-emerald-400 font-semibold" :
+    highlight === "yellow" ? "text-yellow-400 font-semibold"  :
+    "text-white font-medium";
+
+  return (
+    <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+      <div className="flex items-center gap-1.5 mb-1">
+        {icon}
+        <p className="text-white/40 text-[10px] uppercase tracking-wide">{label}</p>
+      </div>
+      <p className={`text-sm ${valueColor} truncate`}>{value}</p>
+    </div>
+  );
+}
 
 // ─── PENDING REQUESTS PANEL ───────────────────────────────────────────────────
 
-
-function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
+function PendingRequestsPanel({ requests, onApprove, onReject, processingAction }: {
   requests:     Appointment[];
   onApprove:    (id: string | number) => void;
   onReject:     (id: string | number) => void;
-  isProcessing: string | number | null;
+  processingAction: { id: string | number, type: 'approve' | 'reject' } | null;
 }) {
   if (requests.length === 0) {
     return (
@@ -178,104 +194,141 @@ function PendingRequestsPanel({ requests, onApprove, onReject, isProcessing }: {
     );
   }
 
-
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {requests.map(a => (
-        <div key={a.id} className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4 hover:border-orange-500/40 transition-all">
-          <div className="flex items-start justify-between gap-3 mb-3">
+        <div key={a.id} className="bg-orange-500/5 border border-orange-500/20 rounded-xl overflow-hidden hover:border-orange-500/40 transition-all">
+
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-orange-500/10 flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0">
                 {serviceIcon(a.service)}
               </div>
               <div>
-                <p className="text-white text-sm font-semibold">{a.service}</p>
-                <p className="text-white/50 text-xs mt-0.5">{a.fullName || a.customer} · {a.vehicle}</p>
+                <p className="text-white text-sm font-bold">{a.service}</p>
+                <p className="text-white/50 text-xs mt-0.5">Submitted {formatShort(a.date)}</p>
               </div>
             </div>
             <StatusBadge status={a.status} />
           </div>
 
+          {/* Body */}
+          <div className="p-5 space-y-4">
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-            <div className="bg-white/5 rounded-lg p-2.5">
-              <p className="text-white/40 text-[10px] uppercase tracking-wide">Date</p>
-              <p className="text-white text-xs font-medium mt-0.5">{formatShort(a.date)}</p>
+            {/* Customer Info */}
+            <div>
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Customer Information</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <InfoRow icon={<User  className="w-3.5 h-3.5 text-[#E41E6A]" />} label="Full Name"     value={a.fullName || a.customer || "—"} />
+                <InfoRow icon={<Phone className="w-3.5 h-3.5 text-[#E41E6A]" />} label="Mobile Number" value={a.mobileNumber || a.contact || "—"} />
+              </div>
             </div>
-            <div className="bg-white/5 rounded-lg p-2.5">
-              <p className="text-white/40 text-[10px] uppercase tracking-wide">Time</p>
-              <p className="text-white text-xs font-medium mt-0.5">{a.time}</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-2.5">
-              <p className="text-white/40 text-[10px] uppercase tracking-wide">Payment</p>
-              <p className="text-white text-xs font-medium mt-0.5">{a.paymentType || "—"}</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-2.5">
-              <p className="text-white/40 text-[10px] uppercase tracking-wide">Amount Paid</p>
-              <p className="text-green-400 text-xs font-semibold mt-0.5">₱{Number(a.deposit).toLocaleString()}</p>
-            </div>
-          </div>
 
+            {/* Vehicle Info */}
+            <div>
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Vehicle Information</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <InfoRow icon={<Car className="w-3.5 h-3.5 text-sky-400" />} label="Vehicle"      value={a.vehicle || "—"} />
+                <InfoRow icon={<Car className="w-3.5 h-3.5 text-sky-400" />} label="Make"         value={a.vehicleMake || "—"} />
+                <InfoRow icon={<Car className="w-3.5 h-3.5 text-sky-400" />} label="Model"        value={a.vehicleModel || "—"} />
+              </div>
+            </div>
 
-          <div className="flex flex-wrap gap-3 mb-3 text-xs text-white/50">
-            {a.mobileNumber && (
-              <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{a.mobileNumber}</span>
+            {/* Appointment Details */}
+            <div>
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Appointment Details</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <InfoRow icon={<Calendar className="w-3.5 h-3.5 text-violet-400" />} label="Date"    value={formatShort(a.date)} />
+                <InfoRow icon={<Clock    className="w-3.5 h-3.5 text-violet-400" />} label="Time"    value={a.time} />
+                <InfoRow icon={<Shield   className="w-3.5 h-3.5 text-[#E41E6A]"  />} label="Service" value={a.service} />
+                {a.addons && a.addons !== "[]" && (
+                  <InfoRow
+                    icon={<Sparkles className="w-3.5 h-3.5 text-amber-400" />}
+                    label="Add-ons"
+                    value={(() => {
+                      try {
+                        const p = JSON.parse(a.addons!);
+                        return Array.isArray(p) && p.length > 0 ? p.join(", ") : "None";
+                      } catch {
+                        return a.addons!;
+                      }
+                    })()}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Payment Info */}
+            <div>
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Payment Information</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <InfoRow icon={<Banknote className="w-3.5 h-3.5 text-emerald-400" />} label="Payment Method" value={a.paymentMethod || "—"} />
+                <InfoRow icon={<Banknote className="w-3.5 h-3.5 text-emerald-400" />} label="Payment Type"   value={a.paymentType || "—"} />
+                <InfoRow icon={<Banknote className="w-3.5 h-3.5 text-emerald-400" />} label="Amount Paid"    value={`₱${Number(a.deposit).toLocaleString()}`} highlight="green" />
+                {!!a.remainingBalance && (
+                  <InfoRow icon={<AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />} label="Remaining Balance" value={`₱${Number(a.remainingBalance).toLocaleString()}`} highlight="yellow" />
+                )}
+                {!!a.totalAmount && (
+                  <InfoRow icon={<Banknote className="w-3.5 h-3.5 text-white/40" />} label="Total Amount" value={`₱${Number(a.totalAmount).toLocaleString()}`} />
+                )}
+              </div>
+            </div>
+
+            {/* Proof of Payment */}
+            {a.proofUrl && (
+              <div>
+                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Proof of Payment</p>
+                <a
+                  href={`${import.meta.env.VITE_API_BASE_URL}${a.proofUrl}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-sky-400 hover:text-sky-300 border border-sky-500/20 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
+                >
+                  <FileText className="w-4 h-4" />View Proof of Payment
+                </a>
+              </div>
             )}
-            {a.paymentMethod && (
-              <span className="flex items-center gap-1"><Banknote className="w-3.5 h-3.5 text-sky-400" />{a.paymentMethod}</span>
+
+            {/* Notes */}
+            {a.notes && (
+              <div>
+                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Customer Notes</p>
+                <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                  <p className="text-white/70 text-sm italic">"{a.notes}"</p>
+                </div>
+              </div>
             )}
-            {!!a.remainingBalance && (
-              <span className="flex items-center gap-1 text-yellow-400">
-                <AlertTriangle className="w-3.5 h-3.5" />Balance: ₱{Number(a.remainingBalance).toLocaleString()}
-              </span>
-            )}
-          </div>
 
+          </div>{/* ← closes <div className="p-5 space-y-4"> */}
 
-          {a.proofUrl && (
-            <div className="mb-3">
-              <a
-                href={`${import.meta.env.VITE_API_BASE_URL}${a.proofUrl}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                <FileText className="w-3.5 h-3.5" />View Proof of Payment
-              </a>
-            </div>
-          )}
-
-
-          {a.notes && <p className="text-white/40 text-xs italic mb-3">"{a.notes}"</p>}
-
-
-          <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+          {/* Action Buttons */}
+          <div className="px-5 pb-5 flex items-center gap-3">
             <button
               onClick={() => onApprove(a.id)}
-              disabled={isProcessing === a.id}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-green-400 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 rounded-lg transition-colors disabled:opacity-50"
+              disabled={processingAction?.id === a.id}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 rounded-xl shadow-md shadow-emerald-500/20 transition-all disabled:opacity-50"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              {isProcessing === a.id ? "Processing..." : "Approve"}
+              <CheckCircle2 className="w-4 h-4" />
+              {processingAction?.id === a.id && processingAction.type === 'approve' ? "Processing..." : "Approve Booking"}
             </button>
             <button
               onClick={() => onReject(a.id)}
-              disabled={isProcessing === a.id}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-colors disabled:opacity-50"
+              disabled={processingAction?.id === a.id}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 rounded-xl shadow-md shadow-red-500/20 transition-all disabled:opacity-50"
             >
-              <XOctagon className="w-3.5 h-3.5" />
-              {isProcessing === a.id ? "Processing..." : "Reject"}
+              <XOctagon className="w-4 h-4" />
+              {processingAction?.id === a.id && processingAction.type === 'reject' ? "Processing..." : "Reject Booking"}
             </button>
-          </div>
-        </div>
+          </div>{/* ← closes Action Buttons */}
+
+        </div>/* ← closes card div */
       ))}
     </div>
   );
 }
 
-
 // ─── REJECT REASON MODAL ──────────────────────────────────────────────────────
-
 
 function RejectReasonModal({ onClose, onConfirm }: {
   onClose:   () => void;
@@ -290,7 +343,9 @@ function RejectReasonModal({ onClose, onConfirm }: {
             <h2 className="text-base font-bold text-white">Reject Appointment</h2>
             <p className="text-xs text-white/50 mt-0.5">Provide a reason for rejection</p>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
         <div className="p-6">
           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg mb-4 flex items-start gap-2">
@@ -308,7 +363,9 @@ function RejectReasonModal({ onClose, onConfirm }: {
           />
         </div>
         <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
+            Cancel
+          </button>
           <button
             onClick={() => { onConfirm(reason); onClose(); }}
             className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
@@ -321,9 +378,7 @@ function RejectReasonModal({ onClose, onConfirm }: {
   );
 }
 
-
 // ─── CALENDAR ─────────────────────────────────────────────────────────────────
-
 
 function CalendarCard({ selected, onSelect, dotDates }: {
   selected:  string;
@@ -335,7 +390,6 @@ function CalendarCard({ selected, onSelect, dotDates }: {
   const [viewYear,  setViewYear]  = useState(selDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selDate.getMonth());
 
-
   const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const cells: (number | null)[] = [
@@ -344,12 +398,10 @@ function CalendarCard({ selected, onSelect, dotDates }: {
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-
   const prev = () => viewMonth === 0 ? (setViewMonth(11), setViewYear(y => y - 1)) : setViewMonth(m => m - 1);
   const next = () => viewMonth === 11 ? (setViewMonth(0), setViewYear(y => y + 1)) : setViewMonth(m => m + 1);
   const cellKey = (day: number) =>
     `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-
 
   const dotColor = (statuses: string[]) => {
     if (statuses.includes("Pending Verification")) return "bg-orange-400";
@@ -358,7 +410,6 @@ function CalendarCard({ selected, onSelect, dotDates }: {
     if (statuses.includes("Pending"))              return "bg-yellow-400";
     return "bg-white/30";
   };
-
 
   return (
     <div className={`${cardCls} p-5`}>
@@ -376,7 +427,9 @@ function CalendarCard({ selected, onSelect, dotDates }: {
         </button>
       </div>
       <div className="grid grid-cols-7 mb-1">
-        {DAY_NAMES.map(d => <div key={d} className="text-center text-[10px] font-semibold text-white/30 py-1">{d}</div>)}
+        {DAY_NAMES.map(d => (
+          <div key={d} className="text-center text-[10px] font-semibold text-white/30 py-1">{d}</div>
+        ))}
       </div>
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
@@ -393,7 +446,9 @@ function CalendarCard({ selected, onSelect, dotDates }: {
                 ${!isSel && !isToday ? "text-white/60 hover:bg-white/10" : ""}`}
             >
               {day}
-              {dots && <span className={`absolute bottom-0.5 w-1.5 h-1.5 rounded-full ${isSel ? "bg-white" : dotColor(dots)}`} />}
+              {dots && (
+                <span className={`absolute bottom-0.5 w-1.5 h-1.5 rounded-full ${isSel ? "bg-white" : dotColor(dots)}`} />
+              )}
             </button>
           );
         })}
@@ -415,9 +470,7 @@ function CalendarCard({ selected, onSelect, dotDates }: {
   );
 }
 
-
 // ─── APPOINTMENTS PANEL ───────────────────────────────────────────────────────
-
 
 function AppointmentsPanel({ selected, appts, onViewDetail }: {
   selected:     string;
@@ -476,9 +529,7 @@ function AppointmentsPanel({ selected, appts, onViewDetail }: {
   );
 }
 
-
 // ─── APPOINTMENT TABLE ────────────────────────────────────────────────────────
-
 
 function AppointmentTable({ appts, onViewDetail, onCancel }: {
   appts:        Appointment[];
@@ -530,7 +581,9 @@ function AppointmentTable({ appts, onViewDetail, onCancel }: {
           </thead>
           <tbody className="divide-y divide-white/5">
             {appts.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-white/40 text-sm">No appointments found.</td></tr>
+              <tr>
+                <td colSpan={6} className="text-center py-10 text-white/40 text-sm">No appointments found.</td>
+              </tr>
             ) : appts.map(a => (
               <tr key={a.id} className="hover:bg-white/5 transition-colors">
                 <td className="px-5 py-3.5 whitespace-nowrap">
@@ -539,11 +592,15 @@ function AppointmentTable({ appts, onViewDetail, onCancel }: {
                 </td>
                 <td className="px-5 py-3.5">
                   <span className="block text-sm font-medium text-white">{a.customer}</span>
-                  <span className="text-xs text-white/50 flex items-center gap-1 mt-0.5"><Phone className="w-3 h-3" />{a.contact}</span>
+                  <span className="text-xs text-white/50 flex items-center gap-1 mt-0.5">
+                    <Phone className="w-3 h-3" />{a.contact}
+                  </span>
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">{serviceIcon(a.service)}</div>
+                    <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
+                      {serviceIcon(a.service)}
+                    </div>
                     <span className="text-sm text-white max-w-[180px] truncate">{a.service}</span>
                   </div>
                 </td>
@@ -570,9 +627,7 @@ function AppointmentTable({ appts, onViewDetail, onCancel }: {
   );
 }
 
-
 // ─── ADD APPOINTMENT MODAL ────────────────────────────────────────────────────
-
 
 function AddAppointmentModal({ onClose, onSave, customers }: {
   onClose:   () => void;
@@ -586,15 +641,15 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
   });
   const [error, setError] = useState("");
 
-
   const handleCustomerChange = (id: string) => {
     const found = customers.find(c => c.id === id);
     setForm(f => ({
       ...f, customerId: id,
-      customer: found?.name ?? "", contact: found?.contact ?? "", vehicle: found?.vehicle ?? "",
+      customer: found?.name ?? "",
+      contact:  found?.contact ?? "",
+      vehicle:  found?.vehicle ?? "",
     }));
   };
-
 
   const handleSave = () => {
     if (!form.customerId || !form.vehicle || !form.service || !form.date || !form.time) {
@@ -604,13 +659,11 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
     onClose();
   };
 
-
   const field = (label: string, required = false) => (
     <span className="text-sm font-medium text-white/70 block mb-1.5">
       {label}{required && <span className="text-red-500 ml-0.5">*</span>}
     </span>
   );
-
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
@@ -629,7 +682,9 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
               <select className={`${inputCls} appearance-none pr-8`} value={form.customerId} onChange={e => handleCustomerChange(e.target.value)}>
                 <option value="" className="bg-[#0a0a0a]">Select a customer...</option>
                 {customers.map(c => (
-                  <option key={c.id} value={c.id} className="bg-[#0a0a0a]">{c.name}{c.vehicle ? ` · ${c.vehicle}` : ""}</option>
+                  <option key={c.id} value={c.id} className="bg-[#0a0a0a]">
+                    {c.name}{c.vehicle ? ` · ${c.vehicle}` : ""}
+                  </option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -706,9 +761,7 @@ function AddAppointmentModal({ onClose, onSave, customers }: {
   );
 }
 
-
 // ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
-
 
 function DetailModal({ appt, onClose, onStatusChange }: {
   appt:           Appointment;
@@ -716,7 +769,6 @@ function DetailModal({ appt, onClose, onStatusChange }: {
   onStatusChange: (id: number | string, status: AppointmentStatus) => void;
 }) {
   const [status, setStatus] = useState<AppointmentStatus>(appt.status);
-
 
   const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
     <div className="flex items-start gap-3 py-3 border-b border-white/10 last:border-0">
@@ -727,7 +779,6 @@ function DetailModal({ appt, onClose, onStatusChange }: {
       </div>
     </div>
   );
-
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
@@ -763,8 +814,12 @@ function DetailModal({ appt, onClose, onStatusChange }: {
           )}
           {appt.proofUrl && (
             <div className="mt-3">
-              <a href={`${import.meta.env.VITE_API_BASE_URL}${appt.proofUrl}`} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 rounded-lg transition-colors">
+              <a
+                href={`${import.meta.env.VITE_API_BASE_URL}${appt.proofUrl}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 rounded-lg transition-colors"
+              >
                 <FileText className="w-3.5 h-3.5" />View Proof of Payment
               </a>
             </div>
@@ -772,7 +827,11 @@ function DetailModal({ appt, onClose, onStatusChange }: {
           <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-xs text-white/50 font-medium mb-2">Update Status</p>
             <div className="relative">
-              <select className={`${inputCls} appearance-none pr-8 font-semibold`} value={status} onChange={e => setStatus(e.target.value as AppointmentStatus)}>
+              <select
+                className={`${inputCls} appearance-none pr-8 font-semibold`}
+                value={status}
+                onChange={e => setStatus(e.target.value as AppointmentStatus)}
+              >
                 {ALL_STATUSES.map(s => <option key={s} value={s} className="bg-[#0a0a0a]">{s}</option>)}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -793,14 +852,11 @@ function DetailModal({ appt, onClose, onStatusChange }: {
   );
 }
 
-
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-
 
 export function FrontDeskAppointments() {
   const today = todayStr();
   const { profile } = useAuth();
-
 
   const [appointments,    setAppointments]    = useState<Appointment[]>([]);
   const [pendingRequests, setPendingRequests] = useState<Appointment[]>([]);
@@ -811,17 +867,16 @@ export function FrontDeskAppointments() {
   const [activeTab,       setActiveTab]       = useState<"pending" | "all">("pending");
   const [showAdd,         setShowAdd]         = useState(false);
   const [detailAppt,      setDetailAppt]      = useState<Appointment | null>(null);
-  const [isProcessing,    setIsProcessing]    = useState<string | number | null>(null);
+  
+  // FIXED: State tracks both ID and action type
+  const [processingAction, setProcessingAction] = useState<{ id: string | number, type: 'approve' | 'reject' } | null>(null);
   const [rejectTarget,    setRejectTarget]    = useState<string | number | null>(null);
-
 
   const todayDisplay = new Date().toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-
   useEffect(() => { fetchData(); }, []);
-
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -847,9 +902,9 @@ export function FrontDeskAppointments() {
     }
   };
 
-
   const handleApprove = async (id: string | number) => {
-    setIsProcessing(id);
+    // FIXED: Using the new processing action state
+    setProcessingAction({ id, type: 'approve' });
     try {
       await approveAppointment(String(id), "Appointment confirmed by front desk");
       setPendingRequests(prev => prev.filter(a => a.id !== id));
@@ -858,14 +913,14 @@ export function FrontDeskAppointments() {
       console.error("Failed to approve:", err);
       alert("Failed to approve appointment.");
     } finally {
-      setIsProcessing(null);
+      setProcessingAction(null);
     }
   };
 
-
   const handleRejectConfirm = async (reason: string) => {
     if (!rejectTarget) return;
-    setIsProcessing(rejectTarget);
+    // FIXED: Using the new processing action state
+    setProcessingAction({ id: rejectTarget, type: 'reject' });
     try {
       await rejectAppointment(String(rejectTarget), reason);
       setPendingRequests(prev => prev.filter(a => a.id !== rejectTarget));
@@ -874,11 +929,10 @@ export function FrontDeskAppointments() {
       console.error("Failed to reject:", err);
       alert("Failed to reject appointment.");
     } finally {
-      setIsProcessing(null);
+      setProcessingAction(null);
       setRejectTarget(null);
     }
   };
-
 
   const handleAdd = async (appt: Omit<Appointment, "id">) => {
     try {
@@ -914,7 +968,6 @@ export function FrontDeskAppointments() {
     }
   };
 
-
   const handleCancel = async (id: number | string) => {
     try {
       await updateAppointmentStatus(String(id), "Cancelled");
@@ -923,7 +976,6 @@ export function FrontDeskAppointments() {
       console.error("Failed to cancel:", err);
     }
   };
-
 
   const handleStatusChange = async (id: number | string, status: AppointmentStatus) => {
     try {
@@ -934,7 +986,6 @@ export function FrontDeskAppointments() {
     }
   };
 
-
   const dotDates = useMemo(() => {
     const map: Record<string, string[]> = {};
     [...appointments, ...pendingRequests].forEach(a => {
@@ -944,12 +995,10 @@ export function FrontDeskAppointments() {
     return map;
   }, [appointments, pendingRequests]);
 
-
   const forSelected = useMemo(
     () => appointments.filter(a => a.date === selected),
     [appointments, selected]
   );
-
 
   const filtered = useMemo(
     () => appointments
@@ -962,7 +1011,6 @@ export function FrontDeskAppointments() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     [appointments, search]
   );
-
 
   return (
     <div className="space-y-6">
@@ -979,7 +1027,6 @@ export function FrontDeskAppointments() {
           <Plus className="w-3.5 h-3.5" />New Appointment
         </button>
       </div>
-
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10 w-fit">
@@ -1012,7 +1059,6 @@ export function FrontDeskAppointments() {
         </button>
       </div>
 
-
       {/* Pending Tab */}
       {activeTab === "pending" && (
         <div>
@@ -1031,12 +1077,11 @@ export function FrontDeskAppointments() {
               requests={pendingRequests}
               onApprove={handleApprove}
               onReject={(id) => setRejectTarget(id)}
-              isProcessing={isProcessing}
+              processingAction={processingAction}
             />
           )}
         </div>
       )}
-
 
       {/* All Appointments Tab */}
       {activeTab === "all" && (
@@ -1072,7 +1117,6 @@ export function FrontDeskAppointments() {
         </>
       )}
 
-
       {/* Modals */}
       {showAdd && (
         <AddAppointmentModal onClose={() => setShowAdd(false)} onSave={handleAdd} customers={customers} />
@@ -1087,6 +1131,4 @@ export function FrontDeskAppointments() {
   );
 }
 
-
 export default FrontDeskAppointments;
-
