@@ -19,7 +19,7 @@ import {
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
-type Tab = "services" | "roles" | "notifications" | "backup" | "business";
+type Tab = "services" |  "notifications" | "backup" | "business";
 
 interface Role {
   id: number;
@@ -30,21 +30,6 @@ interface Role {
 }
 
 // ─── INITIAL DATA ─────────────────────────────────────────────────────────────
-
-const INITIAL_ROLES: Role[] = [
-  { id: 1, name: "Admin",        permissions: "Full Access",            users: 2, dashboard: "admin"     },
-  { id: 2, name: "Manager",      permissions: "Edit, View Reports",     users: 3, dashboard: "admin"     },
-  { id: 3, name: "Technician",   permissions: "View, Update Status",    users: 8, dashboard: "frontdesk" },
-  { id: 4, name: "Receptionist", permissions: "View, Add Appointments", users: 2, dashboard: "frontdesk" },
-];
-
-const PERMISSION_LEVELS = [
-  "Full Access",
-  "Edit, View Reports",
-  "View, Update Status",
-  "View, Add Appointments",
-  "View Only",
-];
 
 const SERVICE_CATEGORIES = ["Coating","PPF","Detailing","Tinting","Wash"];
 
@@ -92,7 +77,6 @@ function SuccessBanner({ message, onDismiss }: { message: string; onDismiss: () 
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "services",      label: "Services",       icon: Package      },
-  { id: "roles",         label: "Roles",          icon: Shield       },
   { id: "notifications", label: "Notifications",  icon: Bell         },
   { id: "backup",        label: "Backup",         icon: Database     },
   { id: "business",      label: "Business Info",  icon: Building2    },
@@ -180,89 +164,7 @@ function ServiceModal({
   );
 }
 
-// ─── ROLE MODAL ───────────────────────────────────────────────────────────────
 
-function RoleModal({
-  mode, initial, onClose, onSave,
-}: {
-  mode: "add" | "edit";
-  initial?: Role;
-  onClose: () => void;
-  onSave: (r: Omit<Role, "id" | "users">) => void;
-}) {
-  const [form, setForm] = useState({
-    name:        initial?.name        ?? "",
-    permissions: initial?.permissions ?? "",
-    dashboard:   initial?.dashboard   ?? ("frontdesk" as Role["dashboard"]),
-  });
-
-  const handleSave = () => {
-    if (!form.name || !form.permissions) {
-      alert("Please fill in Role Name and Permissions."); return;
-    }
-    onSave(form);
-    onClose();
-  };
-
-  return (
-    <ModalWrapper>
-      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col">
-        <div className="p-6 border-b border-white/10 flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-bold text-white">{mode === "add" ? "Add User Role" : `Edit Role: ${initial?.name}`}</h2>
-            <p className="text-white/50 text-xs mt-0.5">Define what this role can access</p>
-          </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
-        </div>
-
-        <div className="p-6 space-y-4">
-          <div className="space-y-1.5">
-            <FieldLabel required>Role Name</FieldLabel>
-            <input className={inputClass} placeholder="e.g. Lead Detailer" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel required>Permissions</FieldLabel>
-            <div className="relative">
-              <select className={selectClass} value={form.permissions} onChange={e => setForm({ ...form, permissions: e.target.value })}>
-                <option value="" disabled className="bg-[#0a0a0a]">Select level...</option>
-                {PERMISSION_LEVELS.map(p => <option key={p} value={p} className="bg-[#0a0a0a]">{p}</option>)}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel>Dashboard Access</FieldLabel>
-            <div className="flex gap-2">
-              {DASHBOARD_OPTIONS.map(d => (
-                <button
-                  key={d.value}
-                  onClick={() => setForm({ ...form, dashboard: d.value })}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-colors ${
-                    form.dashboard === d.value ? d.color : "bg-white/5 text-white/50 border-white/10 hover:bg-white/10"
-                  }`}
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {mode === "edit" && initial && (
-            <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-              <p className="text-white/50 text-xs">Currently assigned to <span className="text-white font-bold">{initial.users}</span> users.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/10" onClick={onClose}>Cancel</Button>
-          <Button className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none hover:opacity-90" onClick={handleSave}>
-            {mode === "add" ? "Save Role" : "Update Role"}
-          </Button>
-        </div>
-      </div>
-    </ModalWrapper>
-  );
-}
 
 // ─── DELETE CONFIRM MODAL ─────────────────────────────────────────────────────
 
@@ -303,10 +205,6 @@ export function Settings() {
   const [services,       setServices]       = useState<ServicePackage[]>([]);
   const [serviceModal,   setServiceModal]   = useState<{ mode: "add" | "edit"; item?: ServicePackage } | null>(null);
   const [serviceToDelete, setServiceToDelete] = useState<ServicePackage | null>(null);
-  // Roles
-  const [roles,       setRoles]       = useState<Role[]>(INITIAL_ROLES);
-  const [roleModal,   setRoleModal]   = useState<{ mode: "add" | "edit"; item?: Role } | null>(null);
-  const [deleteRole,  setDeleteRole]  = useState<Role | null>(null);
 
   // Notifications
   const [notifs, setNotifs] = useState({
@@ -366,24 +264,6 @@ export function Settings() {
     setServiceToDelete(null); // Change this
   }
 };
-
-  // ── Role handlers ─────────────────────────────────────────────────────────
-  const handleSaveRole = (form: Omit<Role, "id" | "users">) => {
-    if (roleModal?.mode === "add") {
-      const newId = roles.length > 0 ? Math.max(...roles.map(r => r.id)) + 1 : 1;
-      setRoles(prev => [...prev, { ...form, id: newId, users: 0 }]);
-      showSuccess(`Role "${form.name}" added.`);
-    } else if (roleModal?.item) {
-      setRoles(prev => prev.map(r => r.id === roleModal.item!.id ? { ...r, ...form } : r));
-      showSuccess(`Role "${form.name}" updated.`);
-    }
-  };
-
-  const handleDeleteRole = (r: Role) => {
-    setRoles(prev => prev.filter(x => x.id !== r.id));
-    setDeleteRole(null);
-    showSuccess(`Role "${r.name}" deleted.`);
-  };
 
   // ── Business info handler ─────────────────────────────────────────────────
   const handleSaveBusinessInfo = async () => {
@@ -525,86 +405,6 @@ export function Settings() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ══════════════════════════════════════
-           TAB: ROLES
-      ══════════════════════════════════════ */}
-      {activeTab === "roles" && (
-        <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden">
-          <CardHeader className="border-b border-white/10 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-[#E41E6A]" />
-                <CardTitle className="text-white">User Roles & Permissions</CardTitle>
-              </div>
-              <Button size="sm" className="bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white border-none flex items-center gap-1.5" onClick={() => setRoleModal({ mode: "add" })}>
-                <Plus className="w-3.5 h-3.5" />Add Role
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {roles.length === 0 ? (
-              <div className="text-white/50 py-12 text-center">No roles found.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-5 py-3.5">Role</th>
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-4 py-3.5">Permissions</th>
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-4 py-3.5">Dashboard</th>
-                      <th className="text-left text-xs font-semibold text-white/50 uppercase tracking-wide px-4 py-3.5">Users</th>
-                      <th className="text-right text-xs font-semibold text-white/50 uppercase tracking-wide px-5 py-3.5">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {roles.map(r => {
-                      const dash = DASHBOARD_OPTIONS.find(d => d.value === r.dashboard);
-                      return (
-                        <tr key={r.id} className="hover:bg-white/5 transition-colors">
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-lg bg-[#E41E6A]/10 flex items-center justify-center flex-shrink-0">
-                                <Users className="w-3.5 h-3.5 text-[#E41E6A]" />
-                              </div>
-                              <span className="text-white font-semibold text-sm">{r.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5 text-white/60 text-sm">{r.permissions}</td>
-                          <td className="px-4 py-3.5">
-                            <Badge variant="outline" className={dash?.color ?? "border-white/20 text-white/60"}>
-                              {dash?.label ?? r.dashboard}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3.5 text-white text-sm">{r.users} users</td>
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => setRoleModal({ mode: "edit", item: r })}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-sky-500/30 text-sky-400 hover:bg-sky-500/10 transition-colors"
-                                title="Edit"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteRole(r)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
                   </tbody>
                 </table>
               </div>
@@ -772,27 +572,12 @@ export function Settings() {
           onSave={handleSaveService}
         />
       )}
-      {roleModal && (
-        <RoleModal
-          mode={roleModal.mode}
-          initial={roleModal.item}
-          onClose={() => setRoleModal(null)}
-          onSave={handleSaveRole}
-        />
-      )}
       {serviceToDelete && (
   <ConfirmDeleteModal
     label={serviceToDelete.name}
     onClose={() => setServiceToDelete(null)}
     onConfirm={() => handleDeleteService(serviceToDelete)}
       />
-      )}
-      {deleteRole && (
-        <ConfirmDeleteModal
-          label={deleteRole.name}
-          onClose={() => setDeleteRole(null)}
-          onConfirm={() => handleDeleteRole(deleteRole)}
-        />
       )}
     </div>
   );
