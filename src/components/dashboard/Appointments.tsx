@@ -379,20 +379,44 @@ export function Appointments() {
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      const [aptsData, custsData] = await Promise.all([
-        getAppointments(),
-        getCustomers(),
-      ]);
-      setAppointments(aptsData);
-      setCustomers(custsData);
-    } catch (err) {
-      console.error("Failed to fetch data", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  setIsLoading(true);
+  try {
+    const [aptsData, custsData] = await Promise.all([
+      getAppointments(),
+      getCustomers(),
+    ]);
+    // normalize the raw data for admin display
+    const raw = Array.isArray(aptsData) ? aptsData : (aptsData?.data ?? []);
+    setAppointments(raw.map((a: any) => {
+      const d = new Date(a.scheduled_date || a.date || new Date());
+      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+      return {
+        id:               a.id,
+        customerId:       a.customer_id ?? "",
+        customerName:     a.full_name ?? a.customer?.name ?? "—",
+        vehicle:          a.vehicle_make
+          ? [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ")
+          : (a.customer?.vehicle ?? "—"),
+        service:          a.service_type ?? a.service ?? "—",
+        date:             dateStr,
+        time:             d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        totalAmount:      Number(a.total_cost ?? 0),
+        deposit:          Number(a.deposit ?? 0),
+        remainingBalance: Number(a.remaining_balance ?? 0),
+        status:           a.status ?? "Pending",
+        notes:            a.notes ?? "",
+        mobileNumber:     a.mobile_number,
+        paymentMethod:    a.payment_method,
+        adminRemarks:     a.admin_remarks,
+      };
+    }));
+    setCustomers(custsData);
+  } catch (err) {
+    console.error("Failed to fetch data", err);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
