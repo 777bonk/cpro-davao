@@ -72,52 +72,59 @@ function normalize(a: any): Appointment {
 }
 
 // ── CREATE APPOINTMENT (multipart/form-data — required for file upload) ───────
+// ── CREATE APPOINTMENT (multipart/form-data — required for file upload) ───────
 export async function createAppointment(payload: {
   customerId: string;
-  fullName: string;
-  mobileNumber: string;
+  fullName?: string;
+  mobileNumber?: string;
   service: string;
-  addons: string[];
-  vehicleMake: string;
-  vehicleModel: string;
-  vehicleYear: string | number;
-  vehicleClass: string;
-  vehiclePlateNumber: string;
+  addons?: string[];
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleYear?: string | number;
+  vehicleClass?: string;
+  vehiclePlateNumber?: string;
   date: string;
   time: string;
-  paymentMethod: string;
-  paymentType: string;
+  paymentMethod?: string;
+  paymentType?: string;
   totalAmount: number;
   deposit: number;
   remainingBalance: number;
   notes?: string;
-  proofFile: File;
+  proofFile?: File | null;
 }): Promise<Appointment> {
   const form = new FormData();
 
-  form.append("customerId",         payload.customerId);
-  form.append("fullName",           payload.fullName);
-  form.append("mobileNumber",       payload.mobileNumber);
-  form.append("service",            payload.service);
-  form.append("addons",             JSON.stringify(payload.addons ?? []));
-  form.append("vehicleMake",        payload.vehicleMake);
-  form.append("vehicleModel",       payload.vehicleModel);
-  form.append("vehicleYear",        String(payload.vehicleYear));
-  form.append("vehicleClass",       payload.vehicleClass);
-  form.append("vehiclePlateNumber", payload.vehiclePlateNumber);
-  form.append("date",               payload.date);
-  form.append("time",               payload.time);
-  form.append("paymentMethod",      payload.paymentMethod);
-  form.append("paymentType",        payload.paymentType);
-  form.append("totalAmount",        String(payload.totalAmount));
-  form.append("deposit",            String(payload.deposit));
-  form.append("remainingBalance",   String(payload.remainingBalance));
-  form.append("notes",              payload.notes ?? "");
-  form.append("proofFile",          payload.proofFile);
+  // ONLY append if the value is truthy, to prevent sending literal "undefined" strings
+  if (payload.customerId) form.append("customerId", payload.customerId);
+  if (payload.fullName) form.append("fullName", payload.fullName);
+  if (payload.mobileNumber) form.append("mobileNumber", payload.mobileNumber);
+  
+  form.append("service", payload.service);
+  form.append("addons", JSON.stringify(payload.addons ?? []));
+  
+  if (payload.vehicleMake) form.append("vehicleMake", payload.vehicleMake);
+  if (payload.vehicleModel) form.append("vehicleModel", payload.vehicleModel);
+  if (payload.vehicleYear) form.append("vehicleYear", String(payload.vehicleYear));
+  if (payload.vehicleClass) form.append("vehicleClass", payload.vehicleClass);
+  if (payload.vehiclePlateNumber) form.append("vehiclePlateNumber", payload.vehiclePlateNumber);
+  
+  form.append("date", payload.date);
+  form.append("time", payload.time);
+  
+  if (payload.paymentMethod) form.append("paymentMethod", payload.paymentMethod);
+  if (payload.paymentType) form.append("paymentType", payload.paymentType);
+  
+  form.append("totalAmount", String(payload.totalAmount || 0));
+  form.append("deposit", String(payload.deposit || 0));
+  form.append("remainingBalance", String(payload.remainingBalance || 0));
+  
+  if (payload.notes) form.append("notes", payload.notes);
+  if (payload.proofFile) form.append("proofFile", payload.proofFile);
 
   const res = await fetch(`${API}/appointments`, {
     method: "POST",
-    // ⚠️ Do NOT set Content-Type — browser sets it automatically with multipart boundary
     body: form,
   });
 
@@ -130,11 +137,13 @@ export async function createAppointment(payload: {
 }
 
 // ── GET ALL APPOINTMENTS (admin) ──────────────────────────────────────────────
-export async function getAllAppointments(): Promise<Appointment[]> {
-  const res = await fetch(`${API}/appointments`);
+export async function getAllAppointments() {
+  const res = await fetch(`${API}/appointments?t=${Date.now()}`, {
+    cache: "no-store",
+    headers: { "Cache-Control": "no-cache" },
+  });
   if (!res.ok) throw new Error("Failed to fetch appointments");
-  const data = await res.json();
-  return Array.isArray(data) ? data.map(normalize) : [];
+  return res.json();
 }
 
 // ── GET APPOINTMENTS BY CUSTOMER ──────────────────────────────────────────────
@@ -153,11 +162,13 @@ export async function getAppointment(id: string): Promise<Appointment> {
 }
 
 // ── GET PENDING VERIFICATION QUEUE (admin/frontdesk) ─────────────────────────
-export async function getPendingVerificationAppointments(): Promise<Appointment[]> {
-  const res = await fetch(`${API}/appointments/admin/pending`);
+export async function getPendingVerificationAppointments() {
+  const res = await fetch(`${API}/appointments/admin/pending?t=${Date.now()}`, {
+    cache: "no-store",
+    headers: { "Cache-Control": "no-cache" },
+  });
   if (!res.ok) throw new Error("Failed to fetch pending appointments");
-  const data = await res.json();
-  return Array.isArray(data) ? data.map(normalize) : [];
+  return res.json();
 }
 
 // ── FULL UPDATE ───────────────────────────────────────────────────────────────
