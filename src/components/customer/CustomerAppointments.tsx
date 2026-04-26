@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import {
   ChevronLeft, ChevronRight, Search, SlidersHorizontal,
   Plus, Calendar, Car, Clock, Banknote, Shield, Layers,
-  Sparkles, Wrench, Eye, CalendarX, X,
+  Sparkles, Wrench, Eye, CalendarX, CheckCircle, X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Badge } from "../dashboard-ui/badge";
 import { getCustomerAppointments, createAppointment } from "../../services/appointments";
 import { getServices } from "../../services/settings";
 import { useAuth } from "../../hooks/useAuth";
+import { getVehicles, Vehicle } from "../../services/vehicles";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -271,19 +272,20 @@ function AppointmentsPanel({ selected, appts, onView }: {
 
 // ─── BOOK MODAL ───────────────────────────────────────────────────────────────
 
-function BookModal({ onClose, onSave, services, vehicle }: {
-  onClose: () => void;
-  onSave: (data: any) => Promise<void>;
-  services: ServiceItem[];   // ← now receives full {name, price} objects
-  vehicle: string;
+function BookModal({ onClose, onSave, services, vehicles }: {
+  onClose:   () => void;
+  onSave:    (data: any) => Promise<void>;
+  services:  ServiceItem[];
+  vehicles:  Vehicle[];   // ← replaces "vehicle: string"
 }) {
   const TIME_OPTIONS = ["8:00 AM","9:00 AM","10:00 AM","10:30 AM","11:00 AM","1:00 PM","2:00 PM","3:00 PM","4:00 PM"];
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [form, setForm] = useState({
     fullName: "", mobileNumber: "", service: "",
     addons: [] as string[],
-    vehicleMake: "", vehicleModel: vehicle || "", vehicleYear: "",
+    vehicleMake: "", vehicleModel: "", vehicleYear: "",
     vehicleClass: "", vehiclePlateNumber: "",
     date: todayStr(), time: "9:00 AM",
     paymentMethod: "", paymentType: "" as "" | "Full Payment" | "Down Payment",
@@ -291,6 +293,22 @@ function BookModal({ onClose, onSave, services, vehicle }: {
   });
   const [isSaving, setIsSaving] = useState(false);
 
+  // Auto-fill vehicle fields when a saved vehicle is selected
+  const handleVehicleSelect = (id: string) => {
+    setSelectedVehicleId(id);
+    if (!id) return;
+    const v = vehicles.find(v => v.id === id);
+    if (v) {
+      setForm(f => ({
+        ...f,
+        vehicleMake:        v.brand,
+        vehicleModel:       v.model,
+        vehicleYear:        v.year,
+        vehicleClass:       v.vehicle_class ?? "",// not stored in vehicles table
+        vehiclePlateNumber: v.plate_number ?? "",
+      }));
+    }
+  };
   // ── Pricing — uses API service prices directly ────────────────────────────
   const selectedService = services.find(s => s.name === form.service);
   const addonObjects    = DEFAULT_ADDONS.filter(a => form.addons.includes(a.name));
@@ -390,34 +408,65 @@ function BookModal({ onClose, onSave, services, vehicle }: {
         <div className="p-6 space-y-6">
 
           {/* ── STEP 1 ── */}
-          {step === 1 && (
-            <div>
-              <h3 className="text-white text-sm font-semibold mb-3">Step 1: Customer & Vehicle Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-white/70">Full Name <span className="text-red-500">*</span></label>
-                  <input className={inputCls} value={form.fullName} onChange={e => setForm(f=>({...f,fullName:e.target.value}))} placeholder="Enter your full name" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-white/70">Mobile Number <span className="text-red-500">*</span></label>
-                  <input className={inputCls} value={form.mobileNumber} onChange={e => setForm(f=>({...f,mobileNumber:e.target.value}))} placeholder="09xxxxxxxxx" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Make <span className="text-red-500">*</span></label><input className={inputCls} value={form.vehicleMake} onChange={e => setForm(f=>({...f,vehicleMake:e.target.value}))} placeholder="Toyota" /></div>
-                <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Model <span className="text-red-500">*</span></label><input className={inputCls} value={form.vehicleModel} onChange={e => setForm(f=>({...f,vehicleModel:e.target.value}))} placeholder="Fortuner" /></div>
-                <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Year <span className="text-red-500">*</span></label><input type="number" className={inputCls} value={form.vehicleYear} onChange={e => setForm(f=>({...f,vehicleYear:e.target.value}))} placeholder="2022" /></div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-white/70">Vehicle Size/Class <span className="text-red-500">*</span></label>
-                  <select className={selCls} value={form.vehicleClass} onChange={e => setForm(f=>({...f,vehicleClass:e.target.value}))}>
-                    <option value="" className="bg-[#0a0a0a]">Select vehicle class...</option>
-                    {VEHICLE_CLASS_OPTIONS.map(v => <option key={v.value} value={v.value} className="bg-[#0a0a0a]">{v.label}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5 md:col-span-2"><label className="text-sm font-medium text-white/70">Vehicle Plate Number</label><input className={inputCls} value={form.vehiclePlateNumber} onChange={e => setForm(f=>({...f,vehiclePlateNumber:e.target.value}))} placeholder="ABC 1234" /></div>
-              </div>
-            </div>
-          )}
+{step === 1 && (
+  <div>
+    <h3 className="text-white text-sm font-semibold mb-3">Step 1: Customer & Vehicle Information</h3>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-white/70">Full Name <span className="text-red-500">*</span></label>
+        <input className={inputCls} value={form.fullName} onChange={e => setForm(f=>({...f,fullName:e.target.value}))} placeholder="Enter your full name" />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-white/70">Mobile Number <span className="text-red-500">*</span></label>
+        <input className={inputCls} value={form.mobileNumber} onChange={e => setForm(f=>({...f,mobileNumber:e.target.value}))} placeholder="09xxxxxxxxx" />
+      </div>
+    </div>
+
+    {/* Vehicle selector */}
+    {vehicles.length > 0 && (
+      <div className="space-y-1.5 mb-4">
+        <label className="text-sm font-medium text-white/70">Select Saved Vehicle</label>
+        <select
+          className={selCls}
+          value={selectedVehicleId}
+          onChange={e => handleVehicleSelect(e.target.value)}
+        >
+          <option value="" className="bg-[#0a0a0a]">— Enter manually or select saved vehicle —</option>
+          {vehicles.map(v => (
+            <option key={v.id} value={v.id} className="bg-[#0a0a0a]">
+              {v.name ? `${v.name} — ` : ""}{v.brand} {v.model} {v.year}{v.plate_number ? ` (${v.plate_number})` : ""}
+            </option>
+          ))}
+        </select>
+        {selectedVehicleId && (
+          <p className="text-xs text-emerald-400 flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" />Vehicle details auto-filled below
+          </p>
+        )}
+      </div>
+    )}
+
+    {vehicles.length === 0 && (
+      <div className="mb-4 p-3 bg-sky-500/10 border border-sky-500/20 rounded-lg">
+        <p className="text-sky-400 text-xs">💡 Tip: Add vehicles in your dashboard to pre-fill this form next time.</p>
+      </div>
+    )}
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Make <span className="text-red-500">*</span></label><input className={inputCls} value={form.vehicleMake} onChange={e => setForm(f=>({...f,vehicleMake:e.target.value}))} placeholder="Toyota" /></div>
+      <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Model <span className="text-red-500">*</span></label><input className={inputCls} value={form.vehicleModel} onChange={e => setForm(f=>({...f,vehicleModel:e.target.value}))} placeholder="Fortuner" /></div>
+      <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Year <span className="text-red-500">*</span></label><input type="number" className={inputCls} value={form.vehicleYear} onChange={e => setForm(f=>({...f,vehicleYear:e.target.value}))} placeholder="2022" /></div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-white/70">Vehicle Size/Class <span className="text-red-500">*</span></label>
+        <select className={selCls} value={form.vehicleClass} onChange={e => setForm(f=>({...f,vehicleClass:e.target.value}))}>
+          <option value="" className="bg-[#0a0a0a]">Select vehicle class...</option>
+          {VEHICLE_CLASS_OPTIONS.map(v => <option key={v.value} value={v.value} className="bg-[#0a0a0a]">{v.label}</option>)}
+        </select>
+      </div>
+      <div className="space-y-1.5 md:col-span-2"><label className="text-sm font-medium text-white/70">Vehicle Plate Number</label><input className={inputCls} value={form.vehiclePlateNumber} onChange={e => setForm(f=>({...f,vehiclePlateNumber:e.target.value}))} placeholder="ABC 1234" /></div>
+    </div>
+  </div>
+)}
 
           {/* ── STEP 2 ── */}
           {step === 2 && (
@@ -627,6 +676,7 @@ export function CustomerAppointments() {
   const [filterStatus, setFilterStatus] = useState<"All" | string>("All");
   const [showBook,     setShowBook]     = useState(false);
   const [viewAppt,     setViewAppt]     = useState<Appointment | null>(null);
+  const [vehicles,     setVehicles]     = useState<Vehicle[]>([]);
 
   const todayDisplay = new Date().toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -644,8 +694,12 @@ useEffect(() => {
 }, []);
 
 // Fetch appointments only when customer profile is ready
-useEffect(() => { if (profile?.customerId) fetchData(); }, [profile?.customerId]);
-
+useEffect(() => {
+  if (profile?.customerId) {
+    fetchData();
+    getVehicles(profile.customerId).then(setVehicles).catch(() => {});
+  }
+}, [profile?.customerId]);
   const fetchData = async () => {
     if (!profile?.customerId) return;
     setIsLoading(true);
@@ -821,7 +875,7 @@ useEffect(() => { if (profile?.customerId) fetchData(); }, [profile?.customerId]
         </CardContent>
       </Card>
 
-      {showBook && <BookModal onClose={() => setShowBook(false)} onSave={handleBook} services={services} vehicle={customerVehicle} />}
+      {showBook && <BookModal onClose={() => setShowBook(false)} onSave={handleBook} services={services} vehicles={vehicles} />}
       {viewAppt  && <ViewModal appt={viewAppt} onClose={() => setViewAppt(null)} />}
     </div>
   );
