@@ -95,7 +95,7 @@ function CreateJobOrderModal({ employees, appointments, onClose, onSave }: {
   employees: Employee[];
   appointments: ApptOption[];
   onClose: () => void;
-  onSave: (data: Omit<JobOrder,"id"|"orderNo">) => void;
+  onSave: (data: Omit<JobOrder,"id"|"orderNo">) => Promise<void>;
 }) {
   const [selectedApptId,  setSelectedApptId]  = useState("");
   const [selectedStaff,   setSelectedStaff]   = useState<string[]>([]);  // multi-select
@@ -118,13 +118,17 @@ function CreateJobOrderModal({ employees, appointments, onClose, onSave }: {
       prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name]
     );
 
-  const handleSave = () => {
-    if (!selectedApptId) { setError("Please select an appointment."); return; }
-    if (selectedStaff.length === 0) { setError("Please select at least one staff member."); return; }
-    if (!selectedAppt) return;
+  const [isSaving, setIsSaving] = useState(false);
 
+  const handleSave = async () => {
+  if (!selectedApptId) { setError("Please select an appointment."); return; }
+  if (selectedStaff.length === 0) { setError("Please select at least one staff member."); return; }
+  if (!selectedAppt) return;
+
+  setIsSaving(true);
+  try {
     const matchedEmps = employees.filter(e => selectedStaff.includes(e.name));
-    onSave({
+    await onSave({
       customer:      selectedAppt.customer,
       vehicle:       selectedAppt.vehicle,
       service:       selectedAppt.service,
@@ -136,8 +140,13 @@ function CreateJobOrderModal({ employees, appointments, onClose, onSave }: {
       notes,
       priority,
     });
-    onClose();
-  };
+    onClose(); // ← only closes AFTER save succeeds
+  } catch (err: any) {
+    setError(err?.message ?? "Failed to create job order. Please try again.");
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   return (
     <ModalWrapper>
@@ -328,9 +337,9 @@ function CreateJobOrderModal({ employees, appointments, onClose, onSave }: {
         {/* Footer */}
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
-          <button onClick={handleSave}
-            className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">
-            Create Job Order
+          <button onClick={handleSave} disabled={isSaving}
+            className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all disabled:opacity-50">
+            {isSaving ? "Creating..." : "Create Job Order"}
           </button>
         </div>
       </div>
@@ -663,34 +672,33 @@ export function FrontDeskJobOrders() {
   );
 
   const handleCreate = async (data: Omit<JobOrder,"id"|"orderNo">) => {
-    try {
-      const saved = await jobOrdersService.create({
-        customer:       data.customer,
-        vehicle:        data.vehicle,
-        service:        data.service,
-        assigned_staff: data.assignedStaff,
-        staff_id:       data.staffId || undefined,
-        scheduled_date: data.date,
-        estimated_time: data.estimatedTime,
-        priority:       data.priority,
-        notes:          data.notes,
-      });
-      setJobOrders(prev => [{
-        id:            saved.id,
-        orderNo:       saved.order_no,
-        customer:      saved.customer,
-        vehicle:       saved.vehicle,
-        service:       saved.service,
-        assignedStaff: saved.assigned_staff,
-        staffId:       saved.staff_id ?? "",
-        date:          saved.scheduled_date.split("T")[0],
-        estimatedTime: saved.estimated_time,
-        status:        saved.status   as JobStatus,
-        priority:      saved.priority as "Normal"|"Urgent",
-        notes:         saved.notes    ?? "",
-      }, ...prev]);
-    } catch (err) { console.error("Failed to create job order:", err); }
-  };
+  const saved = await jobOrdersService.create({
+    customer:       data.customer,
+    vehicle:        data.vehicle,
+    service:        data.service,
+    assigned_staff: data.assignedStaff,
+    staff_id:       data.staffId || undefined,
+    scheduled_date: data.date,
+    estimated_time: data.estimatedTime,
+    priority:       data.priority,
+    notes:          data.notes,
+  });
+  setJobOrders(prev => [{
+    id:            saved.id,
+    orderNo:       saved.order_no,
+    customer:      saved.customer,
+    vehicle:       saved.vehicle,
+    service:       saved.service,
+    assignedStaff: saved.assigned_staff,
+    staffId:       saved.staff_id ?? "",
+    date:          saved.scheduled_date.split("T")[0],
+    estimatedTime: saved.estimated_time,
+    status:        saved.status   as JobStatus,
+    priority:      saved.priority as "Normal"|"Urgent",
+    notes:         saved.notes    ?? "",
+  }, ...prev]);
+  // No try/catch here — let the error bubble up to CreateJobOrderModal to display
+};
 
   const handleEdit = async (data: Omit<JobOrder,"id"|"orderNo">) => {
     if (!editJob) return;
