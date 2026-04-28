@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { useAuth } from "../../hooks/useAuth";
 import { getAppointments, updateAppointmentStatus } from "../../services/appointments";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -198,71 +198,87 @@ export function StaffJobOrders() {
   const [filterStatus, setFilterStatus] = useState<"All" | string>("All");
   const [viewJob,      setViewJob]      = useState<Job | null>(null);
 
-  useEffect(() => { fetchData(); }, [profile]);
+  useEffect(() => {
+  if (profile?.full_name) fetchData();
+}, [profile?.full_name]);
 
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      const [appts, jobOrdersRes] = await Promise.all([
-        getAppointments().catch(() => []),
-        fetch(`${API_URL}/job-orders?search=${encodeURIComponent(profile?.full_name ?? "")}`)
-          .then(r => r.json())
-          .catch(() => ({ data: [] })),
-      ]);
+ const fetchData = async () => {
+  setIsLoading(true);
+  try {
+    const staffName = (profile?.full_name ?? "").trim().toLowerCase();
 
-      // Appointments assigned to this staff
-      const myApptJobs: Job[] = appts
-        .filter((a: any) => {
-          const assignedTo = a.employees?.name ?? a.technician ?? a.assigned_staff ?? "";
-          return (
-            assignedTo.toLowerCase().includes((profile?.full_name ?? "").toLowerCase()) ||
-            a.employee_id === profile?.id
-          );
-        })
-        .map((a: any) => {
-          const d = new Date(a.date || a.scheduled_date);
-          return {
-            id:       a.id,
-            service:  a.service_type ?? a.service ?? "Service",
-            customer: a.customers?.name ?? a.customer ?? "Customer",
-            vehicle:  a.customers?.vehicle ?? a.vehicle ?? "Vehicle",
-            date:     (a.date || a.scheduled_date).split("T")[0],
-            time:     d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            notes:    a.notes ?? "",
-            status:   (a.status ?? "Pending") as JobStatus,
-            source:   "appointment" as const,
-          };
-        });
+    const [appts, jobOrdersRes] = await Promise.all([
+      getAppointments().catch(() => []),
+      fetch(`${import.meta.env.VITE_API_BASE_URL}/job-orders?limit=200&t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      })
+        .then(r => r.json())
+        .catch(() => ({ data: [] })),
+    ]);
 
-      // Job orders assigned to this staff
-      const myJobOrders: Job[] = (jobOrdersRes.data ?? [])
-        .filter((j: any) =>
-          j.assigned_staff?.toLowerCase().includes((profile?.full_name ?? "").toLowerCase()) ||
-          j.staff_id === profile?.id
-        )
-        .map((j: any) => ({
-          id:       j.id,
-          service:  j.service,
-          customer: j.customer,
-          vehicle:  j.vehicle,
-          date:     j.scheduled_date.split("T")[0],
-          time:     "—",
-          notes:    j.notes ?? "",
-          status:   j.status as JobStatus,
-          source:   "job_order" as const,
-        }));
+    // Appointments assigned to this staff
+    const myApptJobs: Job[] = (Array.isArray(appts) ? appts : [])
+      .filter((a: any) => {
+        const assignedTo = (
+          a.employees?.name ??
+          a.technician ??
+          a.assigned_staff ??
+          ""
+        ).toLowerCase();
+        return (
+          assignedTo.includes(staffName) ||
+          a.employee_id === profile?.id
+        );
+      })
+      .map((a: any) => {
+        const d = new Date(a.date || a.scheduled_date);
+        return {
+          id:       a.id,
+          service:  a.service_type ?? a.service ?? "Service",
+          customer: a.customers?.name ?? a.full_name ?? a.customer ?? "Customer",
+          vehicle:  [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") || a.customers?.vehicle || a.vehicle || "Vehicle",
+          date:     (a.date || a.scheduled_date || "").split("T")[0],
+          time:     d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          notes:    a.notes ?? "",
+          status:   (a.status ?? "Pending") as JobStatus,
+          source:   "appointment" as const,
+        };
+      });
 
-      // Combine and sort
-      const allJobs = [...myApptJobs, ...myJobOrders]
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Job orders assigned to this staff — match by name in assigned_staff string
+    const myJobOrders: Job[] = (jobOrdersRes.data ?? [])
+      .filter((j: any) => {
+        if (!staffName) return false;
+        const assigned = (j.assigned_staff ?? "").toLowerCase();
+        // assigned_staff is comma-separated e.g. "Borgalec, John Cena"
+        return assigned
+          .split(",")
+          .map((s: string) => s.trim())
+          .some((s: string) => s.includes(staffName) || staffName.includes(s));
+      })
+      .map((j: any) => ({
+        id:       j.id,
+        service:  j.service  ?? "Service",
+        customer: j.customer ?? "Customer",
+        vehicle:  j.vehicle  ?? "Vehicle",
+        date:     (j.scheduled_date ?? "").split("T")[0],
+        time:     "—",
+        notes:    j.notes ?? "",
+        status:   j.status as JobStatus,
+        source:   "job_order" as const,
+      }));
 
-      setJobs(allJobs);
-    } catch (err) {
-      console.error("StaffJobOrders fetch error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const allJobs = [...myApptJobs, ...myJobOrders]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    setJobs(allJobs);
+  } catch (err) {
+    console.error("StaffJobOrders fetch error:", err);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleUpdateStatus = async (id: string | number, status: JobStatus) => {
     // Optimistic UI update
@@ -272,7 +288,7 @@ export function StaffJobOrders() {
       const job = jobs.find(j => j.id === id);
 
       if (job?.source === "job_order") {
-        await fetch(`${API_URL}/job-orders/${id}`, {
+        await fetch(`${import.meta.env.VITE_API_BASE_URL}/job-orders/${id}`, {
           method:  "PATCH",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ status }),
