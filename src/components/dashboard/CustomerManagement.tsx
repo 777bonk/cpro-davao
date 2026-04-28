@@ -1,35 +1,35 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Search, Plus, X, User, Phone, Car, Clock,
-  Eye, ChevronDown, SlidersHorizontal,
-  UserCheck, Calendar, Archive,
-  TrendingUp, Edit2, Shield, Layers, Sparkles, Wrench,
-  CheckCircle, Mail, Hash,
+  Eye, ChevronDown, ChevronUp, SlidersHorizontal,
+  UserCheck, Calendar, Archive, TrendingUp, Edit2,
+  Shield, Layers, Sparkles, Wrench, CheckCircle,
+  Mail, Hash, CarFront, Trash2, Palette,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Button } from "../dashboard-ui/button";
 import { Badge } from "../dashboard-ui/badge";
-import { getCustomers, createCustomer, updateCustomer, Customer } from "../../services/customer";
+import {
+  getCustomers, createCustomer, updateCustomer, Customer,
+} from "../../services/customer";
+import {
+  getVehicles, createVehicle, updateVehicle, deleteVehicle, Vehicle,
+} from "../../services/vehicles";
+
+// VehicleForm = Vehicle without id, user_id, created_at
+type VehicleForm = Omit<Vehicle, 'id' | 'user_id' | 'created_at'>;
+
+// Display helper
+function vehicleDisplayName(v: Vehicle): string {
+  return [v.year, v.brand, v.model, v.vehicle_class].filter(Boolean).join(" ");
+}
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
 const VEHICLE_CLASS_OPTIONS = [
-  { label: "Sedan",        value: "Sedan"        },
-  { label: "Hatchback",    value: "Hatchback"    },
-  { label: "Crossover",    value: "Crossover"    },
-  { label: "SUV",          value: "SUV"          },
-  { label: "Pickup",       value: "Pickup"       },
-  { label: "Van",          value: "Van"          },
-  { label: "MPV",          value: "MPV"          },
-  { label: "Full-size SUV",value: "Full-size SUV"},
-  { label: "Scooter",      value: "Scooter"      },
-  { label: "Underbone",    value: "Underbone"    },
-  { label: "Small Displacement Motorcycle", value: "Small Displacement Motorcycle" },
-  { label: "Naked Bike",   value: "Naked Bike"   },
-  { label: "Sport Bike",   value: "Sport Bike"   },
-  { label: "Cruiser",      value: "Cruiser"      },
-  { label: "Adventure Bike",value:"Adventure Bike"},
-  { label: "Big Bike",     value: "Big Bike"     },
+  "Sedan","Hatchback","Crossover","SUV","Pickup","Van","MPV","Full-size SUV",
+  "Scooter","Underbone","Small Displacement Motorcycle","Naked Bike",
+  "Sport Bike","Cruiser","Adventure Bike","Big Bike",
 ];
 
 const SERVICE_CATALOG = [
@@ -63,10 +63,6 @@ function todayStr() {
 
 function formatDate(dateStr?: string | null) {
   if (!dateStr || dateStr === "N/A" || dateStr.trim() === "") return "N/A";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, day] = dateStr.split("-").map(Number);
-    return new Date(y, m - 1, day).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
-  }
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return "N/A";
   return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
@@ -82,10 +78,8 @@ function initials(name: string) {
 
 function avatarColor(id: string | number) {
   const COLORS = [
-    "from-[#E41E6A] to-pink-400",
-    "from-sky-500 to-blue-400",
-    "from-violet-500 to-purple-400",
-    "from-emerald-500 to-green-400",
+    "from-[#E41E6A] to-pink-400","from-sky-500 to-blue-400",
+    "from-violet-500 to-purple-400","from-emerald-500 to-green-400",
     "from-amber-500 to-orange-400",
   ];
   const n = typeof id === "string"
@@ -94,18 +88,10 @@ function avatarColor(id: string | number) {
   return COLORS[n % COLORS.length];
 }
 
-function serviceIcon(service: string) {
-  const s = (service ?? "").toLowerCase();
-  if (s.includes("coating")) return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
-  if (s.includes("ppf"))     return <Layers   className="w-4 h-4 text-violet-400" />;
-  if (s.includes("tint"))    return <Sparkles className="w-4 h-4 text-sky-400"    />;
-  return                            <Wrench   className="w-4 h-4 text-white/50"   />;
-}
-
 // ─── SHARED STYLES ────────────────────────────────────────────────────────────
 
 const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
-const selCls   = inputCls + " appearance-none";
+const selCls   = inputCls + " appearance-none pr-8";
 
 function ModalWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -127,8 +113,8 @@ function StatusBadge({ status }: { status?: string | null }) {
   );
 }
 
-function Field({ label, required, children }: {
-  label: string; required?: boolean; children: React.ReactNode;
+function Field({ label, required, error, children }: {
+  label: string; required?: boolean; error?: string; children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
@@ -136,7 +122,137 @@ function Field({ label, required, children }: {
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
+      {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
     </div>
+  );
+}
+
+// ─── VEHICLE FORM FIELDS ──────────────────────────────────────────────────────
+
+function VehicleFormFields({ v, onChange }: {
+  v: VehicleForm;
+  onChange: (updated: VehicleForm) => void;
+}) {
+  const set = (key: keyof VehicleForm, val: string) => onChange({ ...v, [key]: val });
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Field label="Brand / Make" required>
+        <input className={inputCls} placeholder="Toyota" value={v.brand} onChange={e => set("brand", e.target.value)} />
+      </Field>
+      <Field label="Model" required>
+        <input className={inputCls} placeholder="Fortuner" value={v.model} onChange={e => set("model", e.target.value)} />
+      </Field>
+      <Field label="Year" required>
+        <input type="number" className={inputCls} placeholder="2022" value={v.year} onChange={e => set("year", e.target.value)} />
+      </Field>
+      <Field label="Vehicle Size/Class" required>
+        <div className="relative">
+          <select className={selCls} value={v.vehicle_class ?? ""} onChange={e => set("vehicle_class", e.target.value)}>
+            <option value="" className="bg-[#0a0a0a]">Select class...</option>
+            {VEHICLE_CLASS_OPTIONS.map(c => <option key={c} value={c} className="bg-[#0a0a0a]">{c}</option>)}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
+        </div>
+      </Field>
+      <Field label="Plate Number">
+        <input className={inputCls} placeholder="ABC 1234" value={v.plate_number ?? ""} onChange={e => set("plate_number", e.target.value)} />
+      </Field>
+      <Field label="Color">
+        <input className={inputCls} placeholder="Pearl White" value={v.color ?? ""} onChange={e => set("color", e.target.value)} />
+      </Field>
+      <div className="md:col-span-2">
+        <Field label="Vehicle Name (optional)">
+          <input className={inputCls} placeholder='e.g. "My Fortuner"' value={v.name ?? ""} onChange={e => set("name", e.target.value)} />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+// ─── ADD VEHICLE MODAL ────────────────────────────────────────────────────────
+
+function AddVehicleModal({ customers, onClose, onSave }: {
+  customers: Customer[];
+  onClose: () => void;
+  onSave: (customerId: string, vehicle: VehicleForm) => Promise<void>;
+}) {
+  const [selectedId, setSelectedId] = useState("");
+  const [vehicle,    setVehicle]    = useState<VehicleForm>({ brand: "", model: "", year: "", plate_number: "", color: "", vehicle_class: "", name: "" });
+  const [isSaving,   setIsSaving]   = useState(false);
+  const [error,      setError]      = useState("");
+
+  const handleSave = async () => {
+    setError("");
+    if (!selectedId)             { setError("Please select a customer."); return; }
+    if (!vehicle.brand.trim())   { setError("Brand / Make is required."); return; }
+    if (!vehicle.model.trim())   { setError("Model is required."); return; }
+    if (!vehicle.year)           { setError("Year is required."); return; }
+    if (!vehicle.vehicle_class)  { setError("Vehicle class is required."); return; }
+    setIsSaving(true);
+    try {
+      await onSave(selectedId, vehicle);
+      onClose();
+    } catch (e: any) { setError(e?.message ?? "Failed to add vehicle."); }
+    finally { setIsSaving(false); }
+  };
+
+  const selected = customers.find(c => c.id === selectedId);
+
+  return (
+    <ModalWrapper>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-white">Add Vehicle</h2>
+            <p className="text-white/50 text-xs mt-0.5">Attach a new vehicle to an existing customer</p>
+          </div>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-6 space-y-5">
+          <Field label="Select Customer" required>
+            <div className="relative">
+              <select className={selCls} value={selectedId} onChange={e => setSelectedId(e.target.value)}>
+                <option value="" className="bg-[#0a0a0a]">Choose a customer...</option>
+                {customers.filter(c => c.status === "Active").map(c => (
+                  <option key={c.id} value={c.id} className="bg-[#0a0a0a]">{c.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
+            </div>
+          </Field>
+
+          {selected && (
+            <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarColor(selected.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+                {initials(selected.name)}
+              </div>
+              <div>
+                <p className="text-white text-sm font-semibold">{selected.name}</p>
+                <p className="text-white/50 text-xs">{selected.contact || "No contact"}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-1 border-t border-white/10">
+            <p className="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-4">Vehicle Details</p>
+            <VehicleFormFields v={vehicle} onChange={setVehicle} />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              <X className="w-4 h-4 flex-shrink-0" />{error}
+            </div>
+          )}
+        </div>
+        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
+          <button onClick={handleSave} disabled={isSaving}
+            className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all disabled:opacity-50">
+            {isSaving ? "Saving..." : "Add Vehicle"}
+          </button>
+        </div>
+      </div>
+    </ModalWrapper>
   );
 }
 
@@ -146,43 +262,36 @@ function AddCustomerModal({ onClose, onSave }: {
   onClose: () => void;
   onSave: (data: any) => Promise<void>;
 }) {
-  const [step, setStep]     = useState<1 | 2>(1);
+  const [step,     setStep]     = useState<1 | 2>(1);
   const [isSaving, setIsSaving] = useState(false);
-
   const [form, setForm] = useState({
-    name:"", contact:"", email:"",
-    vehicleMake:"", vehicleModel:"", vehicleYear:"", vehicleClass:"", vehiclePlateNumber:"",
-    status:"Active" as "Active"|"Inactive",
-    service:"", addons:[] as string[], date:todayStr(), time:"9:00 AM", notes:"",
+    name: "", contact: "", email: "", status: "Active" as "Active" | "Inactive",
+    service: "", addons: [] as string[], date: todayStr(), time: "9:00 AM", notes: "",
+  });
+  const [vehicle, setVehicle] = useState<VehicleForm>({
+    brand: "", model: "", year: "", plate_number: "", color: "", vehicle_class: "", name: "",
   });
 
-  const selectedSvc  = SERVICE_CATALOG.find(s => s.name === form.service);
-  const addonObjs    = DEFAULT_ADDONS.filter(a => form.addons.includes(a.name));
-  const baseTotal    = selectedSvc?.price ?? 0;
-  const addonsTotal  = addonObjs.reduce((s, a) => s + a.price, 0);
-  const grandTotal   = baseTotal + addonsTotal;
-  const yearNum      = Number(form.vehicleYear);
-  const validYear    = !!form.vehicleYear && Number.isInteger(yearNum) && yearNum >= 1950 && yearNum <= new Date().getFullYear() + 1;
-
-  const checkCard = (active: boolean) =>
-    `flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${active ? "border-[#E41E6A] bg-[#E41E6A]/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`;
+  const selectedSvc = SERVICE_CATALOG.find(s => s.name === form.service);
+  const addonObjs   = DEFAULT_ADDONS.filter(a => form.addons.includes(a.name));
+  const grandTotal  = (selectedSvc?.price ?? 0) + addonObjs.reduce((s, a) => s + a.price, 0);
 
   const toggleAddon = (name: string) =>
     setForm(f => ({ ...f, addons: f.addons.includes(name) ? f.addons.filter(a => a !== name) : [...f.addons, name] }));
 
   const validateStep1 = () => {
-    if (!form.name.trim())    { alert("Full name is required."); return false; }
-    if (!form.contact.trim()) { alert("Contact number is required."); return false; }
-    if (!/^(\+63|09)\d{9}$/.test(form.contact.replace(/\s+/g,""))) { alert("Enter a valid PH mobile number (09XXXXXXXXX)."); return false; }
-    if (!form.vehicleMake.trim())  { alert("Vehicle make is required."); return false; }
-    if (!form.vehicleModel.trim()) { alert("Vehicle model is required."); return false; }
-    if (!validYear)                { alert("Enter a valid vehicle year."); return false; }
-    if (!form.vehicleClass)        { alert("Please select vehicle size/class."); return false; }
+    if (!form.name.trim())   { alert("Full name is required."); return false; }
+    if (!form.contact.trim()){ alert("Contact number is required."); return false; }
+    if (!/^(\+63|09)\d{9}$/.test(form.contact.replace(/\s+/g,""))) { alert("Enter a valid PH mobile number."); return false; }
+    if (!vehicle.brand.trim()) { alert("Vehicle brand is required."); return false; }
+    if (!vehicle.model.trim()) { alert("Vehicle model is required."); return false; }
+    if (!vehicle.year)         { alert("Vehicle year is required."); return false; }
+    if (!vehicle.vehicle_class){ alert("Please select vehicle size/class."); return false; }
     return true;
   };
 
   const validateStep2 = () => {
-    if (!form.service)                    { alert("Please select a service package."); return false; }
+    if (!form.service)                       { alert("Please select a service package."); return false; }
     if (!form.date || form.date < todayStr()) { alert("Please select a valid future date."); return false; }
     return true;
   };
@@ -191,18 +300,20 @@ function AddCustomerModal({ onClose, onSave }: {
     if (!validateStep1() || !validateStep2()) return;
     setIsSaving(true);
     try {
-      await onSave({ name:form.name.trim(), contact:form.contact.trim(), email:form.email.trim(),
-        vehicle:[form.vehicleMake,form.vehicleModel,form.vehicleClass].filter(Boolean).join(" "),
-        vehicleMake:form.vehicleMake, vehicleModel:form.vehicleModel, vehicleYear:form.vehicleYear,
-        vehicleClass:form.vehicleClass, vehiclePlateNumber:form.vehiclePlateNumber,
-        status:form.status, service:form.service, addons:form.addons,
-        date:form.date, time:form.time, notes:form.notes, grandTotal });
+      await onSave({
+        name: form.name.trim(), contact: form.contact.trim(), email: form.email.trim(),
+        // Pass a combined vehicle string for the legacy vehicle field
+        vehicle: [vehicle.year, vehicle.brand, vehicle.model, vehicle.vehicle_class].filter(Boolean).join(" "),
+        vehicleForm: vehicle,
+        status: form.status, service: form.service, addons: form.addons,
+        date: form.date, time: form.time, notes: form.notes, grandTotal,
+      });
       onClose();
     } catch (err: any) { alert(`Error: ${err?.message || "Failed to register customer."}`); }
     finally { setIsSaving(false); }
   };
 
-  const StepPill = ({ index, title, active, done }: { index:number; title:string; active:boolean; done:boolean }) => (
+  const StepPill = ({ index, title, active, done }: { index: number; title: string; active: boolean; done: boolean }) => (
     <div className="flex items-center gap-2">
       <div className={["w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border transition-colors",
         active ? "bg-[#E41E6A] border-[#E41E6A] text-white" : done ? "bg-green-500/20 border-green-500/30 text-green-400" : "bg-white/5 border-white/10 text-white/50"].join(" ")}>
@@ -237,23 +348,11 @@ function AddCustomerModal({ onClose, onSave }: {
               </div>
               <div className="pt-2 border-t border-white/10">
                 <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-4">Vehicle Information</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Vehicle Make" required><input className={inputCls} placeholder="Toyota" value={form.vehicleMake} onChange={e => setForm(f=>({...f,vehicleMake:e.target.value}))} /></Field>
-                  <Field label="Vehicle Model" required><input className={inputCls} placeholder="Fortuner" value={form.vehicleModel} onChange={e => setForm(f=>({...f,vehicleModel:e.target.value}))} /></Field>
-                  <Field label="Vehicle Year" required><input type="number" className={inputCls} placeholder="2022" value={form.vehicleYear} onChange={e => setForm(f=>({...f,vehicleYear:e.target.value}))} /></Field>
-                  <Field label="Vehicle Size/Class" required>
-                    <div className="relative">
-                      <select className={`${selCls} pr-8`} value={form.vehicleClass} onChange={e => setForm(f=>({...f,vehicleClass:e.target.value}))}>
-                        <option value="" className="bg-[#0a0a0a]">Select vehicle class...</option>
-                        {VEHICLE_CLASS_OPTIONS.map(v => <option key={v.value} value={v.value} className="bg-[#0a0a0a]">{v.label}</option>)}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-                    </div>
-                  </Field>
-                  <Field label="Plate Number"><input className={inputCls} placeholder="ABC 1234" value={form.vehiclePlateNumber} onChange={e => setForm(f=>({...f,vehiclePlateNumber:e.target.value}))} /></Field>
+                <VehicleFormFields v={vehicle} onChange={setVehicle} />
+                <div className="mt-4">
                   <Field label="Status">
                     <div className="relative">
-                      <select className={`${selCls} pr-8`} value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value as "Active"|"Inactive"}))}>
+                      <select className={selCls} value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value as "Active"|"Inactive"}))}>
                         <option value="Active" className="bg-[#0a0a0a]">Active</option>
                         <option value="Inactive" className="bg-[#0a0a0a]">Inactive</option>
                       </select>
@@ -279,7 +378,8 @@ function AddCustomerModal({ onClose, onSave }: {
                   {DEFAULT_ADDONS.map(addon => {
                     const active = form.addons.includes(addon.name);
                     return (
-                      <button type="button" key={addon.name} onClick={() => toggleAddon(addon.name)} className={checkCard(active)}>
+                      <button type="button" key={addon.name} onClick={() => toggleAddon(addon.name)}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${active ? "border-[#E41E6A] bg-[#E41E6A]/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
                         <span className="text-left"><span className="block text-sm font-medium text-white">{addon.name}</span><span className="block text-xs text-white/50">{formatMoney(addon.price)}</span></span>
                         <span className={`w-4 h-4 rounded border ${active ? "bg-[#E41E6A] border-[#E41E6A]" : "border-white/20"}`} />
                       </button>
@@ -298,15 +398,15 @@ function AddCustomerModal({ onClose, onSave }: {
               <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
                 <p className="text-sm font-semibold text-white">Booking Summary</p>
                 {[
-                  ["Customer", form.name||"—"],["Vehicle",[form.vehicleMake,form.vehicleModel,form.vehicleClass].filter(Boolean).join(" ")||"—"],
-                  ["Service",form.service||"—"],["Schedule",form.date?`${form.date} ${form.time}`:"—"],
+                  ["Customer", form.name||"—"],
+                  ["Vehicle",  [vehicle.year,vehicle.brand,vehicle.model].filter(Boolean).join(" ")||"—"],
+                  ["Service",  form.service||"—"],
+                  ["Schedule", form.date?`${form.date} ${form.time}`:"—"],
                 ].map(([l,v]) => (
                   <div key={l} className="flex justify-between text-xs text-white/60"><span>{l}</span><span>{v}</span></div>
                 ))}
-                <div className="border-t border-white/10 pt-2 space-y-1">
-                  <div className="flex justify-between text-xs text-white/60"><span>Base service</span><span>{formatMoney(baseTotal)}</span></div>
-                  <div className="flex justify-between text-xs text-white/60"><span>Add-ons</span><span>{formatMoney(addonsTotal)}</span></div>
-                  <div className="flex justify-between text-sm text-white font-semibold pt-1 border-t border-white/10"><span>Total</span><span>{formatMoney(grandTotal)}</span></div>
+                <div className="border-t border-white/10 pt-2">
+                  <div className="flex justify-between text-sm text-white font-semibold"><span>Total</span><span>{formatMoney(grandTotal)}</span></div>
                 </div>
               </div>
               <Field label="Additional Notes"><textarea className={`${inputCls} resize-none h-20 py-2.5`} placeholder="Any special requests..." value={form.notes} onChange={e => setForm(f=>({...f,notes:e.target.value}))} /></Field>
@@ -314,12 +414,12 @@ function AddCustomerModal({ onClose, onSave }: {
           )}
         </div>
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-between gap-3">
-          <div>{step>1 && <button onClick={()=>setStep(1)} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Back</button>}</div>
+          <div>{step > 1 && <button onClick={() => setStep(1)} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Back</button>}</div>
           <div className="flex gap-3">
             <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
             {step < 2
-              ? <button onClick={()=>{ if(validateStep1()) setStep(2); }} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all">Next</button>
-              : <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all disabled:opacity-50">{isSaving?"Registering...":"Register Customer"}</button>
+              ? <button onClick={() => { if (validateStep1()) setStep(2); }} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg transition-all">Next</button>
+              : <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg transition-all disabled:opacity-50">{isSaving ? "Registering..." : "Register Customer"}</button>
             }
           </div>
         </div>
@@ -328,10 +428,7 @@ function AddCustomerModal({ onClose, onSave }: {
   );
 }
 
-// ─── EDIT CUSTOMER MODAL (improved) ──────────────────────────────────────────
-
-// DROP-IN REPLACEMENT for the EditCustomerModal function in Customers.tsx
-// Fixes: 1) typing 1 letter at a time  2) 400 error on save
+// ─── EDIT CUSTOMER MODAL ──────────────────────────────────────────────────────
 
 function EditCustomerModal({ customer, onClose, onSave }: {
   customer: Customer; onClose: () => void; onSave: (updated: Customer) => void;
@@ -341,25 +438,19 @@ function EditCustomerModal({ customer, onClose, onSave }: {
     contact:      customer.contact      ?? customer.phone ?? "",
     email:        customer.email        ?? "",
     vehicle:      customer.vehicle      ?? "",
-    last_service: customer.last_service && customer.last_service !== "N/A"
-      ? customer.last_service.split("T")[0] : "",
+    last_service: customer.last_service && customer.last_service !== "N/A" ? customer.last_service.split("T")[0] : "",
     total_spent:  String(customer.total_spent ?? "0"),
     status:       (customer.status ?? "Active") as "Active" | "Inactive",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [errors,   setErrors]   = useState<Record<string, string>>({});
-
-  // ── simple field setter — NO setErrors here (that caused the re-render / 1-char bug)
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.name.trim())    e.name    = "Name is required";
-    if (!form.vehicle.trim()) e.vehicle = "Vehicle is required";
-    if (form.contact && !/^(\+63|09)\d{9}$/.test(form.contact.replace(/\s+/g, "")))
-      e.contact = "Enter a valid PH mobile number (09XXXXXXXXX)";
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-      e.email = "Enter a valid email address";
+    if (!form.name.trim()) e.name = "Name is required";
+    if (form.contact && !/^(\+63|09)\d{9}$/.test(form.contact.replace(/\s+/g, ""))) e.contact = "Enter a valid PH mobile number";
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Enter a valid email address";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -367,215 +458,70 @@ function EditCustomerModal({ customer, onClose, onSave }: {
   const handleSave = async () => {
     if (!validate()) return;
     setIsSaving(true);
-
     const updated: Customer = {
       ...customer,
-      name:         form.name.trim(),
-      contact:      form.contact.trim(),
-      phone:        form.contact.trim(),
-      email:        form.email.trim(),
-      vehicle:      form.vehicle.trim(),
-      last_service: form.last_service || null,
-      lastService:  form.last_service || null,
-      total_spent:  parseFloat(form.total_spent) || 0,
-      totalSpent:   parseFloat(form.total_spent) || 0,
-      status:       form.status,
+      name: form.name.trim(), contact: form.contact.trim(), phone: form.contact.trim(),
+      email: form.email.trim(), vehicle: form.vehicle.trim(),
+      last_service: form.last_service || null, lastService: form.last_service || null,
+      total_spent: parseFloat(form.total_spent) || 0, totalSpent: parseFloat(form.total_spent) || 0,
+      status: form.status,
     };
-
     try {
-      // Try API update — if backend has no PATCH endpoint, falls back to local update
-      await updateCustomer(customer.id, {
-        name:         updated.name,
-        contact:      updated.contact,
-        email:        updated.email,
-        vehicle:      updated.vehicle,
-        last_service: updated.last_service,
-        total_spent:  updated.total_spent,
-        status:       updated.status,
-      });
-    } catch (err: any) {
-      // If API fails, still update local state so UI reflects changes
-      console.warn("API update failed, applying local update:", err?.message);
-    } finally {
-      onSave(updated);  // always update local state
-      setIsSaving(false);
-      onClose();
-    }
+      await updateCustomer(customer.id, { name: updated.name, contact: updated.contact, email: updated.email, vehicle: updated.vehicle, last_service: updated.last_service, total_spent: updated.total_spent, status: updated.status });
+    } catch (err: any) { console.warn("API update failed:", err?.message); }
+    finally { onSave(updated); setIsSaving(false); onClose(); }
   };
 
-  const F = ({ label, required, error, children }: {
-    label: string; required?: boolean; error?: string; children: React.ReactNode;
-  }) => (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium text-white/70 block">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-      {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
-    </div>
-  );
-
-  const changed =
-    form.name         !== (customer.name         ?? "")                         ||
-    form.contact      !== (customer.contact      ?? customer.phone ?? "")       ||
-    form.email        !== (customer.email        ?? "")                         ||
-    form.vehicle      !== (customer.vehicle      ?? "")                         ||
-    form.status       !== (customer.status       ?? "Active")                   ||
-    form.total_spent  !== String(customer.total_spent ?? "0");
+  const changed = form.name !== (customer.name ?? "") || form.contact !== (customer.contact ?? customer.phone ?? "") || form.status !== (customer.status ?? "Active");
 
   return (
     <ModalWrapper>
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-
-        {/* Header */}
         <div className="p-6 border-b border-white/10 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarColor(customer.id)} flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}>
-              {initials(customer.name)}
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-white">Edit Customer</h2>
-              <p className="text-xs text-white/40 mt-0.5">Updating {customer.name}</p>
-            </div>
+            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarColor(customer.id)} flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}>{initials(customer.name)}</div>
+            <div><h2 className="text-base font-bold text-white">Edit Customer</h2><p className="text-xs text-white/40 mt-0.5">Updating {customer.name}</p></div>
           </div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
-
-        {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-5">
-
-          {/* Contact Info */}
-          <div>
-            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">Contact Information</p>
-            <div className="space-y-3">
-              <F label="Full Name" required error={errors.name}>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                  <input
-                    className={`${inputCls} pl-10 ${errors.name ? "border-red-500/50" : ""}`}
-                    placeholder="Juan dela Cruz"
-                    value={form.name}
-                    onChange={e => set("name", e.target.value)}
-                  />
-                </div>
-              </F>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <F label="Contact Number" error={errors.contact}>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                    <input
-                      className={`${inputCls} pl-10 ${errors.contact ? "border-red-500/50" : ""}`}
-                      placeholder="09xxxxxxxxx"
-                      value={form.contact}
-                      onChange={e => set("contact", e.target.value)}
-                    />
-                  </div>
-                </F>
-                <F label="Email Address" error={errors.email}>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                    <input
-                      className={`${inputCls} pl-10 ${errors.email ? "border-red-500/50" : ""}`}
-                      placeholder="email@example.com"
-                      value={form.email}
-                      onChange={e => set("email", e.target.value)}
-                    />
-                  </div>
-                </F>
-              </div>
-            </div>
+        <div className="p-6 overflow-y-auto space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Full Name" required error={errors.name}>
+              <div className="relative"><User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" /><input className={`${inputCls} pl-10`} value={form.name} onChange={e => set("name", e.target.value)} /></div>
+            </Field>
+            <Field label="Contact Number" error={errors.contact}>
+              <div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" /><input className={`${inputCls} pl-10`} value={form.contact} onChange={e => set("contact", e.target.value)} /></div>
+            </Field>
           </div>
-
-          {/* Vehicle */}
-          <div>
-            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">Vehicle</p>
-            <F label="Vehicle" required error={errors.vehicle}>
-              <div className="relative">
-                <Car className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                <input
-                  className={`${inputCls} pl-10 ${errors.vehicle ? "border-red-500/50" : ""}`}
-                  placeholder="e.g. Toyota Fortuner SUV"
-                  value={form.vehicle}
-                  onChange={e => set("vehicle", e.target.value)}
-                />
-              </div>
-            </F>
+          <Field label="Email" error={errors.email}>
+            <div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" /><input className={`${inputCls} pl-10`} value={form.email} onChange={e => set("email", e.target.value)} /></div>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Last Service">
+              <div className="relative"><Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" /><input type="date" className={`${inputCls} pl-10 [color-scheme:dark]`} value={form.last_service} onChange={e => set("last_service", e.target.value)} /></div>
+            </Field>
+            <Field label="Total Spent (₱)">
+              <div className="relative"><Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" /><input type="number" className={`${inputCls} pl-10`} value={form.total_spent} onChange={e => set("total_spent", e.target.value)} /></div>
+            </Field>
           </div>
-
-          {/* Service History */}
-          <div>
-            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">Service History</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <F label="Last Service Date">
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                  <input
-                    type="date"
-                    className={`${inputCls} pl-10 [color-scheme:dark]`}
-                    value={form.last_service}
-                    onChange={e => set("last_service", e.target.value)}
-                  />
-                </div>
-              </F>
-              <F label="Total Spent (₱)">
-                <div className="relative">
-                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                  <input
-                    type="number"
-                    min="0"
-                    className={`${inputCls} pl-10`}
-                    placeholder="0"
-                    value={form.total_spent}
-                    onChange={e => set("total_spent", e.target.value)}
-                  />
-                </div>
-              </F>
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            {(["Active","Inactive"] as const).map(s => (
+              <button key={s} type="button" onClick={() => set("status", s)}
+                className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${form.status === s ? s === "Active" ? "border-emerald-500/50 bg-emerald-500/10" : "border-white/20 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
+                <div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${s === "Active" ? "bg-emerald-400" : "bg-white/30"}`} /><span className={`text-sm font-medium ${form.status === s ? "text-white" : "text-white/50"}`}>{s}</span></div>
+                <span className={`w-4 h-4 rounded border transition-colors ${form.status === s ? "bg-[#E41E6A] border-[#E41E6A]" : "border-white/20"}`} />
+              </button>
+            ))}
           </div>
-
-          {/* Status */}
-          <div>
-            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">Account Status</p>
-            <div className="grid grid-cols-2 gap-3">
-              {(["Active","Inactive"] as const).map(s => (
-                <button key={s} type="button" onClick={() => set("status", s)}
-                  className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
-                    form.status === s
-                      ? s === "Active" ? "border-emerald-500/50 bg-emerald-500/10" : "border-white/20 bg-white/10"
-                      : "border-white/10 bg-white/5 hover:bg-white/10"
-                  }`}>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${s === "Active" ? "bg-emerald-400" : "bg-white/30"}`} />
-                    <span className={`text-sm font-medium ${form.status === s ? "text-white" : "text-white/50"}`}>{s}</span>
-                  </div>
-                  <span className={`w-4 h-4 rounded border transition-colors ${form.status === s ? "bg-[#E41E6A] border-[#E41E6A]" : "border-white/20"}`} />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {changed && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
-              <p className="text-xs text-amber-300">You have unsaved changes.</p>
-            </div>
-          )}
+          {changed && <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20"><p className="text-xs text-amber-300">You have unsaved changes.</p></div>}
         </div>
-
-        {/* Footer */}
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-between items-center gap-3">
           <p className="text-xs text-white/30">ID: {String(customer.id).slice(0,8)}...</p>
           <div className="flex gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
-              Cancel
-            </button>
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Cancel</button>
             <button onClick={handleSave} disabled={isSaving || !changed}
-              className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg shadow-md shadow-[#E41E6A]/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
-              {isSaving
-                ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
-                : <><CheckCircle className="w-3.5 h-3.5" />Save Changes</>
-              }
+              className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+              {isSaving ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : <><CheckCircle className="w-3.5 h-3.5" />Save Changes</>}
             </button>
           </div>
         </div>
@@ -586,8 +532,8 @@ function EditCustomerModal({ customer, onClose, onSave }: {
 
 // ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
 
-function DetailModal({ customer, onClose, onEdit }: {
-  customer: Customer; onClose: () => void; onEdit: () => void;
+function DetailModal({ customer, vehicles, onClose, onEdit }: {
+  customer: Customer; vehicles: Vehicle[]; onClose: () => void; onEdit: () => void;
 }) {
   const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
     <div className="p-4 bg-white/5 rounded-lg border border-white/10 flex items-start gap-3">
@@ -606,21 +552,44 @@ function DetailModal({ customer, onClose, onEdit }: {
           <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-3">
-          <Row icon={<Phone    className="w-4 h-4" />} label="Contact Number" value={customer.contact||customer.phone||"No contact on file"} />
-          <Row icon={<User     className="w-4 h-4" />} label="Email"          value={customer.email  ||"No email on file"} />
-          <Row icon={<Car      className="w-4 h-4" />} label="Vehicle"        value={customer.vehicle||"No vehicle on file"} />
-          <Row icon={<Clock    className="w-4 h-4" />} label="Last Service"   value={formatDate(customer.last_service)} />
-          <Row icon={<Calendar className="w-4 h-4" />} label="Registered"     value={formatDate(customer.created_at)} />
+          <Row icon={<Phone    className="w-4 h-4" />} label="Contact"     value={customer.contact||customer.phone||"No contact"} />
+          <Row icon={<Mail     className="w-4 h-4" />} label="Email"       value={customer.email||"No email"} />
+          <Row icon={<Clock    className="w-4 h-4" />} label="Last Service" value={formatDate(customer.last_service)} />
+          <Row icon={<Calendar className="w-4 h-4" />} label="Registered"  value={formatDate(customer.created_at)} />
           <div className="grid grid-cols-2 gap-3 pt-1">
             <div className="p-4 bg-[#E41E6A]/10 rounded-lg border border-[#E41E6A]/20 text-center">
               <p className="text-white/50 text-xs">Total Spent</p>
               <p className="text-[#E41E6A] text-xl font-bold mt-1">{formatMoney(customer.total_spent)}</p>
             </div>
             <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-              <p className="text-white/50 text-xs">Status</p>
-              <p className="text-white text-sm font-bold mt-2">{customer.status||"Active"}</p>
+              <p className="text-white/50 text-xs">Vehicles</p>
+              <p className="text-white text-xl font-bold mt-1">{vehicles.length}</p>
             </div>
           </div>
+
+          {/* Vehicles list */}
+          {vehicles.length > 0 && (
+            <div className="pt-2">
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Registered Vehicles</p>
+              <div className="space-y-2">
+                {vehicles.map(v => (
+                  <div key={v.id} className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#E41E6A]/10 flex items-center justify-center flex-shrink-0">
+                      <CarFront className="w-4 h-4 text-[#E41E6A]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {/* Plate first */}
+                      <span className="text-xs font-bold tracking-widest text-white bg-white/10 px-2 py-0.5 rounded">
+                        {v.plate_number || "No Plate"}
+                      </span>
+                      <p className="text-white/70 text-xs mt-1 truncate">{vehicleDisplayName(v)}</p>
+                      {v.color && <p className="text-white/30 text-[10px] flex items-center gap-1 mt-0.5"><Palette className="w-3 h-3" />{v.color}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
           <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-[#E41E6A]/30 text-[#E41E6A] hover:bg-[#E41E6A]/10 rounded-lg transition-colors"><Edit2 className="w-4 h-4" />Edit</button>
@@ -645,7 +614,7 @@ function ArchiveModal({ customer, onClose, onConfirm }: {
         </div>
         <div className="p-6">
           <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4"><Archive className="w-6 h-6 text-amber-400" /></div>
-          <p className="text-white text-center text-sm leading-relaxed">Archive <span className="font-bold text-[#E41E6A]">{customer.name}</span>? They will be marked as <span className="font-semibold text-amber-400">Inactive</span>. You can restore them anytime.</p>
+          <p className="text-white text-center text-sm leading-relaxed">Archive <span className="font-bold text-[#E41E6A]">{customer.name}</span>? They will be marked <span className="font-semibold text-amber-400">Inactive</span> and can be restored anytime.</p>
         </div>
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
           <Button variant="outline" className="border-white/10 text-white" onClick={onClose}>Cancel</Button>
@@ -653,6 +622,154 @@ function ArchiveModal({ customer, onClose, onConfirm }: {
         </div>
       </div>
     </ModalWrapper>
+  );
+}
+
+// ─── EXPANDABLE CUSTOMER ROW ──────────────────────────────────────────────────
+
+function CustomerRow({ c, refreshKey, onView, onEdit, onArchive }: {
+  c: Customer & { vehicles?: Vehicle[] };
+  refreshKey: number;
+  onView: () => void; onEdit: () => void; onArchive: () => void;
+}) {
+  const [expanded,  setExpanded]  = useState(false);
+  const [vehicles,  setVehicles]  = useState<Vehicle[]>(c.vehicles ?? []);
+  const [loading,   setLoading]   = useState(false);
+  const [fetched,   setFetched]   = useState(false);
+
+  // ── Silently fetch on mount so we know the vehicle count immediately ──────
+  // This prevents the chevron from showing before we know if there are multiple vehicles
+  useEffect(() => {
+    let cancelled = false;
+    getVehicles(c.id)
+      .then(data => {
+        if (!cancelled) { setVehicles(data); setFetched(true); }
+      })
+      .catch(() => { if (!cancelled) setFetched(true); }); // still mark fetched on error
+    return () => { cancelled = true; };
+  }, [c.id]);
+
+  // ── Re-fetch when a vehicle is added ──────────────────────────────────────
+  useEffect(() => {
+    if (refreshKey > 0) {
+      getVehicles(c.id)
+        .then(data => { setVehicles(data); setFetched(true); })
+        .catch(err => console.error(err));
+    }
+  }, [refreshKey]);
+
+  const handleExpand = () => setExpanded(v => !v);
+
+  // Primary vehicle — first in list or parsed from vehicle string
+  const primary = vehicles[0];
+
+  return (
+    <>
+      <tr className={`hover:bg-white/5 transition-colors ${expanded ? "bg-white/[0.03]" : ""}`}>
+        {/* Customer */}
+        <td className="px-5 py-3.5">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarColor(c.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>{initials(c.name)}</div>
+            <div>
+              <p className="text-white text-sm font-semibold">{c.name}</p>
+              {c.email && <p className="text-white/40 text-xs">{c.email}</p>}
+            </div>
+          </div>
+        </td>
+        {/* Contact */}
+        <td className="px-5 py-3.5 text-white/70 text-sm whitespace-nowrap">
+          <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-white/40"/>{c.contact || c.phone || <span className="text-white/30 italic text-xs">No contact</span>}</span>
+        </td>
+        {/* Vehicle — plate first, chevron only if multiple */}
+        <td className="px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col">
+              {primary ? (
+                <>
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-[#E41E6A] bg-[#E41E6A]/10 border border-[#E41E6A]/20 px-2 py-0.5 rounded-md w-fit mb-1">
+                    <Hash className="w-3 h-3" />{primary.plate_number || "No Plate"}
+                  </span>
+                  <span className="text-white/60 text-xs">{vehicleDisplayName(primary)}</span>
+                  {/* Vehicle count badge — no dropdown needed */}
+                  {fetched && vehicles.length > 1 && (
+                    <span className="text-[10px] text-white/30 mt-0.5">+{vehicles.length - 1} more vehicle{vehicles.length - 1 > 1 ? "s" : ""}</span>
+                  )}
+                </>
+              ) : c.vehicle ? (
+                <span className="text-white/60 text-xs flex items-center gap-1"><Car className="w-3 h-3 text-white/30" />{c.vehicle}</span>
+              ) : (
+                <span className="text-white/30 text-xs italic">No vehicle</span>
+              )}
+            </div>
+            {/* Only show chevron if multiple vehicles confirmed */}
+            {fetched && vehicles.length > 1 && (
+              <button onClick={handleExpand} title={expanded ? "Collapse" : "Show all vehicles"}
+                className="ml-1 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-colors flex-shrink-0">
+                <span className="text-[10px] font-bold text-white/60">{vehicles.length}</span>
+                {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            )}
+          </div>
+        </td>
+        {/* Last Service */}
+        <td className="px-5 py-3.5"><span className="text-white/60 text-xs">{formatDate(c.last_service)}</span></td>
+        {/* Total Spent */}
+        <td className="px-5 py-3.5"><span className="text-white text-sm font-semibold">{formatMoney(c.total_spent)}</span></td>
+        {/* Status */}
+        <td className="px-5 py-3.5"><StatusBadge status={c.status}/></td>
+        {/* Actions — Edit is inside the View modal */}
+        <td className="px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <button onClick={onView}    className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors"><Eye     className="w-3.5 h-3.5"/>View</button>
+            <button onClick={onArchive} className="flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"><Archive className="w-3.5 h-3.5"/>Archive</button>
+          </div>
+        </td>
+      </tr>
+
+      {/* ── Expanded vehicles row ── */}
+      {expanded && (
+        <tr className="bg-white/[0.02]">
+          <td colSpan={7} className="px-5 py-4 border-t border-white/5">
+            <div className="pl-12">
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">Registered Vehicles</p>
+              {loading ? (
+                <div className="flex items-center gap-2 text-white/40 text-xs">
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin flex-shrink-0" />
+                  Loading vehicles...
+                </div>
+              ) : vehicles.length === 0 ? (
+                <p className="text-white/30 text-xs italic">No vehicles linked yet. Use "Add Vehicle" to attach one.</p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {vehicles.map((v, i) => (
+                    <div key={v.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10 min-w-[220px] max-w-[280px]">
+                      <div className="w-9 h-9 rounded-xl bg-[#E41E6A]/10 flex items-center justify-center flex-shrink-0">
+                        <CarFront className="w-5 h-5 text-[#E41E6A]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {/* PLATE NUMBER — most unique identifier, shown first */}
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-xs font-bold tracking-widest text-white bg-white/10 border border-white/20 px-2 py-0.5 rounded">
+                            {v.plate_number || "No Plate"}
+                          </span>
+                          {i === 0 && <span className="text-[9px] text-white/30 font-medium">Primary</span>}
+                        </div>
+                        <p className="text-white/70 text-xs truncate">{vehicleDisplayName(v)}</p>
+                        {v.color && (
+                          <p className="text-white/30 text-[10px] flex items-center gap-1 mt-0.5">
+                            <Palette className="w-3 h-3" />{v.color}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -664,9 +781,13 @@ export default function CustomerManagement() {
   const [search,          setSearch]          = useState("");
   const [filterStatus,    setFilterStatus]    = useState<"All"|"Active"|"Inactive">("All");
   const [viewCustomer,    setViewCustomer]    = useState<Customer | null>(null);
+  const [viewVehicles,    setViewVehicles]    = useState<Vehicle[]>([]);
   const [editCustomer,    setEditCustomer]    = useState<Customer | null>(null);
   const [archiveCustomer, setArchiveCustomer] = useState<Customer | null>(null);
   const [addOpen,         setAddOpen]         = useState(false);
+  const [addVehicleOpen,      setAddVehicleOpen]      = useState(false);
+  // Increments when a vehicle is added for a customer → forces CustomerRow to re-fetch
+  const [vehicleRefreshKeys, setVehicleRefreshKeys] = useState<Record<string, number>>({});
 
   useEffect(() => { fetchData(); }, []);
 
@@ -700,20 +821,62 @@ export default function CustomerManagement() {
   );
 
   const handleAdd = async (data: any) => {
-    const created = await createCustomer({ name:data.name, contact:data.contact, email:data.email, vehicle:data.vehicle, status:data.status });
-    setCustomers(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name)));
+    // 1. Create the customer
+    const created = await createCustomer({
+      name: data.name, contact: data.contact, email: data.email,
+      vehicle: data.vehicle, status: data.status,
+    });
+    // 2. Create their first vehicle linked to the customer's id
+    if (data.vehicleForm && created.id) {
+      try {
+        await createVehicle(created.id, data.vehicleForm);
+      } catch (err) {
+        console.warn("Vehicle creation failed:", err);
+      }
+    }
+    setCustomers(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+  };
+
+  const handleAddVehicle = async (customerId: string, vehicle: VehicleForm) => {
+    await createVehicle(customerId, vehicle);
+    // Increment refresh key for this customer so CustomerRow re-fetches vehicles
+    setVehicleRefreshKeys(prev => ({ ...prev, [customerId]: (prev[customerId] ?? 0) + 1 }));
+  };
+
+  const handleViewCustomer = async (c: Customer) => {
+    setViewCustomer(c);
+    try {
+      const vehicles = await getVehicles(c.id);
+      setViewVehicles(vehicles);
+    } catch { setViewVehicles([]); }
   };
 
   const handleEdit    = (updated: Customer) => setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c));
-  const handleArchive = (id: string) => { setCustomers(prev => prev.map(c => c.id === id ? {...c,status:"Inactive"} : c)); setArchiveCustomer(null); setViewCustomer(null); };
+  const handleArchive = (id: string) => { setCustomers(prev => prev.map(c => c.id === id ? { ...c, status: "Inactive" } : c)); setArchiveCustomer(null); setViewCustomer(null); };
 
   return (
     <div className="space-y-6 w-full">
+
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div><h1 className="text-white text-3xl font-bold mb-1">Customer Management</h1><p className="text-white/60 text-sm">Manage your customer database and vehicle information</p></div>
-        <Button className="self-start sm:self-auto bg-gradient-to-r from-[#E41E6A] to-pink-600 text-white" onClick={() => setAddOpen(true)}><Plus className="w-4 h-4 mr-2" />Add New Customer</Button>
+        <div>
+          <h1 className="text-white text-3xl font-bold mb-1">Customer Management</h1>
+          <p className="text-white/60 text-sm">Manage your customer database and vehicle information</p>
+        </div>
+        {/* TWO BUTTONS */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button onClick={() => setAddVehicleOpen(true)}
+            className="inline-flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+            <CarFront className="w-4 h-4 text-sky-400" />Add Vehicle
+          </button>
+          <button onClick={() => setAddOpen(true)}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all">
+            <Plus className="w-4 h-4" />Add Customer
+          </button>
+        </div>
       </div>
 
+      {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label:"Total Customers",  value:totalCustomers,  icon:<User       className="w-4 h-4"/>, color:"text-[#E41E6A]",  bg:"bg-[#E41E6A]/10"  },
@@ -722,17 +885,25 @@ export default function CustomerManagement() {
           { label:"New This Month",   value:newThisMonth,    icon:<Calendar   className="w-4 h-4"/>, color:"text-sky-400",    bg:"bg-sky-500/10"    },
         ].map((s,i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur">
-            <CardHeader className="pb-2"><div className="flex items-center justify-between"><CardTitle className="text-sm text-white/70">{s.label}</CardTitle><div className={`w-8 h-8 rounded-lg flex items-center justify-center ${s.bg}`}><span className={s.color}>{s.icon}</span></div></div></CardHeader>
-            <CardContent className="pb-4"><div className="text-white text-2xl font-bold">{isLoading?"...":s.value}</div></CardContent>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm text-white/70">{s.label}</CardTitle>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${s.bg}`}><span className={s.color}>{s.icon}</span></div>
+              </div>
+            </CardHeader>
+            <CardContent className="pb-4">
+              <div className="text-white text-2xl font-bold">{isLoading ? "..." : s.value}</div>
+            </CardContent>
           </Card>
         ))}
       </div>
 
+      {/* ── Search + Filter ── */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-lg">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
           <input type="text" placeholder="Search by name, contact, or vehicle..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-[#E41E6A] transition-colors" />
         </div>
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-white/40 flex-shrink-0" />
@@ -743,43 +914,63 @@ export default function CustomerManagement() {
         </div>
       </div>
 
+      {/* ── Table ── */}
       <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden">
         <CardHeader className="border-b border-white/10 pb-4">
-          <div className="flex items-center justify-between"><CardTitle className="text-white">Customer List</CardTitle><span className="text-white/40 text-xs">{isLoading?"Loading...":`${filtered.length} result${filtered.length!==1?"s":""}`}</span></div>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white">Customer List</CardTitle>
+            <span className="text-white/40 text-xs">{isLoading ? "Loading..." : `${filtered.length} result${filtered.length!==1?"s":""}`}</span>
+          </div>
         </CardHeader>
-        {isLoading ? <div className="text-center py-12 text-white/50">Loading customers...</div> : (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-2 border-[#E41E6A]/30 border-t-[#E41E6A] rounded-full animate-spin" />
+          </div>
+        ) : (
           <>
+            {/* Mobile */}
             <div className="sm:hidden divide-y divide-white/5">
-              {filtered.length===0 ? <div className="py-12 flex flex-col items-center"><User className="w-8 h-8 text-white/20 mb-2"/><p className="text-white/40 text-sm">No customers found</p></div>
-              : filtered.map(c => (
-                <div key={c.id} className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-                  <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarColor(c.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>{initials(c.name)}</div>
-                  <div className="flex-1 min-w-0"><p className="text-white text-sm font-semibold truncate">{c.name}</p><p className="text-white/50 text-xs">{c.contact||c.phone||"No contact"}</p><p className="text-white/40 text-xs truncate">{c.vehicle||"No vehicle"}</p></div>
-                  <StatusBadge status={c.status} />
-                  <button onClick={() => setViewCustomer(c)} className="text-white/50 hover:text-white transition-colors ml-1"><Eye className="w-4 h-4" /></button>
-                </div>
-              ))}
+              {filtered.length === 0
+                ? <div className="py-12 flex flex-col items-center"><User className="w-8 h-8 text-white/20 mb-2"/><p className="text-white/40 text-sm">No customers found</p></div>
+                : filtered.map(c => (
+                  <div key={c.id} className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarColor(c.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>{initials(c.name)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-semibold truncate">{c.name}</p>
+                      <p className="text-white/50 text-xs">{c.contact||c.phone||"No contact"}</p>
+                      <p className="text-white/40 text-xs truncate">{c.vehicle||"No vehicle"}</p>
+                    </div>
+                    <StatusBadge status={c.status} />
+                    <button onClick={() => handleViewCustomer(c)} className="text-white/50 hover:text-white transition-colors ml-1"><Eye className="w-4 h-4" /></button>
+                  </div>
+                ))
+              }
             </div>
+
+            {/* Desktop — expandable rows */}
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-white/10">{["Customer","Contact","Vehicle","Last Service","Total Spent","Status","Actions"].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-white/50 uppercase tracking-wide whitespace-nowrap">{h}</th>)}</tr></thead>
+                <thead>
+                  <tr className="border-b border-white/10">
+                    {["Customer","Contact","Vehicle","Last Service","Total Spent","Status","Actions"].map(h => (
+                      <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-white/50 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filtered.length===0 ? <tr><td colSpan={7} className="text-center py-12"><User className="w-8 h-8 text-white/20 mx-auto mb-2"/><p className="text-white/40 text-sm">No customers found</p></td></tr>
-                  : filtered.map(c => (
-                    <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-5 py-3.5"><div className="flex items-center gap-3"><div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarColor(c.id)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>{initials(c.name)}</div><div><p className="text-white text-sm font-semibold">{c.name}</p>{c.email&&<p className="text-white/40 text-xs">{c.email}</p>}</div></div></td>
-                      <td className="px-5 py-3.5 text-white/70 text-sm whitespace-nowrap"><span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-white/40"/>{c.contact||c.phone||<span className="text-white/30 italic text-xs">No contact</span>}</span></td>
-                      <td className="px-5 py-3.5 text-white/70 text-sm whitespace-nowrap"><span className="flex items-center gap-1.5"><Car className="w-3.5 h-3.5 text-white/40"/>{c.vehicle||<span className="text-white/30 italic text-xs">No vehicle</span>}</span></td>
-                      <td className="px-5 py-3.5"><span className="text-white/60 text-xs">{formatDate(c.last_service)}</span></td>
-                      <td className="px-5 py-3.5"><span className="text-white text-sm font-semibold">{formatMoney(c.total_spent)}</span></td>
-                      <td className="px-5 py-3.5"><StatusBadge status={c.status}/></td>
-                      <td className="px-5 py-3.5"><div className="flex items-center gap-3">
-                        <button onClick={() => setViewCustomer(c)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors"><Eye className="w-3.5 h-3.5"/>View</button>
-                        <button onClick={() => setEditCustomer(c)} className="flex items-center gap-1 text-xs font-medium text-sky-400 hover:text-sky-300 transition-colors"><Edit2 className="w-3.5 h-3.5"/>Edit</button>
-                        <button onClick={() => setArchiveCustomer(c)} className="flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"><Archive className="w-3.5 h-3.5"/>Archive</button>
-                      </div></td>
-                    </tr>
-                  ))}
+                  {filtered.length === 0
+                    ? <tr><td colSpan={7} className="text-center py-12"><User className="w-8 h-8 text-white/20 mx-auto mb-2"/><p className="text-white/40 text-sm">No customers found</p></td></tr>
+                    : filtered.map(c => (
+                      <CustomerRow
+                        key={c.id}
+                        c={c}
+                        refreshKey={vehicleRefreshKeys[c.id] ?? 0}
+                        onView={() => handleViewCustomer(c)}
+                        onEdit={() => setEditCustomer(c)}
+                        onArchive={() => setArchiveCustomer(c)}
+                      />
+                    ))
+                  }
                 </tbody>
               </table>
             </div>
@@ -787,10 +978,12 @@ export default function CustomerManagement() {
         )}
       </Card>
 
-      {addOpen         && <AddCustomerModal  onClose={()=>setAddOpen(false)}           onSave={handleAdd} />}
-      {editCustomer    && <EditCustomerModal customer={editCustomer}  onClose={()=>setEditCustomer(null)}   onSave={handleEdit} />}
-      {viewCustomer    && <DetailModal       customer={viewCustomer}  onClose={()=>setViewCustomer(null)}   onEdit={()=>{ setEditCustomer(viewCustomer); setViewCustomer(null); }} />}
-      {archiveCustomer && <ArchiveModal      customer={archiveCustomer} onClose={()=>setArchiveCustomer(null)} onConfirm={()=>handleArchive(archiveCustomer.id)} />}
+      {/* ── Modals ── */}
+      {addOpen         && <AddCustomerModal  onClose={() => setAddOpen(false)}              onSave={handleAdd} />}
+      {addVehicleOpen  && <AddVehicleModal   customers={customers} onClose={() => setAddVehicleOpen(false)} onSave={handleAddVehicle} />}
+      {editCustomer    && <EditCustomerModal customer={editCustomer}    onClose={() => setEditCustomer(null)}    onSave={handleEdit} />}
+      {viewCustomer    && <DetailModal       customer={viewCustomer}    vehicles={viewVehicles} onClose={() => setViewCustomer(null)} onEdit={() => { setEditCustomer(viewCustomer); setViewCustomer(null); }} />}
+      {archiveCustomer && <ArchiveModal      customer={archiveCustomer} onClose={() => setArchiveCustomer(null)} onConfirm={() => handleArchive(archiveCustomer.id)} />}
     </div>
   );
 }
