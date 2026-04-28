@@ -46,9 +46,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const profileRes = await fetch(`${API}/profiles/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
     const profileData = profileRes.ok ? await profileRes.json() : null;
 
-    console.log('customerData:', customerData);
-    console.log('customerId being set:', customerData?.id ?? supabaseUser.id);
-
     setProfile({
   id:         supabaseUser.id,
   customerId: customerData?.id ?? supabaseUser.id,
