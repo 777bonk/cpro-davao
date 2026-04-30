@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
+
 type Profile = {
   id:         string;
   customerId: string;
@@ -41,7 +42,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Use NestJS to fetch profile — bypasses RLS
     const res = await fetch(`${API}/customers/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
     const customerData = res.ok ? await res.json() : null;
-
+    console.log("customerData from API:", customerData);
+    console.log("customerId being set:", customerData?.id ?? supabaseUser.id);
     // Also get role from profiles table via NestJS
     const profileRes = await fetch(`${API}/profiles/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
     const profileData = profileRes.ok ? await profileRes.json() : null;
@@ -107,6 +109,8 @@ localStorage.setItem("supabase_profile_role", profileData?.role ?? 'customer');
       {children}
     </AuthContext.Provider>
   );
+
+  
 };
 
 export const useAuth = () => useContext(AuthContext);
