@@ -3,10 +3,14 @@ import {
   ChevronLeft, ChevronRight, Search, SlidersHorizontal,
   Plus, Calendar, Car, Clock, Banknote, Shield, Layers,
   Sparkles, Wrench, Eye, CalendarX, CheckCircle, X,
+  RotateCcw, AlertCircle, CreditCard, Building2, Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { Badge } from "../dashboard-ui/badge";
-import { getCustomerAppointments, createAppointment } from "../../services/appointments";
+import {
+  getCustomerAppointments, createAppointment,
+  requestRefund, submitRefundDetails, RefundStatus,
+} from "../../services/appointments";
 import { getServices } from "../../services/settings";
 import { useAuth } from "../../hooks/useAuth";
 import { getVehicles, Vehicle } from "../../services/vehicles";
@@ -18,19 +22,26 @@ type AppointmentStatus =
   | "In Progress" | "Completed" | "Cancelled" | "Scheduled" | "Rejected";
 
 interface Appointment {
-  id: string | number;
-  service: string;
-  vehicle: string;
-  date: string;
-  time: string;
-  deposit: number;
-  status: AppointmentStatus;
-  notes?: string;
+  id:             string | number;
+  service:        string;
+  vehicle:        string;
+  date:           string;
+  time:           string;
+  deposit:        number;
+  totalAmount:    number;
+  status:         AppointmentStatus;
+  notes?:         string;
+  // refund
+  refundStatus?:      RefundStatus;
+  refundAmount?:      number;
+  refundMethod?:      string;
+  refundAccount?:     string;
+  refundAccountName?: string;
+  refundNote?:        string;
 }
 
-// ── Service catalog item (name + price from API or defaults) ──────────────────
 interface ServiceItem {
-  name: string;
+  name:  string;
   price: number;
 }
 
@@ -45,6 +56,14 @@ const STATUS: Record<string, { bg: string; text: string; dot: string; border: st
   Completed:    { bg: "bg-white/10",      text: "text-white/50",   dot: "bg-white/30",   border: "border-white/10"      },
   Cancelled:    { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
   Rejected:     { bg: "bg-red-500/20",    text: "text-red-400",    dot: "bg-red-500",    border: "border-red-500/30"    },
+};
+
+const REFUND_STATUS_STYLE: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  Requested:          { bg: "bg-orange-500/20",  text: "text-orange-400",  border: "border-orange-500/30",  label: "Refund Requested"          },
+  Approved:           { bg: "bg-blue-500/20",    text: "text-blue-400",    border: "border-blue-500/30",    label: "Refund Approved"           },
+  "Details Submitted":{ bg: "bg-violet-500/20",  text: "text-violet-400",  border: "border-violet-500/30",  label: "Details Submitted"         },
+  Processed:          { bg: "bg-green-500/20",   text: "text-green-400",   border: "border-green-500/30",   label: "Refund Processed ✓"        },
+  Rejected:           { bg: "bg-red-500/20",     text: "text-red-400",     border: "border-red-500/30",     label: "Refund Rejected"           },
 };
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -71,7 +90,6 @@ const VEHICLE_CLASS_OPTIONS = [
   { label: "Big Bike",     value: "Big Bike"     },
 ];
 
-// Default fallback services — used only when API returns nothing
 const DEFAULT_SERVICES: ServiceItem[] = [
   { name: "Ceramic Coating - Full Body", price: 12000 },
   { name: "Ceramic Coating - Partial",   price: 7000  },
@@ -89,7 +107,7 @@ const DEFAULT_ADDONS: ServiceItem[] = [
   { name: "Engine Bay Detailing", price: 1200 },
 ];
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function todayStr() {
   const d = new Date();
@@ -108,10 +126,10 @@ function formatMoney(value: number) {
 
 function serviceIcon(service: string) {
   const s = (service ?? "").toLowerCase();
-  if (s.includes("coating")) return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
+  if (s.includes("coating"))                       return <Shield   className="w-4 h-4 text-[#E41E6A]"  />;
   if (s.includes("ppf") || s.includes("paint protection")) return <Layers className="w-4 h-4 text-violet-400" />;
-  if (s.includes("tint"))    return <Sparkles className="w-4 h-4 text-sky-400"    />;
-  return                            <Wrench   className="w-4 h-4 text-white/50"   />;
+  if (s.includes("tint"))                          return <Sparkles className="w-4 h-4 text-sky-400"    />;
+  return                                                  <Wrench   className="w-4 h-4 text-white/50"   />;
 }
 
 function normalizeAppointment(a: any): Appointment {
@@ -123,14 +141,22 @@ function normalizeAppointment(a: any): Appointment {
     [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") ??
     "Vehicle";
   return {
-    id:      a.id,
-    service: a.service_type ?? a.service ?? "Appointment",
+    id:           a.id,
+    service:      a.service_type  ?? a.service ?? "Appointment",
     vehicle,
-    date:    `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`,
-    time:    a.appointment_time ?? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    deposit: Number(a.deposit ?? a.deposit_amount ?? a.total_cost ?? 0),
-    status:  (a.status ?? "Pending") as AppointmentStatus,
-    notes:   a.notes ?? "",
+    date:         `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`,
+    time:         a.appointment_time ?? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    deposit:      Number(a.deposit ?? a.deposit_amount ?? a.total_cost ?? 0),
+    totalAmount:  Number(a.total_cost ?? a.total_amount ?? 0),
+    status:       (a.status ?? "Pending") as AppointmentStatus,
+    notes:        a.notes ?? "",
+    // ── Refund fields ──
+    refundStatus:      (a.refund_status ?? "None") as RefundStatus,
+    refundAmount:      Number(a.refund_amount ?? 0),
+    refundMethod:      a.refund_method        ?? undefined,
+    refundAccount:     a.refund_account       ?? undefined,
+    refundAccountName: a.refund_account_name  ?? undefined,
+    refundNote:        a.refund_note          ?? undefined,
   };
 }
 
@@ -142,6 +168,166 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{status}
     </span>
+  );
+}
+
+// ─── REFUND STEPS TRACKER ─────────────────────────────────────────────────────
+
+function RefundTracker({ status }: { status: RefundStatus }) {
+  const steps = [
+    { key: "Requested",          label: "Requested"          },
+    { key: "Approved",           label: "Admin Approved"     },
+    { key: "Details Submitted",  label: "Details Submitted"  },
+    { key: "Processed",          label: "Refund Sent"        },
+  ];
+
+  const ORDER: Record<string, number> = {
+    Requested: 0, Approved: 1, "Details Submitted": 2, Processed: 3,
+  };
+  const currentIdx = ORDER[status] ?? -1;
+
+  return (
+    <div className="flex items-center gap-1 w-full">
+      {steps.map((s, i) => {
+        const done   = i <= currentIdx;
+        const active = i === currentIdx;
+        return (
+          <div key={s.key} className="flex-1 flex flex-col items-center gap-1">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border transition-colors ${
+              done
+                ? active
+                  ? "bg-[#E41E6A] border-[#E41E6A] text-white"
+                  : "bg-green-500/20 border-green-500/40 text-green-400"
+                : "bg-white/5 border-white/10 text-white/30"
+            }`}>
+              {done && !active ? "✓" : i + 1}
+            </div>
+            <p className={`text-[9px] text-center leading-tight ${done ? "text-white/70" : "text-white/25"}`}>
+              {s.label}
+            </p>
+            {i < steps.length - 1 && (
+              <div className={`absolute hidden`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── REFUND DETAILS FORM ──────────────────────────────────────────────────────
+
+function RefundDetailsForm({ apptId, amount, onSubmit, onCancel }: {
+  apptId:   string | number;
+  amount:   number;
+  onSubmit: (updated: Partial<Appointment>) => void;
+  onCancel: () => void;
+}) {
+  const [method,      setMethod]      = useState<"GCash" | "Bank Transfer">("GCash");
+  const [account,     setAccount]     = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [note,        setNote]        = useState("");
+  const [isSaving,    setIsSaving]    = useState(false);
+
+  const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
+
+  const handleSubmit = async () => {
+    if (!account.trim())     { alert("Please enter your account number."); return; }
+    if (!accountName.trim()) { alert("Please enter the account holder name."); return; }
+    setIsSaving(true);
+    try {
+      await submitRefundDetails(String(apptId), { method, account, accountName, note });
+      onSubmit({
+        refundStatus:      "Details Submitted",
+        refundMethod:      method,
+        refundAccount:     account,
+        refundAccountName: accountName,
+        refundNote:        note,
+      });
+    } catch (err: any) {
+      alert(`Failed to submit: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 p-4 bg-violet-500/10 border border-violet-500/20 rounded-xl">
+      <div>
+        <p className="text-white font-semibold text-sm flex items-center gap-2">
+          <CreditCard className="w-4 h-4 text-violet-400" />
+          Submit Refund Details
+        </p>
+        <p className="text-white/50 text-xs mt-0.5">
+          Your refund of <span className="text-violet-400 font-bold">{formatMoney(amount)}</span> has been approved.
+          Tell us where to send it.
+        </p>
+      </div>
+
+      {/* Payment method tabs */}
+      <div className="flex gap-2">
+        {(["GCash", "Bank Transfer"] as const).map(m => (
+          <button key={m} onClick={() => setMethod(m)}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center justify-center gap-1.5 ${
+              method === m
+                ? "bg-[#E41E6A] border-[#E41E6A] text-white"
+                : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
+            }`}>
+            {m === "GCash" ? <CreditCard className="w-3.5 h-3.5" /> : <Building2 className="w-3.5 h-3.5" />}
+            {m}
+          </button>
+        ))}
+      </div>
+
+      {method === "GCash" ? (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-white/70 text-xs font-medium">GCash Number <span className="text-red-500">*</span></label>
+            <input className={inputCls} placeholder="09xxxxxxxxx" value={account}
+              onChange={e => setAccount(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-white/70 text-xs font-medium">GCash Registered Name <span className="text-red-500">*</span></label>
+            <input className={inputCls} placeholder="Full name on your GCash account" value={accountName}
+              onChange={e => setAccountName(e.target.value)} />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-white/70 text-xs font-medium">Bank Account Number <span className="text-red-500">*</span></label>
+            <input className={inputCls} placeholder="e.g. 1234 5678 9012" value={account}
+              onChange={e => setAccount(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-white/70 text-xs font-medium">Account Holder Name <span className="text-red-500">*</span></label>
+            <input className={inputCls} placeholder="Full name on your bank account" value={accountName}
+              onChange={e => setAccountName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-white/70 text-xs font-medium">Bank Name</label>
+            <input className={inputCls} placeholder="e.g. BDO, BPI, Metrobank" value={note}
+              onChange={e => setNote(e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      <div className="p-3 bg-white/5 rounded-lg border border-white/10 text-xs text-white/50">
+        ⚠ Make sure your details are correct. We will transfer exactly <span className="text-white font-semibold">{formatMoney(amount)}</span> to the account you provide.
+      </div>
+
+      <div className="flex gap-2">
+        <button onClick={onCancel}
+          className="flex-1 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">
+          Cancel
+        </button>
+        <button onClick={handleSubmit} disabled={isSaving}
+          className="flex-1 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          {isSaving ? "Submitting..." : "Submit Details"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -164,11 +350,11 @@ function CalendarCard({ selected, onSelect, dotDates }: {
   const next = () => viewMonth === 11 ? (setViewMonth(0),  setViewYear(y => y+1)) : setViewMonth(m => m+1);
   const cellKey = (day: number) => `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
   const dotColor = (statuses: string[]) => {
-    if (statuses.includes("In Progress"))          return "bg-blue-500";
+    if (statuses.includes("In Progress"))                              return "bg-blue-500";
     if (statuses.includes("Confirmed") || statuses.includes("Scheduled")) return "bg-green-500";
-    if (statuses.includes("Pending Verification")) return "bg-orange-400";
-    if (statuses.includes("Pending"))              return "bg-yellow-400";
-    if (statuses.includes("Rejected"))             return "bg-red-500";
+    if (statuses.includes("Pending Verification"))                     return "bg-orange-400";
+    if (statuses.includes("Pending"))                                  return "bg-yellow-400";
+    if (statuses.includes("Rejected"))                                 return "bg-red-500";
     return "bg-white/30";
   };
 
@@ -254,7 +440,14 @@ function AppointmentsPanel({ selected, appts, onView }: {
                       <p className="text-white/50 text-xs flex items-center gap-1 mt-0.5"><Car className="w-3 h-3" />{a.vehicle}</p>
                     </div>
                   </div>
-                  <StatusBadge status={a.status} />
+                  <div className="flex flex-col items-end gap-1">
+                    <StatusBadge status={a.status} />
+                    {a.refundStatus && a.refundStatus !== "None" && (
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${REFUND_STATUS_STYLE[a.refundStatus]?.bg ?? ""} ${REFUND_STATUS_STYLE[a.refundStatus]?.text ?? ""} ${REFUND_STATUS_STYLE[a.refundStatus]?.border ?? ""}`}>
+                        {REFUND_STATUS_STYLE[a.refundStatus]?.label ?? a.refundStatus}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-3 pt-2 border-t border-white/10">
                   <span className="flex items-center gap-1 text-xs text-white/50"><Clock className="w-3.5 h-3.5 text-[#E41E6A]" />{a.time}</span>
@@ -270,13 +463,235 @@ function AppointmentsPanel({ selected, appts, onView }: {
   );
 }
 
+// ─── VIEW MODAL ───────────────────────────────────────────────────────────────
+
+function ViewModal({ appt, onClose, onRequestRefund, onRefundDetailsSubmit }: {
+  appt:                  Appointment;
+  onClose:               () => void;
+  onRequestRefund:       (id: string | number) => Promise<void>;
+  onRefundDetailsSubmit: (id: string | number, data: Partial<Appointment>) => void;
+}) {
+  const [showRefundForm,    setShowRefundForm]    = useState(false);
+  const [isRequestingRefund, setIsRequestingRefund] = useState(false);
+  const [localAppt,         setLocalAppt]         = useState(appt);
+
+  // Sync if parent updates
+  useEffect(() => { setLocalAppt(appt); }, [appt]);
+
+  const canRequestRefund =
+    (localAppt.status === "Completed" || localAppt.status === "Cancelled") &&
+    localAppt.deposit > 0 &&
+    (!localAppt.refundStatus || localAppt.refundStatus === "None");
+
+  const handleRequestRefund = async () => {
+    if (!window.confirm(`Request a refund of ${formatMoney(localAppt.deposit)}? This will notify the admin.`)) return;
+    setIsRequestingRefund(true);
+    try {
+      await onRequestRefund(localAppt.id);
+      setLocalAppt(prev => ({ ...prev, refundStatus: "Requested", refundAmount: prev.deposit }));
+    } catch (err: any) {
+      alert(`Failed to request refund: ${err.message}`);
+    } finally {
+      setIsRequestingRefund(false);
+    }
+  };
+
+  const handleDetailsSubmit = (data: Partial<Appointment>) => {
+    setLocalAppt(prev => ({ ...prev, ...data }));
+    onRefundDetailsSubmit(localAppt.id, data);
+    setShowRefundForm(false);
+  };
+
+  const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
+    <div className="p-3 bg-white/5 rounded-lg border border-white/10 flex items-start gap-3">
+      <div className="mt-0.5 text-[#E41E6A] flex-shrink-0">{icon}</div>
+      <div><p className="text-white/50 text-xs">{label}</p><p className="text-white text-sm font-medium mt-0.5">{value}</p></div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-white">Appointment Details</h2>
+            <p className="text-white/50 text-xs mt-0.5">{formatShort(localAppt.date)}</p>
+          </div>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-6 space-y-3">
+          <Row icon={<Shield   className="w-4 h-4" />} label="Service"     value={localAppt.service} />
+          <Row icon={<Car      className="w-4 h-4" />} label="Vehicle"     value={localAppt.vehicle} />
+          <Row icon={<Calendar className="w-4 h-4" />} label="Date"        value={formatShort(localAppt.date)} />
+          <Row icon={<Clock    className="w-4 h-4" />} label="Time"        value={localAppt.time} />
+          <Row icon={<Banknote className="w-4 h-4" />} label="Amount Paid" value={formatMoney(localAppt.deposit)} />
+          {localAppt.notes && <Row icon={<Eye className="w-4 h-4" />} label="Notes" value={localAppt.notes} />}
+
+          {/* Status */}
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-white/50 text-sm">Status</span>
+            <StatusBadge status={localAppt.status} />
+          </div>
+
+          {/* ── REFUND SECTION ──────────────────────────────────────────────── */}
+
+          {/* Request Refund button */}
+          {canRequestRefund && !showRefundForm && (
+            <div className="pt-2">
+              <div className="p-3 bg-white/5 rounded-xl border border-white/10 mb-3">
+                <p className="text-white/60 text-xs leading-relaxed">
+                  If you paid a deposit and your appointment was cancelled or completed without the service,
+                  you may request a refund.
+                </p>
+              </div>
+              <button
+                onClick={handleRequestRefund}
+                disabled={isRequestingRefund}
+                className="w-full py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isRequestingRefund
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />Requesting...</>
+                  : <><RotateCcw className="w-4 h-4" />Request Refund ({formatMoney(localAppt.deposit)})</>
+                }
+              </button>
+            </div>
+          )}
+
+          {/* Refund status section */}
+          {localAppt.refundStatus && localAppt.refundStatus !== "None" && (
+            <div className={`p-4 rounded-xl border space-y-3 ${
+              localAppt.refundStatus === "Processed"
+                ? "bg-green-500/10 border-green-500/20"
+                : localAppt.refundStatus === "Rejected"
+                ? "bg-red-500/10 border-red-500/20"
+                : "bg-white/5 border-white/10"
+            }`}>
+              <div className="flex items-center justify-between">
+                <p className="text-white text-sm font-semibold flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4 text-[#E41E6A]" />Refund Request
+                </p>
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                  REFUND_STATUS_STYLE[localAppt.refundStatus]?.bg ?? "bg-white/10"
+                } ${REFUND_STATUS_STYLE[localAppt.refundStatus]?.text ?? "text-white/50"} ${
+                  REFUND_STATUS_STYLE[localAppt.refundStatus]?.border ?? "border-white/10"
+                }`}>
+                  {REFUND_STATUS_STYLE[localAppt.refundStatus]?.label ?? localAppt.refundStatus}
+                </span>
+              </div>
+
+              {/* Progress tracker — only for active refunds */}
+              {localAppt.refundStatus !== "Rejected" && (
+                <RefundTracker status={localAppt.refundStatus} />
+              )}
+
+              {/* REQUESTED */}
+              {localAppt.refundStatus === "Requested" && (
+                <p className="text-orange-400/80 text-xs">
+                  Your refund request is being reviewed by the admin. You'll receive an email once it's approved.
+                </p>
+              )}
+
+              {/* APPROVED — show details form */}
+              {localAppt.refundStatus === "Approved" && !showRefundForm && (
+                <div className="space-y-2">
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-blue-400 text-xs">
+                      Your refund of <span className="font-bold">{formatMoney(localAppt.refundAmount ?? localAppt.deposit)}</span> was approved!
+                      Please submit your payment details so we can transfer the money to you.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowRefundForm(true)}
+                    className="w-full py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4" />Submit My Payment Details
+                  </button>
+                </div>
+              )}
+
+              {/* REFUND DETAILS FORM */}
+              {localAppt.refundStatus === "Approved" && showRefundForm && (
+                <RefundDetailsForm
+                  apptId={localAppt.id}
+                  amount={localAppt.refundAmount ?? localAppt.deposit}
+                  onSubmit={handleDetailsSubmit}
+                  onCancel={() => setShowRefundForm(false)}
+                />
+              )}
+
+              {/* DETAILS SUBMITTED */}
+              {localAppt.refundStatus === "Details Submitted" && (
+                <div className="space-y-2">
+                  <p className="text-violet-400 text-xs">
+                    ✓ Your payment details have been submitted. The admin will process your refund within 1–3 business days.
+                  </p>
+                  <div className="p-3 bg-white/5 rounded-lg border border-white/10 space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-white/50">Method</span>
+                      <span className="text-white font-medium">{localAppt.refundMethod}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-white/50">Account</span>
+                      <span className="text-white font-mono font-bold">{localAppt.refundAccount}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-white/50">Name</span>
+                      <span className="text-white">{localAppt.refundAccountName}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PROCESSED */}
+              {localAppt.refundStatus === "Processed" && (
+                <div className="space-y-1">
+                  <p className="text-green-400 text-sm font-semibold">
+                    ✓ Refund of {formatMoney(localAppt.refundAmount ?? localAppt.deposit)} has been sent!
+                  </p>
+                  <p className="text-white/40 text-xs">
+                    Please check your {localAppt.refundMethod ?? "account"} — it should reflect within a few minutes.
+                  </p>
+                </div>
+              )}
+
+              {/* REJECTED */}
+              {localAppt.refundStatus === "Rejected" && (
+                <div className="space-y-1">
+                  <p className="text-red-400 text-sm">Your refund request was not approved.</p>
+                  {localAppt.refundNote && (
+                    <p className="text-white/50 text-xs">Reason: {localAppt.refundNote}</p>
+                  )}
+                  <p className="text-white/30 text-xs">Please contact us at the shop if you have questions.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Info note for pending verification */}
+          {(localAppt.status === "Pending Verification" || localAppt.status === "Pending") && (
+            <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+              <p className="text-yellow-300 text-xs">Appointment submission is subject to payment verification and admin approval.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── BOOK MODAL ───────────────────────────────────────────────────────────────
 
 function BookModal({ onClose, onSave, services, vehicles }: {
-  onClose:   () => void;
-  onSave:    (data: any) => Promise<void>;
-  services:  ServiceItem[];
-  vehicles:  Vehicle[];   // ← replaces "vehicle: string"
+  onClose:  () => void;
+  onSave:   (data: any) => Promise<void>;
+  services: ServiceItem[];
+  vehicles: Vehicle[];
 }) {
   const TIME_OPTIONS = ["8:00 AM","9:00 AM","10:00 AM","10:30 AM","11:00 AM","1:00 PM","2:00 PM","3:00 PM","4:00 PM"];
 
@@ -293,7 +708,6 @@ function BookModal({ onClose, onSave, services, vehicles }: {
   });
   const [isSaving, setIsSaving] = useState(false);
 
-  // Auto-fill vehicle fields when a saved vehicle is selected
   const handleVehicleSelect = (id: string) => {
     setSelectedVehicleId(id);
     if (!id) return;
@@ -304,24 +718,24 @@ function BookModal({ onClose, onSave, services, vehicles }: {
         vehicleMake:        v.brand,
         vehicleModel:       v.model,
         vehicleYear:        v.year,
-        vehicleClass:       v.vehicle_class ?? "",// not stored in vehicles table
-        vehiclePlateNumber: v.plate_number ?? "",
+        vehicleClass:       v.vehicle_class ?? "",
+        vehiclePlateNumber: v.plate_number  ?? "",
       }));
     }
   };
-  // ── Pricing — uses API service prices directly ────────────────────────────
-  const selectedService = services.find(s => s.name === form.service);
-  const addonObjects    = DEFAULT_ADDONS.filter(a => form.addons.includes(a.name));
-  const baseServiceTotal = selectedService?.price ?? 0;
-  const addonsTotal      = addonObjects.reduce((sum, item) => sum + item.price, 0);
-  const grandTotal       = baseServiceTotal + addonsTotal;
-  const downPaymentAmount = grandTotal > 0 ? Math.max(Math.round(grandTotal * 0.3), 1000) : 0;
-  const amountToPayNow   = form.paymentType === "Full Payment" ? grandTotal : form.paymentType === "Down Payment" ? downPaymentAmount : 0;
-  const remainingBalance = Math.max(grandTotal - amountToPayNow, 0);
 
-  const isPastDate = form.date < todayStr();
-  const yearNum    = Number(form.vehicleYear);
-  const validVehicleYear = !!form.vehicleYear && Number.isInteger(yearNum) && yearNum >= 1950 && yearNum <= new Date().getFullYear() + 1;
+  const selectedService   = services.find(s => s.name === form.service);
+  const addonObjects      = DEFAULT_ADDONS.filter(a => form.addons.includes(a.name));
+  const baseServiceTotal  = selectedService?.price ?? 0;
+  const addonsTotal       = addonObjects.reduce((sum, item) => sum + item.price, 0);
+  const grandTotal        = baseServiceTotal + addonsTotal;
+  const downPaymentAmount = grandTotal > 0 ? Math.max(Math.round(grandTotal * 0.3), 1000) : 0;
+  const amountToPayNow    = form.paymentType === "Full Payment" ? grandTotal : form.paymentType === "Down Payment" ? downPaymentAmount : 0;
+  const remainingBalance  = Math.max(grandTotal - amountToPayNow, 0);
+
+  const isPastDate        = form.date < todayStr();
+  const yearNum           = Number(form.vehicleYear);
+  const validVehicleYear  = !!form.vehicleYear && Number.isInteger(yearNum) && yearNum >= 1950 && yearNum <= new Date().getFullYear() + 1;
 
   const inputCls = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
   const selCls   = inputCls + " appearance-none";
@@ -394,7 +808,6 @@ function BookModal({ onClose, onSave, services, vehicles }: {
           <div><h2 className="text-xl font-bold text-white">Book Appointment</h2><p className="text-white/50 text-xs mt-0.5">Submit your booking for admin verification</p></div>
           <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
-
         <div className="px-6 pt-5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <StepPill index={1} title="Customer & Vehicle" active={step===1} done={step>1} />
@@ -404,88 +817,68 @@ function BookModal({ onClose, onSave, services, vehicles }: {
             <StepPill index={3} title="Payment & Submit" active={step===3} done={false} />
           </div>
         </div>
-
         <div className="p-6 space-y-6">
-
           {/* ── STEP 1 ── */}
-{step === 1 && (
-  <div>
-    <h3 className="text-white text-sm font-semibold mb-3">Step 1: Customer & Vehicle Information</h3>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-white/70">Full Name <span className="text-red-500">*</span></label>
-        <input className={inputCls} value={form.fullName} onChange={e => setForm(f=>({...f,fullName:e.target.value}))} placeholder="Enter your full name" />
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-white/70">Mobile Number <span className="text-red-500">*</span></label>
-        <input className={inputCls} value={form.mobileNumber} onChange={e => setForm(f=>({...f,mobileNumber:e.target.value}))} placeholder="09xxxxxxxxx" />
-      </div>
-    </div>
-
-    {/* Vehicle selector */}
-    {vehicles.length > 0 && (
-      <div className="space-y-1.5 mb-4">
-        <label className="text-sm font-medium text-white/70">Select Saved Vehicle</label>
-        <select
-          className={selCls}
-          value={selectedVehicleId}
-          onChange={e => handleVehicleSelect(e.target.value)}
-        >
-          <option value="" className="bg-[#0a0a0a]">— Enter manually or select saved vehicle —</option>
-          {vehicles.map(v => (
-            <option key={v.id} value={v.id} className="bg-[#0a0a0a]">
-              {v.name ? `${v.name} — ` : ""}{v.brand} {v.model} {v.year}{v.plate_number ? ` (${v.plate_number})` : ""}
-            </option>
-          ))}
-        </select>
-        {selectedVehicleId && (
-          <p className="text-xs text-emerald-400 flex items-center gap-1">
-            <CheckCircle className="w-3 h-3" />Vehicle details auto-filled below
-          </p>
-        )}
-      </div>
-    )}
-
-    {vehicles.length === 0 && (
-      <div className="mb-4 p-3 bg-sky-500/10 border border-sky-500/20 rounded-lg">
-        <p className="text-sky-400 text-xs">💡 Tip: Add vehicles in your dashboard to pre-fill this form next time.</p>
-      </div>
-    )}
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Make <span className="text-red-500">*</span></label><input className={inputCls} value={form.vehicleMake} onChange={e => setForm(f=>({...f,vehicleMake:e.target.value}))} placeholder="Toyota" /></div>
-      <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Model <span className="text-red-500">*</span></label><input className={inputCls} value={form.vehicleModel} onChange={e => setForm(f=>({...f,vehicleModel:e.target.value}))} placeholder="Fortuner" /></div>
-      <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Year <span className="text-red-500">*</span></label><input type="number" className={inputCls} value={form.vehicleYear} onChange={e => setForm(f=>({...f,vehicleYear:e.target.value}))} placeholder="2022" /></div>
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-white/70">Vehicle Size/Class <span className="text-red-500">*</span></label>
-        <select className={selCls} value={form.vehicleClass} onChange={e => setForm(f=>({...f,vehicleClass:e.target.value}))}>
-          <option value="" className="bg-[#0a0a0a]">Select vehicle class...</option>
-          {VEHICLE_CLASS_OPTIONS.map(v => <option key={v.value} value={v.value} className="bg-[#0a0a0a]">{v.label}</option>)}
-        </select>
-      </div>
-      <div className="space-y-1.5 md:col-span-2"><label className="text-sm font-medium text-white/70">Vehicle Plate Number</label><input className={inputCls} value={form.vehiclePlateNumber} onChange={e => setForm(f=>({...f,vehiclePlateNumber:e.target.value}))} placeholder="ABC 1234" /></div>
-    </div>
-  </div>
-)}
-
+          {step === 1 && (
+            <div>
+              <h3 className="text-white text-sm font-semibold mb-3">Step 1: Customer & Vehicle Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Full Name <span className="text-red-500">*</span></label>
+                  <input className={inputCls} value={form.fullName} onChange={e => setForm(f=>({...f,fullName:e.target.value}))} placeholder="Enter your full name" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Mobile Number <span className="text-red-500">*</span></label>
+                  <input className={inputCls} value={form.mobileNumber} onChange={e => setForm(f=>({...f,mobileNumber:e.target.value}))} placeholder="09xxxxxxxxx" />
+                </div>
+              </div>
+              {vehicles.length > 0 && (
+                <div className="space-y-1.5 mb-4">
+                  <label className="text-sm font-medium text-white/70">Select Saved Vehicle</label>
+                  <select className={selCls} value={selectedVehicleId} onChange={e => handleVehicleSelect(e.target.value)}>
+                    <option value="" className="bg-[#0a0a0a]">— Enter manually or select saved vehicle —</option>
+                    {vehicles.map(v => (
+                      <option key={v.id} value={v.id} className="bg-[#0a0a0a]">
+                        {v.name ? `${v.name} — ` : ""}{v.brand} {v.model} {v.year}{v.plate_number ? ` (${v.plate_number})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedVehicleId && (
+                    <p className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle className="w-3 h-3" />Vehicle details auto-filled below</p>
+                  )}
+                </div>
+              )}
+              {vehicles.length === 0 && (
+                <div className="mb-4 p-3 bg-sky-500/10 border border-sky-500/20 rounded-lg">
+                  <p className="text-sky-400 text-xs">💡 Tip: Add vehicles in your dashboard to pre-fill this form next time.</p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Make <span className="text-red-500">*</span></label><input className={inputCls} value={form.vehicleMake} onChange={e => setForm(f=>({...f,vehicleMake:e.target.value}))} placeholder="Toyota" /></div>
+                <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Model <span className="text-red-500">*</span></label><input className={inputCls} value={form.vehicleModel} onChange={e => setForm(f=>({...f,vehicleModel:e.target.value}))} placeholder="Fortuner" /></div>
+                <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Vehicle Year <span className="text-red-500">*</span></label><input type="number" className={inputCls} value={form.vehicleYear} onChange={e => setForm(f=>({...f,vehicleYear:e.target.value}))} placeholder="2022" /></div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-white/70">Vehicle Size/Class <span className="text-red-500">*</span></label>
+                  <select className={selCls} value={form.vehicleClass} onChange={e => setForm(f=>({...f,vehicleClass:e.target.value}))}>
+                    <option value="" className="bg-[#0a0a0a]">Select vehicle class...</option>
+                    {VEHICLE_CLASS_OPTIONS.map(v => <option key={v.value} value={v.value} className="bg-[#0a0a0a]">{v.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5 md:col-span-2"><label className="text-sm font-medium text-white/70">Vehicle Plate Number</label><input className={inputCls} value={form.vehiclePlateNumber} onChange={e => setForm(f=>({...f,vehiclePlateNumber:e.target.value}))} placeholder="ABC 1234" /></div>
+              </div>
+            </div>
+          )}
           {/* ── STEP 2 ── */}
           {step === 2 && (
             <div>
               <h3 className="text-white text-sm font-semibold mb-3">Step 2: Service & Schedule</h3>
-
-              {/* Service — uses live API prices */}
               <div className="space-y-1.5 mb-4">
                 <label className="text-sm font-medium text-white/70">Service Package <span className="text-red-500">*</span></label>
                 <select className={selCls} value={form.service} onChange={e => setForm(f=>({...f,service:e.target.value}))}>
                   <option value="" className="bg-[#0a0a0a]">Select a service...</option>
-                  {services.map(s => (
-                    <option key={s.name} value={s.name} className="bg-[#0a0a0a]">
-                      {s.name} — {formatMoney(s.price)}
-                    </option>
-                  ))}
+                  {services.map(s => <option key={s.name} value={s.name} className="bg-[#0a0a0a]">{s.name} — {formatMoney(s.price)}</option>)}
                 </select>
               </div>
-
               <div className="space-y-2 mb-6">
                 <label className="text-sm font-medium text-white/70">Add-ons</label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -500,7 +893,6 @@ function BookModal({ onClose, onSave, services, vehicles }: {
                   })}
                 </div>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Date <span className="text-red-500">*</span></label><input type="date" min={todayStr()} className={`${inputCls} [color-scheme:dark]`} value={form.date} onChange={e => setForm(f=>({...f,date:e.target.value}))} /></div>
                 <div className="space-y-1.5"><label className="text-sm font-medium text-white/70">Time <span className="text-red-500">*</span></label>
@@ -509,7 +901,6 @@ function BookModal({ onClose, onSave, services, vehicles }: {
                   </select>
                 </div>
               </div>
-
               <div className="mt-6 p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
                 <p className="text-sm font-semibold text-white">Current Summary</p>
                 <div className="flex justify-between text-xs text-white/60"><span>Base service</span><span>{formatMoney(baseServiceTotal)}</span></div>
@@ -518,23 +909,20 @@ function BookModal({ onClose, onSave, services, vehicles }: {
               </div>
             </div>
           )}
-
           {/* ── STEP 3 ── */}
           {step === 3 && (
             <div>
               <h3 className="text-white text-sm font-semibold mb-3">Step 3: Payment & Submit</h3>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-white/70">Payment Method <span className="text-red-500">*</span></label>
                   <select className={selCls} value={form.paymentMethod} onChange={e => setForm(f=>({...f,paymentMethod:e.target.value}))}>
                     <option value="" className="bg-[#0a0a0a]">Select payment method...</option>
                     <option value="Bank Transfer" className="bg-[#0a0a0a]">Bank Transfer</option>
-                    <option value="QR Payment" className="bg-[#0a0a0a]">QR Payment</option>
+                    <option value="QR Payment"    className="bg-[#0a0a0a]">QR Payment</option>
                   </select>
                 </div>
               </div>
-
               {form.paymentMethod === "Bank Transfer" && (
                 <div className="mb-4 rounded-xl border border-violet-500/20 bg-violet-500/10 p-4 space-y-3">
                   <div><p className="text-sm font-semibold text-white">Bank Transfer Details</p><p className="text-xs text-white/50 mt-1">Transfer the exact amount, then upload your proof of payment below.</p></div>
@@ -543,21 +931,16 @@ function BookModal({ onClose, onSave, services, vehicles }: {
                       <div key={l} className="rounded-lg bg-white/5 border border-white/10 p-3"><p className="text-[11px] uppercase tracking-wide text-white/40">{l}</p><p className="text-sm font-medium text-white mt-1">{v}</p></div>
                     ))}
                   </div>
-                  <p className="text-xs text-violet-200/80">Make sure the account name and number are correct before sending payment.</p>
                 </div>
               )}
-
               {form.paymentMethod === "QR Payment" && (
                 <div className="mb-4 rounded-xl border border-sky-500/20 bg-sky-500/10 p-4 space-y-3">
-                  <div><p className="text-sm font-semibold text-white">QR Payment</p><p className="text-xs text-white/50 mt-1">Scan the QR code below, send the payment, then upload your proof of payment.</p></div>
+                  <div><p className="text-sm font-semibold text-white">QR Payment</p><p className="text-xs text-white/50 mt-1">Scan the QR code, send the payment, then upload your proof.</p></div>
                   <div className="flex flex-col items-center justify-center rounded-xl bg-white p-4 border border-white/10">
                     <img src="/images/payment-qr.png" alt="QR Payment" className="w-56 h-56 object-contain" />
-                    <p className="text-xs text-gray-600 mt-3 text-center">Scan this QR code using your banking or e-wallet app.</p>
                   </div>
-                  <p className="text-xs text-sky-200/80">After payment, please upload a clear screenshot or receipt as proof.</p>
                 </div>
               )}
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                 <button type="button" onClick={() => handlePaymentTypeChange("Full Payment")} className={checkCard(form.paymentType === "Full Payment")}>
                   <span className="text-sm font-medium text-white">Full Payment</span>
@@ -568,38 +951,25 @@ function BookModal({ onClose, onSave, services, vehicles }: {
                   <span className={`w-4 h-4 rounded border ${form.paymentType === "Down Payment" ? "bg-[#E41E6A] border-[#E41E6A]" : "border-white/20"}`} />
                 </button>
               </div>
-
               <div className="space-y-1.5 mb-4">
                 <label className="text-sm font-medium text-white/70">Deposit Proof Upload <span className="text-red-500">*</span></label>
                 <input type="file" accept="image/*,.pdf" className={`${inputCls} py-2 h-auto`} onChange={e => setForm(f=>({...f,proofFile:e.target.files?.[0]??null}))} />
                 {form.proofFile && <p className="text-xs text-white/50">{form.proofFile.name}</p>}
               </div>
-
               <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2 mb-4">
                 <p className="text-sm font-semibold text-white">Booking Summary</p>
-                {[
-                  ["Customer", form.fullName||"—"],
-                  ["Vehicle", [form.vehicleMake,form.vehicleModel,form.vehicleClass].filter(Boolean).join(" ")||"—"],
-                  ["Service", form.service||"—"],
-                  ["Schedule", form.date?`${form.date} ${form.time}`:"—"],
-                ].map(([l,v]) => <div key={l} className="flex justify-between text-xs text-white/60"><span>{l}</span><span>{v}</span></div>)}
-                <div className="flex justify-between text-xs text-white/60"><span>Base service</span><span>{formatMoney(baseServiceTotal)}</span></div>
-                <div className="flex justify-between text-xs text-white/60"><span>Add-ons</span><span>{formatMoney(addonsTotal)}</span></div>
+                {[["Customer",form.fullName||"—"],["Vehicle",[form.vehicleMake,form.vehicleModel,form.vehicleClass].filter(Boolean).join(" ")||"—"],["Service",form.service||"—"],["Schedule",form.date?`${form.date} ${form.time}`:"—"]].map(([l,v]) => (
+                  <div key={l} className="flex justify-between text-xs text-white/60"><span>{l}</span><span>{v}</span></div>
+                ))}
                 <div className="flex justify-between text-sm text-white font-semibold pt-2 border-t border-white/10"><span>Total Amount</span><span>{formatMoney(grandTotal)}</span></div>
-                <div className="flex justify-between text-xs text-white/60"><span>Payment Type</span><span>{form.paymentType||"—"}</span></div>
                 <div className="flex justify-between text-sm text-[#E41E6A] font-semibold"><span>Amount to Pay Now</span><span>{formatMoney(amountToPayNow)}</span></div>
                 <div className="flex justify-between text-xs text-yellow-400"><span>Remaining Balance</span><span>{formatMoney(remainingBalance)}</span></div>
               </div>
-
               <p className="text-xs text-yellow-300/80 mb-4">Submitting this booking does not automatically confirm your appointment. All bookings are subject to payment verification and admin approval.</p>
-
-              <div className="space-y-2 mb-4">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={form.termsAccepted} onChange={e => setForm(f=>({...f,termsAccepted:e.target.checked}))} className="mt-1" />
-                  <span className="text-sm text-white/70">I agree to the booking terms, payment policy, and appointment confirmation process.</span>
-                </label>
-              </div>
-
+              <label className="flex items-start gap-3 cursor-pointer mb-4">
+                <input type="checkbox" checked={form.termsAccepted} onChange={e => setForm(f=>({...f,termsAccepted:e.target.checked}))} className="mt-1" />
+                <span className="text-sm text-white/70">I agree to the booking terms, payment policy, and appointment confirmation process.</span>
+              </label>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-white/70">Additional Notes</label>
                 <textarea className={`${inputCls} resize-none h-20 py-2.5`} placeholder="Any special requests..." value={form.notes} onChange={e => setForm(f=>({...f,notes:e.target.value}))} />
@@ -607,7 +977,6 @@ function BookModal({ onClose, onSave, services, vehicles }: {
             </div>
           )}
         </div>
-
         <div className="p-6 border-t border-white/10 bg-white/5 flex justify-between gap-3">
           <div>{step > 1 && <button onClick={goBack} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Back</button>}</div>
           <div className="flex gap-3">
@@ -623,45 +992,6 @@ function BookModal({ onClose, onSave, services, vehicles }: {
   );
 }
 
-// ─── VIEW MODAL ───────────────────────────────────────────────────────────────
-
-function ViewModal({ appt, onClose }: { appt: Appointment; onClose: () => void }) {
-  const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
-    <div className="p-3 bg-white/5 rounded-lg border border-white/10 flex items-start gap-3">
-      <div className="mt-0.5 text-[#E41E6A] flex-shrink-0">{icon}</div>
-      <div><p className="text-white/50 text-xs">{label}</p><p className="text-white text-sm font-medium mt-0.5">{value}</p></div>
-    </div>
-  );
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
-      <div className="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-white/10 flex justify-between items-center">
-          <div><h2 className="text-xl font-bold text-white">Appointment Details</h2><p className="text-white/50 text-xs mt-0.5">{formatShort(appt.date)}</p></div>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="p-6 space-y-3">
-          <Row icon={<Shield  className="w-4 h-4" />} label="Service"     value={appt.service} />
-          <Row icon={<Car     className="w-4 h-4" />} label="Vehicle"     value={appt.vehicle} />
-          <Row icon={<Calendar className="w-4 h-4" />} label="Date"       value={formatShort(appt.date)} />
-          <Row icon={<Clock   className="w-4 h-4" />} label="Time"        value={appt.time} />
-          <Row icon={<Banknote className="w-4 h-4" />} label="Amount Paid" value={`₱${Number(appt.deposit).toLocaleString()}`} />
-          {appt.notes && <Row icon={<Eye className="w-4 h-4" />} label="Notes" value={appt.notes} />}
-          <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
-            <p className="text-yellow-300 text-xs">Appointment submission is subject to payment verification and admin approval.</p>
-          </div>
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-white/50 text-sm">Status</span>
-            <StatusBadge status={appt.status} />
-          </div>
-        </div>
-        <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium border border-white/10 text-white hover:bg-white/10 rounded-lg transition-colors">Close</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export function CustomerAppointments() {
@@ -669,7 +999,7 @@ export function CustomerAppointments() {
   const { profile, isLoading: profileLoading } = useAuth();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [services,     setServices]     = useState<ServiceItem[]>([]);  // ← ServiceItem[] not string[]
+  const [services,     setServices]     = useState<ServiceItem[]>([]);
   const [isLoading,    setIsLoading]    = useState(true);
   const [selected,     setSelected]     = useState(today);
   const [search,       setSearch]       = useState("");
@@ -682,88 +1012,71 @@ export function CustomerAppointments() {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-// Fetch services independently — doesn't need customer profile
-useEffect(() => {
-  getServices()
-    .then(raw => setServices(
-      raw.length > 0
-        ? raw.map((s: any) => ({ name: s.name, price: Number(s.price ?? 0) }))
-        : DEFAULT_SERVICES
-    ))
-    .catch(() => setServices(DEFAULT_SERVICES));
-}, []);
+  useEffect(() => {
+    getServices()
+      .then(raw => setServices(raw.length > 0 ? raw.map((s: any) => ({ name: s.name, price: Number(s.price ?? 0) })) : DEFAULT_SERVICES))
+      .catch(() => setServices(DEFAULT_SERVICES));
+  }, []);
 
-// Fetch appointments only when customer profile is ready
-useEffect(() => {
-  if (profile?.customerId) {
-    fetchData();
-    getVehicles(profile.customerId).then(setVehicles).catch(() => {});
-  }
-}, [profile?.customerId]);
+  useEffect(() => {
+    if (profile?.customerId) {
+      fetchData();
+      getVehicles(profile.customerId).then(setVehicles).catch(() => {});
+    }
+  }, [profile?.customerId]);
+
   const fetchData = async () => {
     if (!profile?.customerId) return;
     setIsLoading(true);
     try {
       const rawAppts = await getCustomerAppointments(profile.customerId).catch(() => []);
-
       setAppointments(rawAppts.map(normalizeAppointment));
-
-      // ── Use full service objects {name, price} from API ──────────────────
-      // Falls back to DEFAULT_SERVICES only if API returns nothing
-      // services fetched separately above
-    } catch (err) {
-      console.error("CustomerAppointments fetch error:", err);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (err) { console.error("CustomerAppointments fetch error:", err); }
+    finally { setIsLoading(false); }
   };
 
   const handleBook = async (data: any) => {
     if (!profile?.customerId) return;
-
     const [time, meridiem] = data.time.split(" ");
     const [h, m] = time.split(":").map(Number);
     let hour = h;
     if (meridiem === "PM" && h !== 12) hour += 12;
     if (meridiem === "AM" && h === 12) hour = 0;
-
-    const payload = {
-      customerId:         profile.customerId,
-      service:            data.service,
-      date:               data.date,
-      time:               `${String(hour).padStart(2,"0")}:${String(m).padStart(2,"0")}`,
-      totalAmount:        data.grandTotal || data.deposit || 0,
-      deposit:            data.amountToPayNow || 0,
-      paymentMethod:      data.paymentMethod,
-      paymentType:        data.paymentType,
-      status:             "Pending Verification",
-      notes:              data.notes,
-      fullName:           data.fullName,
-      mobileNumber:       data.mobileNumber,
-      vehicleMake:        data.vehicleMake,
-      vehicleModel:       data.vehicleModel,
-      vehicleYear:        data.vehicleYear,
-      vehicleClass:       data.vehicleClass,
+    await createAppointment({
+      customerId: profile.customerId, service: data.service,
+      date: data.date, time: `${String(hour).padStart(2,"0")}:${String(m).padStart(2,"0")}`,
+      totalAmount: data.grandTotal || data.deposit || 0,
+      deposit: data.amountToPayNow || 0,
+      paymentMethod: data.paymentMethod, paymentType: data.paymentType,
+      notes: data.notes, fullName: data.fullName, mobileNumber: data.mobileNumber,
+      vehicleMake: data.vehicleMake, vehicleModel: data.vehicleModel,
+      vehicleYear: data.vehicleYear, vehicleClass: data.vehicleClass,
       vehiclePlateNumber: data.vehiclePlateNumber,
-      addons:             data.addons,
-      remainingBalance:   data.remainingBalance,
-      proofFile:          data.proofFile,
-    };
-
-    await createAppointment(payload);
-
-    await fetch(`${import.meta.env.VITE_API_BASE_URL}/customers/${profile.customerId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        vehicle:       [data.vehicleMake, data.vehicleModel, data.vehicleClass].filter(Boolean).join(" "),
-        full_name:     data.fullName,
-        mobile_number: data.mobileNumber,
-      }),
+      addons: data.addons, remainingBalance: data.remainingBalance,
+      proofFile: data.proofFile,
     });
-
     await fetchData();
   };
+
+  // ── Refund handlers ───────────────────────────────────────────────────────
+
+  const handleRequestRefund = async (id: string | number) => {
+    const appt = appointments.find(a => a.id === id);
+    if (!appt) return;
+    await requestRefund(String(id), appt.deposit);
+    setAppointments(prev => prev.map(a =>
+      a.id === id ? { ...a, refundStatus: "Requested", refundAmount: a.deposit } : a
+    ));
+    // Also update the open modal
+    if (viewAppt?.id === id) setViewAppt(prev => prev ? { ...prev, refundStatus: "Requested", refundAmount: prev.deposit } : prev);
+  };
+
+  const handleRefundDetailsSubmit = (id: string | number, data: Partial<Appointment>) => {
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
+    if (viewAppt?.id === id) setViewAppt(prev => prev ? { ...prev, ...data } : prev);
+  };
+
+  // ── Derived data ──────────────────────────────────────────────────────────
 
   const dotDates = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -785,7 +1098,7 @@ useEffect(() => {
     [appointments, search, filterStatus]
   );
 
-  const customerVehicle = appointments[0]?.vehicle ?? "";
+  const pendingRefunds = appointments.filter(a => a.refundStatus === "Approved").length;
 
   if (profileLoading) {
     return <div className="flex items-center justify-center h-40 text-white/50">Loading profile...</div>;
@@ -794,13 +1107,26 @@ useEffect(() => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div><h1 className="text-white text-3xl font-bold mb-1">My Appointments</h1><p className="text-white/60 text-sm">{todayDisplay}</p></div>
-        <button onClick={() => setShowBook(true)}
-          className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all">
-          <Plus className="w-4 h-4" />New Appointment
-        </button>
+        <div>
+          <h1 className="text-white text-3xl font-bold mb-1">My Appointments</h1>
+          <p className="text-white/60 text-sm">{todayDisplay}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Nudge customer if they have an approved refund waiting for details */}
+          {pendingRefunds > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-400 font-semibold animate-pulse">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {pendingRefunds} Refund{pendingRefunds > 1 ? "s" : ""} Need Your Details
+            </div>
+          )}
+          <button onClick={() => setShowBook(true)}
+            className="self-start sm:self-auto inline-flex items-center gap-2 bg-gradient-to-r from-[#E41E6A] to-pink-600 hover:from-[#c41559] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-[#E41E6A]/25 transition-all">
+            <Plus className="w-4 h-4" />New Appointment
+          </button>
+        </div>
       </div>
 
+      {/* Search + filter */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
@@ -829,6 +1155,7 @@ useEffect(() => {
         </div>
       )}
 
+      {/* All Appointments Table */}
       <Card className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur overflow-hidden" style={{ borderRadius: "12px" }}>
         <CardHeader className="border-b border-white/10 pb-4">
           <div className="flex items-center justify-between">
@@ -841,8 +1168,18 @@ useEffect(() => {
             {filtered.length === 0 ? (
               <div className="py-12 flex flex-col items-center text-center"><CalendarX className="w-8 h-8 text-white/20 mb-2" /><p className="text-white/50 text-sm">No appointments found.</p></div>
             ) : filtered.map(a => (
-              <div key={a.id} className="p-4 hover:bg-white/5 transition-colors">
-                <div className="flex items-start justify-between mb-2"><p className="text-white text-sm font-semibold max-w-[60%] leading-snug">{a.service}</p><StatusBadge status={a.status} /></div>
+              <div key={a.id} className={`p-4 hover:bg-white/5 transition-colors ${a.refundStatus === "Approved" ? "bg-blue-500/5" : ""}`}>
+                <div className="flex items-start justify-between mb-2">
+                  <p className="text-white text-sm font-semibold max-w-[60%] leading-snug">{a.service}</p>
+                  <div className="flex flex-col items-end gap-1">
+                    <StatusBadge status={a.status} />
+                    {a.refundStatus && a.refundStatus !== "None" && (
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${REFUND_STATUS_STYLE[a.refundStatus]?.bg ?? ""} ${REFUND_STATUS_STYLE[a.refundStatus]?.text ?? ""} ${REFUND_STATUS_STYLE[a.refundStatus]?.border ?? ""}`}>
+                        {REFUND_STATUS_STYLE[a.refundStatus]?.label ?? a.refundStatus}
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <p className="text-white/50 text-xs flex items-center gap-1 mb-1"><Car className="w-3 h-3" />{a.vehicle}</p>
                 <p className="text-white/50 text-xs flex items-center gap-1 mb-2"><Calendar className="w-3 h-3 text-[#E41E6A]" />{formatShort(a.date)} · {a.time}</p>
                 <button onClick={() => setViewAppt(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors"><Eye className="w-3.5 h-3.5" />View</button>
@@ -853,19 +1190,26 @@ useEffect(() => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10">
-                  {["Date","Service","Vehicle","Paid","Status","Actions"].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-white/50 uppercase tracking-wide">{h}</th>)}
+                  {["Date","Service","Vehicle","Paid","Status","Refund","Actions"].map(h => <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-white/50 uppercase tracking-wide">{h}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-12 text-white/40"><CalendarX className="w-8 h-8 mx-auto mb-2 text-white/20" />No appointments found.</td></tr>
+                  <tr><td colSpan={7} className="text-center py-12 text-white/40"><CalendarX className="w-8 h-8 mx-auto mb-2 text-white/20" />No appointments found.</td></tr>
                 ) : filtered.map(a => (
-                  <tr key={a.id} className="hover:bg-white/5 transition-colors">
+                  <tr key={a.id} className={`hover:bg-white/5 transition-colors ${a.refundStatus === "Approved" ? "bg-blue-500/5" : ""}`}>
                     <td className="px-5 py-3.5"><p className="text-white text-xs font-medium">{formatShort(a.date)}</p><p className="text-white/40 text-xs">{a.time}</p></td>
                     <td className="px-5 py-3.5"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">{serviceIcon(a.service)}</div><span className="text-white text-sm font-medium max-w-[180px] truncate">{a.service}</span></div></td>
                     <td className="px-5 py-3.5 text-white/60 text-sm whitespace-nowrap">{a.vehicle}</td>
                     <td className="px-5 py-3.5 text-green-400 text-sm font-semibold whitespace-nowrap">₱{Number(a.deposit).toLocaleString()}</td>
                     <td className="px-5 py-3.5"><StatusBadge status={a.status} /></td>
+                    <td className="px-5 py-3.5">
+                      {a.refundStatus && a.refundStatus !== "None" ? (
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${REFUND_STATUS_STYLE[a.refundStatus]?.bg ?? "bg-white/10"} ${REFUND_STATUS_STYLE[a.refundStatus]?.text ?? "text-white/50"} ${REFUND_STATUS_STYLE[a.refundStatus]?.border ?? "border-white/10"}`}>
+                          {REFUND_STATUS_STYLE[a.refundStatus]?.label ?? a.refundStatus}
+                        </span>
+                      ) : <span className="text-white/20 text-xs">—</span>}
+                    </td>
                     <td className="px-5 py-3.5"><button onClick={() => setViewAppt(a)} className="flex items-center gap-1 text-xs font-medium text-[#E41E6A] hover:text-pink-400 transition-colors"><Eye className="w-3.5 h-3.5" />View</button></td>
                   </tr>
                 ))}
@@ -876,7 +1220,14 @@ useEffect(() => {
       </Card>
 
       {showBook && <BookModal onClose={() => setShowBook(false)} onSave={handleBook} services={services} vehicles={vehicles} />}
-      {viewAppt  && <ViewModal appt={viewAppt} onClose={() => setViewAppt(null)} />}
+      {viewAppt  && (
+        <ViewModal
+          appt={viewAppt}
+          onClose={() => setViewAppt(null)}
+          onRequestRefund={handleRequestRefund}
+          onRefundDetailsSubmit={handleRefundDetailsSubmit}
+        />
+      )}
     </div>
   );
 }
