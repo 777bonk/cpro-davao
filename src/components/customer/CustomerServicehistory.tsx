@@ -144,57 +144,67 @@ export function CustomerServiceHistory() {
     if (profile?.customerId) fetchData();
   }, [profile?.customerId]);
 
-  const fetchData = async () => {
-    if (!profile?.customerId) return;
-    setIsLoading(true);
-    try {
-      // ✅ Only fetches THIS customer's appointments — not all appointments
-      const appts = await getCustomerAppointments(profile.customerId).catch(() => []);
-      
-      console.log("Sample appointment:", JSON.stringify(appts[0]));
+ const fetchData = async () => {
+  if (!profile?.customerId) return;
+  setIsLoading(true);
+  try {
+    const [appts, jobOrdersRaw] = await Promise.all([
+      getCustomerAppointments(profile.customerId).catch(() => []),
+      fetch(`${import.meta.env.VITE_API_BASE_URL}/job-orders`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })),
+    ]);
 
-      const history: ServiceRecord[] = appts
-        .filter((a: any) => a.status === "Completed" || a.status === "Cancelled")
-        .map((a: any) => {
+    const jobOrders: any[] = jobOrdersRaw.data ?? [];
 
-          console.log("technician fields:", {
-      employees: a.employees?.name,
-      assigned_staff: a.assigned_staff,
-      technician: a.technician,
-    });
+    const history: ServiceRecord[] = appts
+      .filter((a: any) => a.status === "Completed" || a.status === "Cancelled")
+      .map((a: any) => {
+        const raw = a.scheduled_date || a.date;
+        const d   = new Date(raw);
+        const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+        const svc = a.service_type ?? a.service ?? "Service";
+        const cat = guessCategory(svc);
 
-          const raw = a.scheduled_date || a.date;
-          const d   = new Date(raw);
-          // ✅ UTC getters — consistent with all other components
-          const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
-          const svc = a.service_type ?? a.service ?? "Service";
-          const cat = guessCategory(svc);
-          return {
-            id:         a.id,
-            service:    svc,
-            category:   cat,
-            // NestJS returns relation as a.customer (singular) via include: { customer: true }
-            vehicle:    a.customer?.vehicle ?? a.customers?.vehicle ?? a.vehicle ?? "Vehicle",
-            plate:      a.customer?.plate   ?? a.customers?.plate   ?? a.plate   ?? "",
-            date:       dateStr,
-            amount: Number(a.total_cost ?? a.totalAmount ?? a.deposit ?? a.total ?? 0),
-            technician: a.assignedStaff ?? a.assigned_staff ?? a.employees?.name ?? a.technician ?? "—",
-            status:     (a.status === "Completed" ? "Completed" : "Cancelled") as "Completed" | "Cancelled",
-            notes:      a.notes    ?? "",
-            duration:   a.duration ?? "—",
-          };
-        })
-        .sort((a: ServiceRecord, b: ServiceRecord) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
+        // Find matching job order by customer name + service
+        const matchedJob = jobOrders.find((j: any) =>
+          j.service?.toLowerCase() === svc.toLowerCase() ||
+          j.customer?.toLowerCase() === (a.customerName ?? a.full_name ?? "").toLowerCase()
         );
 
-      setRecords(history);
-    } catch (err) {
-      console.error("CustomerServiceHistory fetch error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        const technician =
+          a.assignedStaff ??
+          a.assigned_staff ??
+          matchedJob?.assigned_staff ??
+          a.employees?.name ??
+          "—";
+
+        return {
+          id:         a.id,
+          service:    svc,
+          category:   cat,
+          vehicle:    a.vehicle ?? a.vehicleMake ? [a.vehicleMake, a.vehicleModel, a.vehicleClass].filter(Boolean).join(" ") : "Vehicle",
+          plate:      a.vehiclePlateNumber ?? "",
+          date:       dateStr,
+          amount:     Number(a.totalAmount ?? a.total_cost ?? 0),
+          technician,
+          status:     (a.status === "Completed" ? "Completed" : "Cancelled") as "Completed" | "Cancelled",
+          notes:      a.notes ?? "",
+          duration:   a.duration ?? "—",
+        };
+      })
+      .sort((a: ServiceRecord, b: ServiceRecord) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+
+    setRecords(history);
+  } catch (err) {
+    console.error("CustomerServiceHistory fetch error:", err);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ── Derived stats ─────────────────────────────────────────────────────────
   const totalSpent       = records.filter(r => r.status === "Completed").reduce((s, r) => s + r.amount, 0);

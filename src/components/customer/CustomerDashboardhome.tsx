@@ -209,7 +209,7 @@ export function CustomerDashboardHome({ onNavigate }: { onNavigate?: (section: s
       setServicesDone(completed.length);
       setRecentServices([...completed].sort((a: any, b: any) => new Date(b.scheduled_date).getTime() - new Date(a.scheduled_date).getTime()).slice(0, 3));
 
-      const spent = completed.reduce((sum: number, a: any) => sum + Number(a.total_cost ?? 0), 0);
+      const spent = completed.reduce((sum: number, a: any) => sum + Number(a.totalAmount ?? a.total_cost ?? 0), 0);
       setTotalSpent(spent);
       setLoyaltyPts(Math.floor(spent / 100));
     } catch (err) {
@@ -383,25 +383,34 @@ export function CustomerDashboardHome({ onNavigate }: { onNavigate?: (section: s
                   <p className="text-white/50 text-sm">No completed services yet</p>
                 </div>
               ) : recentServices.map((svc: any) => {
-                const svcDate = new Date(svc.date || svc.scheduled_date);
-                return (
-                  <div key={svc.id} className="p-3 bg-white/5 rounded-xl border border-white/10 hover:border-green-500/30 transition-colors">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">{serviceIcon(svc.service_type ?? "")}</div>
-                        <div className="min-w-0">
-                          <p className="text-white text-sm font-medium truncate">{svc.service_type ?? "Service"}</p>
-                          <p className="text-white/50 text-xs flex items-center gap-1 mt-0.5">
-                            <Car className="w-3 h-3" />{[svc.vehicle_make, svc.vehicle_model].filter(Boolean).join(" ") || svc.customers?.vehicle || "Vehicle"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-white text-sm font-bold">₱{Number(svc.total_cost || 0).toLocaleString()}</p>
-                        <p className="text-white/40 text-xs mt-0.5">{svcDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
-                      </div>
-                    </div>
-                  </div>
+  const svcDate = new Date(svc.date || svc.scheduled_date);
+  // normalize() maps service_type → service, total_cost → totalAmount, vehicle_make+model → vehicle
+  const serviceName = svc.service   ?? svc.service_type  ?? "Service";
+  const vehicleName = svc.vehicle ?? 
+  ([svc.vehicleMake, svc.vehicleModel].filter(Boolean).join(" ") || 
+  [svc.vehicle_make, svc.vehicle_model].filter(Boolean).join(" ") || 
+  "Vehicle");
+  const amount      = Number(svc.totalAmount ?? svc.total_cost ?? svc.deposit ?? 0);
+  return (
+    <div key={svc.id} className="p-3 bg-white/5 rounded-xl border border-white/10 hover:border-green-500/30 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+            {serviceIcon(serviceName)}
+          </div>
+          <div className="min-w-0">
+            <p className="text-white text-sm font-medium truncate">{serviceName}</p>
+            <p className="text-white/50 text-xs flex items-center gap-1 mt-0.5">
+              <Car className="w-3 h-3" />{vehicleName}
+            </p>
+          </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-white text-sm font-bold">₱{amount.toLocaleString()}</p>
+          <p className="text-white/40 text-xs mt-0.5">{svcDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+        </div>
+      </div>
+    </div>
                 );
               })}
             </div>
