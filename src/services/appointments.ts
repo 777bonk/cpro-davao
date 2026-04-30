@@ -29,6 +29,7 @@ export interface Appointment {
   proofOfPayment?: string;
   adminRemarks?: string;
   addons?: any[];
+  assignedStaff?: string; 
 }
 
 // ── NORMALIZE ─────────────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ function normalize(a: any): Appointment {
     proofOfPayment:   a.proof_of_payment,
     adminRemarks:     a.admin_remarks,
     addons:           a.addons ?? [],
+    assignedStaff: a.assigned_staff ?? a.assignedStaff ?? null, 
   };
 }
 
