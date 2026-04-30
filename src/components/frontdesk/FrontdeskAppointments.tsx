@@ -280,7 +280,7 @@ function PendingRequestsPanel({ requests, onApprove, onReject, processingAction 
               <div>
                 <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Proof of Payment</p>
                 <a
-                  href={`${import.meta.env.VITE_API_BASE_URL}${a.proofUrl}`}
+                  href={a.proofUrl?.startsWith('http') ? a.proofUrl : `${import.meta.env.VITE_API_BASE_URL}${a.proofUrl}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-2 text-sm font-medium text-sky-400 hover:text-sky-300 border border-sky-500/20 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
@@ -815,7 +815,7 @@ function DetailModal({ appt, onClose, onStatusChange }: {
           {appt.proofUrl && (
             <div className="mt-3">
               <a
-                href={`${import.meta.env.VITE_API_BASE_URL}${appt.proofUrl}`}
+                href={appt.proofUrl?.startsWith('http') ? appt.proofUrl : `${import.meta.env.VITE_API_BASE_URL}${appt.proofUrl}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 border border-sky-500/20 bg-sky-500/10 px-3 py-1.5 rounded-lg transition-colors"
