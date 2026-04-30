@@ -150,10 +150,19 @@ export function CustomerServiceHistory() {
     try {
       // ✅ Only fetches THIS customer's appointments — not all appointments
       const appts = await getCustomerAppointments(profile.customerId).catch(() => []);
+      
+      console.log("Sample appointment:", JSON.stringify(appts[0]));
 
       const history: ServiceRecord[] = appts
         .filter((a: any) => a.status === "Completed" || a.status === "Cancelled")
         .map((a: any) => {
+
+          console.log("technician fields:", {
+      employees: a.employees?.name,
+      assigned_staff: a.assigned_staff,
+      technician: a.technician,
+    });
+
           const raw = a.scheduled_date || a.date;
           const d   = new Date(raw);
           // ✅ UTC getters — consistent with all other components
@@ -168,8 +177,8 @@ export function CustomerServiceHistory() {
             vehicle:    a.customer?.vehicle ?? a.customers?.vehicle ?? a.vehicle ?? "Vehicle",
             plate:      a.customer?.plate   ?? a.customers?.plate   ?? a.plate   ?? "",
             date:       dateStr,
-            amount:     Number(a.total_cost ?? a.amount ?? 0),
-            technician: a.employees?.name   ?? a.technician ?? "Staff",
+            amount: Number(a.total_cost ?? a.totalAmount ?? a.deposit ?? a.total ?? 0),
+            technician: a.assignedStaff ?? a.assigned_staff ?? a.employees?.name ?? a.technician ?? "—",
             status:     (a.status === "Completed" ? "Completed" : "Cancelled") as "Completed" | "Cancelled",
             notes:      a.notes    ?? "",
             duration:   a.duration ?? "—",
@@ -227,7 +236,7 @@ export function CustomerServiceHistory() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           { icon: <CheckCircle className="w-4 h-4" />, label: "Services Done",     value: isLoading ? "..." : completedCount,                    iconBg: "bg-green-500/10",  iconColor: "text-green-400"  },
-          { icon: <Banknote    className="w-4 h-4" />, label: "Total Spent",       value: isLoading ? "..." : `₱${Math.round(totalSpent/1000)}K`, iconBg: "bg-[#E41E6A]/10",  iconColor: "text-[#E41E6A]"  },
+          { icon: <Banknote className="w-4 h-4" />, label: "Total Spent", value: isLoading ? "..." : `₱${totalSpent.toLocaleString()}`, iconBg: "bg-[#E41E6A]/10",  iconColor: "text-[#E41E6A]"  },
           { icon: <Car         className="w-4 h-4" />, label: "Vehicles Serviced", value: isLoading ? "..." : vehiclesServiced,                   iconBg: "bg-sky-500/10",    iconColor: "text-sky-400"    },
         ].map((s, i) => (
           <Card key={i} className="bg-gradient-to-br from-white/5 to-white/10 border-white/10 backdrop-blur" style={{ borderRadius: "12px" }}>
