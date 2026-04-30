@@ -216,20 +216,19 @@ export function CustomerPayments() {
         const d = new Date(raw);
         const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 
-        const service = a.service_type ?? a.service ?? "Service";
-        const vehicle =
-          a.customer?.vehicle ??
-          a.customers?.vehicle ??
-          a.vehicle ??
-          [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") ??
-          "Vehicle";
+       const service = a.service ?? a.service_type ?? "Service";
+       const vehicle =
+       a.vehicle ??
+      ([a.vehicleMake, a.vehicleModel, a.vehicleClass].filter(Boolean).join(" ") ||
+      [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") ||
+      "Vehicle");
 
-        const total = Number(a.total_cost ?? a.totalAmount ?? a.amount ?? 0);
+        const total   = Number(a.totalAmount ?? a.total_cost ?? a.amount ?? 0);
         const deposit = Number(a.deposit ?? a.deposit_amount ?? 0);
-        const balance = Math.max(total - deposit, 0);
+        const balance = Number(a.remainingBalance ?? a.remaining_balance ?? Math.max(total - deposit, 0));
         const status = derivePaymentStatus(a.status ?? "Pending", balance);
-        const method = a.payment_method ?? "—";
-        const paymentType = a.payment_type ?? "—";
+        const method = a.paymentMethod ?? a.payment_method ?? "—";
+        const paymentType = a.paymentType ?? a.payment_type ?? "—";
 
         return {
           id: a.id,
@@ -295,7 +294,7 @@ export function CustomerPayments() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: <CheckCircle className="w-4 h-4" />, label: "Total Paid", value: isLoading ? "..." : `₱${Math.round(totalPaid/1000)}K`, iconBg: "bg-green-500/10", iconColor: "text-green-400" },
+          { icon: <CheckCircle className="w-4 h-4" />, label: "Total Paid", value: isLoading ? "..." : `₱${totalPaid.toLocaleString()}`, iconBg: "bg-green-500/10", iconColor: "text-green-400" },
           { icon: <Banknote className="w-4 h-4" />, label: "Total Deposits", value: isLoading ? "..." : `₱${totalDeposits.toLocaleString()}`, iconBg: "bg-sky-500/10", iconColor: "text-sky-400" },
           { icon: <AlertCircle className="w-4 h-4" />, label: "Outstanding", value: isLoading ? "..." : `₱${outstanding.toLocaleString()}`, iconBg: outstanding > 0 ? "bg-yellow-500/10" : "bg-white/5", iconColor: outstanding > 0 ? "text-yellow-400" : "text-white/40" },
           { icon: <Clock className="w-4 h-4" />, label: "Pending", value: isLoading ? "..." : `${pendingCount} item${pendingCount !== 1 ? "s" : ""}`, iconBg: "bg-[#E41E6A]/10", iconColor: "text-[#E41E6A]" },
