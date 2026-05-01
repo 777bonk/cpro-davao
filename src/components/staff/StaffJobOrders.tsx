@@ -3,7 +3,7 @@ import {
   Search, ClipboardList, ChevronDown, SlidersHorizontal,
   Car, User, Calendar, Clock, Shield, Layers, Sparkles,
   Wrench, X, CheckCircle, PlayCircle, XCircle, Eye,
-  FileText,
+  FileText, Hash, Package,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../dashboard-ui/card";
 import { useAuth } from "../../hooks/useAuth";
@@ -14,15 +14,16 @@ import { getAppointments, updateAppointmentStatus } from "../../services/appoint
 type JobStatus = "Pending" | "Scheduled" | "Confirmed" | "In Progress" | "Completed" | "Cancelled";
 
 interface Job {
-  id: string | number;
-  service: string;
+  id:       string | number;
+  orderNo:  string;
+  service:  string;
   customer: string;
-  vehicle: string;
-  date: string;
-  time: string;
-  notes: string;
-  status: JobStatus;
-  source: "appointment" | "job_order";
+  vehicle:  string;
+  date:     string;
+  time:     string;
+  notes:    string;
+  status:   JobStatus;
+  source:   "appointment" | "job_order";
 }
 
 // ─── STATUS CONFIG ─────────────────────────────────────────────────────────────
@@ -64,10 +65,11 @@ const inputClass = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-l
 
 // ─── DETAIL MODAL ─────────────────────────────────────────────────────────────
 
-function JobDetailModal({ job, onClose, onUpdateStatus }: {
+function JobDetailModal({ job, onClose, onUpdateStatus, onRequestParts }: {
   job:            Job;
   onClose:        () => void;
   onUpdateStatus: (id: string | number, status: JobStatus) => Promise<void>;
+  onRequestParts: (orderNo: string) => void;
 }) {
   const [status,   setStatus]   = useState<JobStatus>(job.status);
   const [isSaving, setIsSaving] = useState(false);
@@ -119,6 +121,28 @@ function JobDetailModal({ job, onClose, onUpdateStatus }: {
           <Row icon={<Clock    className="w-4 h-4" />} label="Time"     value={job.time} />
           {job.notes && <Row icon={<FileText className="w-4 h-4" />} label="Notes" value={job.notes} />}
 
+          {/* Job Reference + Request Parts Button */}
+          {job.orderNo && (
+            <div className="p-3 bg-white/5 rounded-lg border border-white/10 flex items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 text-[#E41E6A] flex-shrink-0">
+                  <Hash className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-white/50 text-xs">Job Reference</p>
+                  <p className="text-white text-sm font-medium mt-0.5">{job.orderNo}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { onRequestParts(job.orderNo); onClose(); }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-violet-400 hover:text-violet-300 border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              >
+                <Package className="w-3.5 h-3.5" />Request Parts
+              </button>
+            </div>
+          )}
+
+          {/* Update Status */}
           <div className="pt-2">
             <p className="text-white/50 text-xs font-medium mb-2">Update Status</p>
             <div className="flex gap-2 mb-3">
@@ -185,7 +209,7 @@ function JobDetailModal({ job, onClose, onUpdateStatus }: {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
-export function StaffJobOrders() {
+export function StaffJobOrders({ onNavigate }: { onNavigate?: (s: string) => void }) {
   const { profile } = useAuth();
   const [jobs,         setJobs]         = useState<Job[]>([]);
   const [isLoading,    setIsLoading]    = useState(true);
@@ -202,23 +226,18 @@ export function StaffJobOrders() {
     try {
       const staffName = (profile?.full_name ?? "").trim().toLowerCase();
 
-      // ── Fetch job orders with debug ───────────────────────────────────────
       const jobOrdersRaw = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/job-orders`,
-         { cache: "no-store", headers: { "Cache-Control": "no-cache" } }
-);
+        { cache: "no-store", headers: { "Cache-Control": "no-cache" } }
+      );
 
-      console.log("Job orders status:", jobOrdersRaw.status);
       const jobOrdersRes = jobOrdersRaw.ok
         ? await jobOrdersRaw.json()
         : { data: [] };
-      console.log("Job orders raw response:", JSON.stringify(jobOrdersRes));
-      console.log("Staff name:", profile?.full_name);
 
-      // ── Fetch appointments ────────────────────────────────────────────────
       const appts = await getAppointments().catch(() => []);
 
-      // ── Appointments assigned to this staff ───────────────────────────────
+      // Appointments assigned to this staff
       const myApptJobs: Job[] = (Array.isArray(appts) ? appts : [])
         .filter((a: any) => {
           const assignedTo = (
@@ -236,6 +255,7 @@ export function StaffJobOrders() {
           const d = new Date(a.date || a.scheduled_date);
           return {
             id:       a.id,
+            orderNo:  "",
             service:  a.service_type ?? a.service ?? "Service",
             customer: a.customers?.name ?? a.full_name ?? a.customer ?? "Customer",
             vehicle:  [a.vehicle_make, a.vehicle_model, a.vehicle_class]
@@ -251,7 +271,7 @@ export function StaffJobOrders() {
           };
         });
 
-      // ── Job orders assigned to this staff ─────────────────────────────────
+      // Job orders assigned to this staff
       const myJobOrders: Job[] = (jobOrdersRes.data ?? [])
         .filter((j: any) => {
           if (!staffName) return false;
@@ -263,6 +283,7 @@ export function StaffJobOrders() {
         })
         .map((j: any) => ({
           id:       j.id,
+          orderNo:  j.order_no ?? "",
           service:  j.service  ?? "Service",
           customer: j.customer ?? "Customer",
           vehicle:  j.vehicle  ?? "Vehicle",
@@ -300,6 +321,11 @@ export function StaffJobOrders() {
     } catch (err) {
       console.error("Update status error:", err);
     }
+  };
+
+  const handleRequestParts = (orderNo: string) => {
+    localStorage.setItem("prefilled_job_ref", orderNo);
+    onNavigate?.("parts");
   };
 
   const filtered = useMemo(() =>
@@ -401,7 +427,14 @@ export function StaffJobOrders() {
                     {serviceIcon(job.service)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-semibold truncate">{job.service}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-white text-sm font-semibold truncate">{job.service}</p>
+                      {job.orderNo && (
+                        <span className="text-[10px] font-mono text-white/30 flex-shrink-0">
+                          {job.orderNo}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2 mt-0.5">
                       <span className="text-xs text-white/50 flex items-center gap-1">
                         <User className="w-3 h-3" />{job.customer}
@@ -432,6 +465,7 @@ export function StaffJobOrders() {
           job={viewJob}
           onClose={() => setViewJob(null)}
           onUpdateStatus={handleUpdateStatus}
+          onRequestParts={handleRequestParts}
         />
       )}
     </div>
