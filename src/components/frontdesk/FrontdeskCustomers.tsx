@@ -265,31 +265,74 @@ export function FrontDeskCustomers() {
     fetchCustomers();
   }, []);
 
-    const fetchCustomers = async () => {
-    setIsLoading(true);
-    try {
-      const data = await getCustomers();
-      const mapped: Customer[] = data.map((c) => ({
+ const fetchCustomers = async () => {
+  setIsLoading(true);
+  try {
+    const [data, allAppts] = await Promise.all([
+      getCustomers(),
+      fetch(`${import.meta.env.VITE_API_BASE_URL}/appointments?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      }).then(r => r.ok ? r.json() : []).catch(() => []),
+    ]);
+
+    // Normalize appointments array
+    const appts = Array.isArray(allAppts) ? allAppts : (allAppts?.data ?? []);
+
+    const mapped: Customer[] = data.map((c) => {
+      // Find all appointments for this customer
+      const custAppts = appts.filter((a: any) =>
+        a.customer_id === c.id || a.customerId === c.id
+      );
+
+      // Calculate total spent from completed appointments
+      const totalSpent = custAppts
+        .filter((a: any) => a.status === "Completed")
+        .reduce((sum: number, a: any) => sum + Number(a.total_cost ?? a.totalAmount ?? 0), 0);
+
+      // Get last completed service
+      const lastCompleted = custAppts
+        .filter((a: any) => a.status === "Completed")
+        .sort((a: any, b: any) =>
+          new Date(b.scheduled_date ?? b.date).getTime() -
+          new Date(a.scheduled_date ?? a.date).getTime()
+        )[0];
+
+      const lastService = lastCompleted
+        ? `${lastCompleted.service_type ?? lastCompleted.service ?? "Service"} — ${
+            new Date(lastCompleted.scheduled_date ?? lastCompleted.date)
+              .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          }`
+        : "N/A";
+
+      // Total visits = all non-cancelled appointments
+      const totalVisits = custAppts.filter((a: any) =>
+        a.status !== "Cancelled" && a.status !== "Rejected"
+      ).length;
+
+      return {
         id:           c.id,
         name:         c.name,
-        contact:      c.contact      ?? "",
-        email:        c.email        ?? "",
-        vehicle:      c.vehicle      ?? "",
-        lastService:  c.last_service ?? "N/A",
-        totalSpent:   Number(c.total_spent) || 0,
-        totalVisits:  0,
+        contact:      c.contact ?? "",
+        email:        c.email   ?? "",
+        vehicle:      c.vehicle ?? "",
+        lastService,
+        totalSpent,
+        totalVisits,
         status:       (c.status ?? "Active") as CustomerStatus,
         registeredAt: c.created_at
           ? c.created_at.split("T")[0]
           : new Date().toISOString().split("T")[0],
-      }));
-      setCustomers(mapped);
-    } catch (err) {
-      console.error("Failed to load customers:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      };
+    });
+
+    setCustomers(mapped);
+  } catch (err) {
+    console.error("Failed to load customers:", err);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ─── COMPUTED DATA ───
   const totalCustomers  = customers.length;
