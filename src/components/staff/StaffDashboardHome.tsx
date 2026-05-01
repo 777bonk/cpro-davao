@@ -55,46 +55,89 @@ export function StaffDashboardHome({ onNavigate }: { onNavigate?: (s: string) =>
   const firstName = profile?.full_name?.split(" ")[0] ?? "Staff";
   const fullName  = profile?.full_name ?? "Staff";
 
-  useEffect(() => { fetchData(); }, [profile]);
+  useEffect(() => {
+  if (profile?.full_name) fetchData();
+}, [profile?.full_name]);
 
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      const [appts, inventory] = await Promise.all([
-        getAppointments().catch(() => []),
-        getInventory().catch(()    => []),
-      ]);
+const fetchData = async () => {
+  setIsLoading(true);
+  try {
+    const staffName = (profile?.full_name ?? "").trim().toLowerCase();
 
-      const now       = new Date();
-      const todayStr  = now.toDateString();
+    const [appts, jobOrdersRaw, inventory] = await Promise.all([
+      getAppointments().catch(() => []),
+      fetch(`${import.meta.env.VITE_API_BASE_URL}/job-orders`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })),
+      getInventory().catch(() => []),
+    ]);
 
-      // Filter jobs assigned to this staff member (match by name or employee id)
-      const myJobs = appts.filter((a: any) => {
-        const assignedTo = a.employees?.name ?? a.technician ?? a.assigned_staff ?? "";
-        return assignedTo.toLowerCase().includes((profile?.full_name ?? "").toLowerCase()) ||
-               a.employee_id === profile?.id;
-      });
+    const now      = new Date();
+    const todayStr = now.toDateString();
 
-      const active = myJobs.filter((a: any) =>
-        a.status === "In Progress" || a.status === "Pending" || a.status === "Confirmed" || a.status === "Scheduled"
-      );
+    // ── Jobs from appointments ─────────────────────────────────────────────
+    const myApptJobs = (Array.isArray(appts) ? appts : []).filter((a: any) => {
+      const assignedTo = (
+        a.employees?.name ?? a.technician ?? a.assigned_staff ?? ""
+      ).toLowerCase();
+      return assignedTo.includes(staffName) || a.employee_id === profile?.id;
+    });
 
-      const doneToday = myJobs.filter((a: any) => {
-        const d = new Date(a.date || a.scheduled_date);
-        return a.status === "Completed" && d.toDateString() === todayStr;
-      });
+    // ── Jobs from job orders ───────────────────────────────────────────────
+    const myJobOrders = (jobOrdersRaw.data ?? []).filter((j: any) => {
+      if (!staffName) return false;
+      const assigned = (j.assigned_staff ?? "").toLowerCase();
+      return assigned
+        .split(",")
+        .map((s: string) => s.trim())
+        .some((s: string) => s.includes(staffName) || staffName.includes(s));
+    });
 
-      setActiveJobs(active.slice(0, 3));
-      setTotalAssigned(myJobs.length);
-      setCompletedToday(doneToday.length);
-      setLowStockCount(inventory.filter((i: any) => i.stock <= i.reorderLevel).length);
+    // ── Combine both sources ───────────────────────────────────────────────
+    const allMyJobs = [
+      ...myApptJobs.map((a: any) => ({
+        id:         a.id,
+        service:    a.service_type ?? a.service ?? "Service",
+        customer:   a.customers?.name ?? a.full_name ?? a.customer ?? "Customer",
+        vehicle:    [a.vehicle_make, a.vehicle_model, a.vehicle_class].filter(Boolean).join(" ") || a.customers?.vehicle || a.vehicle || "Vehicle",
+        date:       a.date || a.scheduled_date || "",
+        status:     a.status ?? "Pending",
+        source:     "appointment",
+      })),
+      ...myJobOrders.map((j: any) => ({
+        id:         j.id,
+        service:    j.service  ?? "Service",
+        customer:   j.customer ?? "Customer",
+        vehicle:    j.vehicle  ?? "Vehicle",
+        date:       j.scheduled_date ?? "",
+        status:     j.status ?? "Pending",
+        source:     "job_order",
+      })),
+    ];
 
-    } catch (err) {
-      console.error("StaffDashboardHome fetch error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // ── Active jobs (In Progress, Pending, Confirmed, Scheduled) ──────────
+    const active = allMyJobs.filter(j =>
+      ["In Progress", "Pending", "Confirmed", "Scheduled"].includes(j.status)
+    );
+
+    // ── Completed today ────────────────────────────────────────────────────
+    const doneToday = allMyJobs.filter(j => {
+      const d = new Date(j.date);
+      return j.status === "Completed" && d.toDateString() === todayStr;
+    });
+
+    setActiveJobs(active.slice(0, 3));
+    setTotalAssigned(allMyJobs.length);
+    setCompletedToday(doneToday.length);
+    setLowStockCount(inventory.filter((i: any) => i.stock <= i.reorderLevel).length);
+
+  } catch (err) {
+    console.error("StaffDashboardHome fetch error:", err);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const loading = isLoading || profileLoading;
 
@@ -166,9 +209,9 @@ export function StaffDashboardHome({ onNavigate }: { onNavigate?: (s: string) =>
           ) : (
             <div className="space-y-3">
               {activeJobs.map((job: any) => {
-                const svc     = job.service_type ?? job.service ?? "Service";
-                const vehicle = job.customers?.vehicle ?? job.vehicle ?? "Vehicle";
-                const customer = job.customers?.name  ?? job.customer ?? "Customer";
+                const svc      = job.service  ?? "Service";
+                const vehicle  = job.vehicle  ?? "Vehicle";
+                const customer = job.customer ?? "Customer";
                 const date    = new Date(job.date || job.scheduled_date);
                 const statusKey = job.status ?? "Pending";
                 const s = STATUS_STYLE[statusKey] ?? STATUS_STYLE["Pending"];
