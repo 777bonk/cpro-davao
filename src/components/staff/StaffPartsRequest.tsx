@@ -36,8 +36,6 @@ const STATUS_STYLE: Record<RequestStatus, { bg: string; text: string; dot: strin
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-const API_URL = import.meta.env.VITE_API_URL;
-
 const inputClass = "w-full px-4 h-10 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/25 focus:outline-none focus:border-[#E41E6A] focus:ring-1 focus:ring-[#E41E6A]/30 transition-colors text-sm";
 
 function categoryIcon(cat: string) {
@@ -228,7 +226,7 @@ export function StaffPartsRequest() {
       const staffId = profile?.id;
       const [inv, reqs] = await Promise.all([
         getInventory().catch(() => []),
-        fetch(`${API_URL}/part-requests${staffId ? `?staffId=${staffId}` : ""}`)
+        fetch(`${import.meta.env.VITE_API_BASE_URL}/part-requests${staffId ? `?staffId=${staffId}` : ""}`)
           .then(r => r.json())
           .catch(() => []),
       ]);
@@ -261,7 +259,7 @@ export function StaffPartsRequest() {
     const item = inventory.find(i => String(i.id) === String(data.itemId));
     if (!item) return;
 
-    const res = await fetch(`${API_URL}/part-requests`, {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/part-requests`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
