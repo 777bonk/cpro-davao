@@ -34,53 +34,79 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile,   setProfile]   = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = async (supabaseUser: User) => {
-    try {
-      const API = import.meta.env.VITE_API_BASE_URL;
+const fetchProfile = async (supabaseUser: User) => {
+  try {
+    const API = import.meta.env.VITE_API_BASE_URL;
 
-      // Fetch profile first to get role
-      const profileRes  = await fetch(`${API}/profiles/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
-      const profileData = profileRes.ok ? await profileRes.json() : null;
-      const role        = profileData?.role ?? 'customer';
+    // Fetch profile first to get role
+    const profileRes  = await fetch(`${API}/profiles/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
+    const profileData = profileRes.ok ? await profileRes.json() : null;
+    const role        = profileData?.role ?? 'customer';
 
-      // Only fetch customer data if role is customer
-      let customerData = null;
-      if (role === 'customer') {
-        const res = await fetch(`${API}/customers/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
-        if (res.ok) {
-          const text = await res.text();
-          customerData = text ? JSON.parse(text) : null;
-        }
+    // Only fetch/create customer data if role is customer
+    let customerData = null;
+    if (role === 'customer') {
+      // Try to find existing customer record
+      const res = await fetch(`${API}/customers/by-email/${encodeURIComponent(supabaseUser.email ?? '')}`);
+      if (res.ok) {
+        const text = await res.text();
+        customerData = text ? JSON.parse(text) : null;
       }
 
-      localStorage.setItem("supabase_profile_role", role);
+      // ── AUTO-CREATE customer record if it doesn't exist ──────────────────
+      if (!customerData || !customerData.id) {
+        const fullName =
+          profileData?.full_name ??
+          supabaseUser.user_metadata?.full_name ??
+          supabaseUser.user_metadata?.name ??
+          supabaseUser.email?.split('@')[0] ??
+          'Customer';
 
-      setProfile({
-        id:         supabaseUser.id,
-        customerId: customerData?.id ?? supabaseUser.id,
-        full_name:  profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
-        name:       profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
-        role,
-        avatar_url: profileData?.avatar_url ?? null,
-        email:      supabaseUser.email ?? '',
-        provider:   supabaseUser.app_metadata?.provider ?? '',
-        created_at: supabaseUser.created_at,
-      });
-    } catch (err) {
-      console.error('fetchProfile threw:', err);
-      setProfile({
-        id:         supabaseUser.id,
-        customerId: supabaseUser.id,
-        full_name:  supabaseUser.user_metadata?.full_name ?? '',
-        name:       supabaseUser.user_metadata?.full_name ?? '',
-        role:       'customer',
-        avatar_url: null,
-        email:      supabaseUser.email ?? '',
-        provider:   supabaseUser.app_metadata?.provider ?? '',
-        created_at: supabaseUser.created_at,
-      });
+        const createRes = await fetch(`${API}/customers`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name:   fullName,
+            email:  supabaseUser.email,
+            status: 'Active',
+          }),
+        });
+
+        if (createRes.ok) {
+          customerData = await createRes.json();
+          console.log('Auto-created customer record:', customerData.id);
+        }
+      }
     }
-  };
+
+    localStorage.setItem("supabase_profile_role", role);
+
+    setProfile({
+      id:         supabaseUser.id,
+      customerId: customerData?.id ?? supabaseUser.id,
+      full_name:  profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
+      name:       profileData?.full_name ?? supabaseUser.user_metadata?.full_name ?? '',
+      role,
+      avatar_url: profileData?.avatar_url ?? null,
+      email:      supabaseUser.email ?? '',
+      provider:   supabaseUser.app_metadata?.provider ?? '',
+      created_at: supabaseUser.created_at,
+    });
+  } catch (err) {
+    console.error('fetchProfile threw:', err);
+    setProfile({
+      id:         supabaseUser.id,
+      customerId: supabaseUser.id,
+      full_name:  supabaseUser.user_metadata?.full_name ?? '',
+      name:       supabaseUser.user_metadata?.full_name ?? '',
+      role:       'customer',
+      avatar_url: null,
+      email:      supabaseUser.email ?? '',
+      provider:   supabaseUser.app_metadata?.provider ?? '',
+      created_at: supabaseUser.created_at,
+    });
+  }
+};
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
